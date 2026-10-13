@@ -108,7 +108,8 @@
       line-height: 1.4;
     }
 
-    #authStatus {
+    #authStatus,
+    #pairingStatus {
       text-align: center;
       color: #94a3b8;
       font-size: 14px;
@@ -251,6 +252,7 @@
   </div>
 
   <div id="authStatus"></div>
+  <div id="pairingStatus"></div>
 
 </main>
 
@@ -305,6 +307,7 @@ let peerConnection = null;
 let role = null;
 let remoteDescriptionReady = false;
 let pendingCandidates = [];
+let pairedPartnerUid = localStorage.getItem("reachPairedPartnerUid");
 
 
 const createButton =
@@ -318,6 +321,9 @@ const status =
 
 const authStatus =
   document.getElementById("authStatus");
+
+const pairingStatus =
+  document.getElementById("pairingStatus");
 
 const mediaStatus =
   document.getElementById("mediaStatus");
@@ -362,6 +368,23 @@ remoteVideo.addEventListener("click", async () => {
 });
 
 
+function updatePairingStatus() {
+  pairingStatus.textContent = pairedPartnerUid
+    ? "❤️ Paired partner remembered on this device"
+    : "No partner paired on this device yet.";
+}
+
+function rememberPartner(uid) {
+  if (!uid || uid === currentUser?.uid) return;
+
+  if (!pairedPartnerUid) {
+    pairedPartnerUid = uid;
+    localStorage.setItem("reachPairedPartnerUid", uid);
+  }
+
+  updatePairingStatus();
+}
+
 function setReady() {
   createButton.disabled = false;
   joinButton.disabled = false;
@@ -370,6 +393,7 @@ function setReady() {
   joinButton.textContent = "Join room";
 
   status.textContent = "🔒 Secure connection ready";
+  updatePairingStatus();
 }
 
 
@@ -672,6 +696,7 @@ function watchRoom(code) {
           role === "host" &&
           room.partnerUid
         ) {
+          rememberPartner(room.partnerUid);
           status.innerHTML =
             '<span class="heart">❤️</span> Partner connected to room ' +
             code;
@@ -827,6 +852,8 @@ window.joinRoom = async function () {
 
     const room =
       snapshot.data();
+
+    rememberPartner(room.hostUid);
 
     if (!room.active) {
       status.textContent =
