@@ -6,9 +6,7 @@
   <title>REACH</title>
 
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -68,9 +66,7 @@
       cursor: pointer;
     }
 
-    button:disabled {
-      opacity: 0.55;
-    }
+    button:disabled { opacity: 0.55; }
 
     input {
       width: 100%;
@@ -87,9 +83,7 @@
       outline: none;
     }
 
-    input::placeholder {
-      color: #a3a3a3;
-    }
+    input::placeholder { color: #a3a3a3; }
 
     #roomCode {
       text-align: center;
@@ -102,7 +96,8 @@
     }
 
     #status,
-    #mediaStatus {
+    #mediaStatus,
+    #connectionStatus {
       background: #172033;
       border-radius: 20px;
       padding: 20px;
@@ -120,18 +115,34 @@
       margin-top: 20px;
     }
 
-    .heart {
-      color: #ef4444;
+    .heart { color: #ef4444; }
+
+    video {
+      width: 100%;
+      border-radius: 20px;
+      background: #020617;
+      object-fit: cover;
+      aspect-ratio: 3 / 4;
     }
 
     #localVideo {
       display: none;
-      width: 100%;
       margin-top: 22px;
-      border-radius: 20px;
-      background: #020617;
-      aspect-ratio: 3 / 4;
-      object-fit: cover;
+    }
+
+    #remoteVideo {
+      margin-top: 10px;
+    }
+
+    .videoLabel {
+      color: #a5b4fc;
+      font-size: 15px;
+      margin: 20px 0 8px;
+      font-weight: 700;
+    }
+
+    #remoteCard {
+      display: none;
     }
 
     .cameraButton {
@@ -141,385 +152,713 @@
 </head>
 
 <body>
-  <main>
-    <h1>REACH</h1>
-    <div class="tagline">Making love not feel so distant.</div>
+<main>
 
-    <section class="card">
-      <h2>Start a connection</h2>
-      <p>Create a temporary room and send the code to your partner.</p>
+  <h1>REACH</h1>
+  <div class="tagline">Making love not feel so distant.</div>
 
-      <button id="createButton" onclick="createRoom()" disabled>
-        Connecting securely...
-      </button>
+  <section class="card">
+    <h2>Start a connection</h2>
+    <p>Create a temporary room and send the code to your partner.</p>
 
-      <div id="roomCode">------</div>
-    </section>
+    <button id="createButton" onclick="createRoom()" disabled>
+      Connecting securely...
+    </button>
 
-    <section class="card">
-      <h2>Join your partner</h2>
+    <div id="roomCode">------</div>
+  </section>
 
-      <input
-        id="joinCode"
-        maxlength="6"
-        placeholder="ROOM CODE"
-        autocomplete="off"
-      >
+  <section class="card">
+    <h2>Join your partner</h2>
 
-      <button id="joinButton" onclick="joinRoom()" disabled>
-        Connecting securely...
-      </button>
-    </section>
+    <input
+      id="joinCode"
+      maxlength="6"
+      placeholder="ROOM CODE"
+      autocomplete="off"
+    >
 
-    <section class="card">
-      <h2>Camera & microphone</h2>
+    <button id="joinButton" onclick="joinRoom()" disabled>
+      Connecting securely...
+    </button>
+  </section>
 
-      <p>
-        Turn on your camera and microphone for this connection.
-        Your browser will ask for permission.
-      </p>
+  <section class="card">
+    <h2>Camera & microphone</h2>
 
-      <button
-        id="mediaButton"
-        class="cameraButton"
-        onclick="enableMedia()"
-      >
-        Enable camera & microphone
-      </button>
+    <p>
+      Turn on your camera and microphone before starting
+      or joining a video connection.
+    </p>
 
-      <video
-        id="localVideo"
-        autoplay
-        muted
-        playsinline
-      ></video>
+    <button
+      id="mediaButton"
+      class="cameraButton"
+      onclick="enableMedia()"
+    >
+      Enable camera & microphone
+    </button>
 
-      <div id="mediaStatus">
-        Camera and microphone are off.
-      </div>
-    </section>
+    <video
+      id="localVideo"
+      autoplay
+      muted
+      playsinline
+    ></video>
 
-    <div id="status">
-      Preparing secure connection...
+    <div id="mediaStatus">
+      Camera and microphone are off.
     </div>
+  </section>
 
-    <div id="authStatus"></div>
-  </main>
+  <section class="card" id="remoteCard">
+    <h2>Partner</h2>
 
-  <script type="module">
-    import { initializeApp } from
-      "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
+    <div class="videoLabel">LIVE CONNECTION</div>
 
-    import {
-      getAuth,
-      signInAnonymously,
-      onAuthStateChanged
-    } from
-      "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
+    <video
+      id="remoteVideo"
+      autoplay
+      playsinline
+    ></video>
 
-    import {
-      getFirestore,
-      doc,
-      setDoc,
-      getDoc,
-      updateDoc,
-      onSnapshot,
-      serverTimestamp
-    } from
-      "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+    <div id="connectionStatus">
+      Waiting for partner video...
+    </div>
+  </section>
 
+  <div id="status">
+    Preparing secure connection...
+  </div>
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyCz2DVsAyjUWiKLxChzPWhPO5Dg4BaddEM",
-      authDomain: "reach-prototype-d70ef.firebaseapp.com",
-      projectId: "reach-prototype-d70ef",
-      storageBucket: "reach-prototype-d70ef.firebasestorage.app",
-      messagingSenderId: "250530646851",
-      appId: "1:250530646851:web:a2087cbf72cde0ffa5fdf6"
-    };
+  <div id="authStatus"></div>
 
+</main>
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
+<script type="module">
 
-    let currentUser = null;
-    let activeRoom = null;
-    let unsubscribeRoom = null;
-    let localStream = null;
+import { initializeApp } from
+  "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
 
-    const createButton =
-      document.getElementById("createButton");
+import {
+  getAuth,
+  signInAnonymously,
+  onAuthStateChanged
+} from
+  "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
 
-    const joinButton =
-      document.getElementById("joinButton");
-
-    const status =
-      document.getElementById("status");
-
-    const authStatus =
-      document.getElementById("authStatus");
-
-    const mediaStatus =
-      document.getElementById("mediaStatus");
-
-    const mediaButton =
-      document.getElementById("mediaButton");
-
-    const localVideo =
-      document.getElementById("localVideo");
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  onSnapshot,
+  serverTimestamp,
+  collection,
+  addDoc
+} from
+  "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
 
 
-    function setReady() {
-      createButton.disabled = false;
-      joinButton.disabled = false;
-
-      createButton.textContent = "Create room";
-      joinButton.textContent = "Join room";
-
-      status.textContent =
-        "🔒 Secure connection ready";
-    }
+const firebaseConfig = {
+  apiKey: "AIzaSyCz2DVsAyjUWiKLxChzPWhPO5Dg4BaddEM",
+  authDomain: "reach-prototype-d70ef.firebaseapp.com",
+  projectId: "reach-prototype-d70ef",
+  storageBucket: "reach-prototype-d70ef.firebasestorage.app",
+  messagingSenderId: "250530646851",
+  appId: "1:250530646851:web:a2087cbf72cde0ffa5fdf6"
+};
 
 
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        currentUser = user;
-        setReady();
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-        authStatus.textContent =
-          "Authenticated device • " +
-          user.uid.substring(0, 8);
-      }
-    });
+let currentUser = null;
+let activeRoom = null;
+let unsubscribeRoom = null;
 
+let localStream = null;
+let remoteStream = null;
+let peerConnection = null;
 
-    signInAnonymously(auth).catch((error) => {
-      console.error(error);
-
-      status.textContent =
-        "⚠️ Could not authenticate this device.";
-    });
+let role = null;
+let remoteDescriptionReady = false;
+let pendingCandidates = [];
 
 
-    function makeRoomCode() {
-      const chars =
-        "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const createButton =
+  document.getElementById("createButton");
 
-      let code = "";
+const joinButton =
+  document.getElementById("joinButton");
 
-      for (let i = 0; i < 6; i++) {
-        code += chars.charAt(
-          Math.floor(Math.random() * chars.length)
-        );
-      }
+const status =
+  document.getElementById("status");
 
-      return code;
-    }
+const authStatus =
+  document.getElementById("authStatus");
+
+const mediaStatus =
+  document.getElementById("mediaStatus");
+
+const mediaButton =
+  document.getElementById("mediaButton");
+
+const localVideo =
+  document.getElementById("localVideo");
+
+const remoteVideo =
+  document.getElementById("remoteVideo");
+
+const remoteCard =
+  document.getElementById("remoteCard");
+
+const connectionStatus =
+  document.getElementById("connectionStatus");
 
 
-    function watchRoom(code) {
-      if (unsubscribeRoom) {
-        unsubscribeRoom();
-      }
+function setReady() {
+  createButton.disabled = false;
+  joinButton.disabled = false;
 
-      const roomRef =
-        doc(db, "rooms", code);
+  createButton.textContent = "Create room";
+  joinButton.textContent = "Join room";
 
-      unsubscribeRoom = onSnapshot(
-        roomRef,
+  status.textContent = "🔒 Secure connection ready";
+}
 
-        (snapshot) => {
-          if (!snapshot.exists()) return;
 
-          const room = snapshot.data();
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    currentUser = user;
+    setReady();
 
-          if (
-            room.partnerUid &&
-            currentUser &&
-            room.hostUid === currentUser.uid
-          ) {
-            status.innerHTML =
-              '<span class="heart">❤️</span> Partner connected to room ' +
-              code;
-          }
+    authStatus.textContent =
+      "Authenticated device • " +
+      user.uid.substring(0, 8);
+  }
+});
+
+
+signInAnonymously(auth).catch((error) => {
+  console.error(error);
+
+  status.textContent =
+    "⚠️ Could not authenticate this device.";
+});
+
+
+function makeRoomCode() {
+  const chars =
+    "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+  let code = "";
+
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(
+      Math.floor(Math.random() * chars.length)
+    );
+  }
+
+  return code;
+}
+
+
+window.enableMedia = async function () {
+
+  if (localStream) {
+    mediaStatus.textContent =
+      "📷 Camera ready • 🎙️ Microphone ready";
+    return;
+  }
+
+  try {
+    mediaButton.disabled = true;
+    mediaButton.textContent =
+      "Requesting permission...";
+
+    localStream =
+      await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "user"
         },
+        audio: true
+      });
 
-        (error) => {
-          console.error(error);
+    localVideo.srcObject = localStream;
+    localVideo.style.display = "block";
+
+    mediaButton.textContent =
+      "Camera & microphone enabled";
+
+    mediaStatus.textContent =
+      "📷 Camera ready • 🎙️ Microphone ready";
+
+  } catch (error) {
+
+    console.error(error);
+
+    mediaButton.disabled = false;
+    mediaButton.textContent =
+      "Enable camera & microphone";
+
+    mediaStatus.textContent =
+      "⚠️ Camera or microphone could not start.";
+  }
+};
+
+
+async function ensureMedia() {
+  if (!localStream) {
+    await window.enableMedia();
+  }
+
+  if (!localStream) {
+    throw new Error("Media unavailable");
+  }
+}
+
+
+function createPeerConnection(code) {
+
+  remoteDescriptionReady = false;
+  pendingCandidates = [];
+
+  peerConnection =
+    new RTCPeerConnection({
+      iceServers: [
+        {
+          urls: [
+            "stun:stun.l.google.com:19302",
+            "stun:stun1.l.google.com:19302"
+          ]
         }
+      ]
+    });
+
+
+  remoteStream = new MediaStream();
+
+  remoteVideo.srcObject = remoteStream;
+  remoteCard.style.display = "block";
+
+
+  localStream.getTracks().forEach((track) => {
+    peerConnection.addTrack(track, localStream);
+  });
+
+
+  peerConnection.ontrack = (event) => {
+
+    event.streams[0].getTracks().forEach((track) => {
+
+      const alreadyAdded =
+        remoteStream
+          .getTracks()
+          .some((existingTrack) =>
+            existingTrack.id === track.id
+          );
+
+      if (!alreadyAdded) {
+        remoteStream.addTrack(track);
+      }
+    });
+
+    connectionStatus.textContent =
+      "❤️ Partner video connected";
+  };
+
+
+  peerConnection.onconnectionstatechange = () => {
+
+    const state =
+      peerConnection.connectionState;
+
+    if (state === "connected") {
+      connectionStatus.textContent =
+        "❤️ Live connection established";
+    }
+
+    if (state === "connecting") {
+      connectionStatus.textContent =
+        "Connecting to partner...";
+    }
+
+    if (state === "failed") {
+      connectionStatus.textContent =
+        "⚠️ Connection failed";
+    }
+
+    if (state === "disconnected") {
+      connectionStatus.textContent =
+        "Partner connection interrupted.";
+    }
+  };
+
+
+  peerConnection.onicecandidate = async (event) => {
+
+    if (!event.candidate) return;
+
+    try {
+
+      const candidateData =
+        event.candidate.toJSON();
+
+      const candidateCollection =
+        role === "host"
+          ? "hostCandidates"
+          : "partnerCandidates";
+
+      await addDoc(
+        collection(
+          db,
+          "rooms",
+          code,
+          candidateCollection
+        ),
+        candidateData
+      );
+
+    } catch (error) {
+      console.error(
+        "Could not save ICE candidate:",
+        error
+      );
+    }
+  };
+}
+
+
+async function addRemoteCandidate(data) {
+
+  const candidate =
+    new RTCIceCandidate(data);
+
+  if (remoteDescriptionReady) {
+
+    try {
+      await peerConnection.addIceCandidate(candidate);
+    } catch (error) {
+      console.error(
+        "Could not add ICE candidate:",
+        error
       );
     }
 
-
-    window.createRoom = async function () {
-      if (!currentUser) {
-        status.textContent =
-          "Still authenticating. Try again in a moment.";
-        return;
-      }
-
-      const code = makeRoomCode();
-      const roomRef =
-        doc(db, "rooms", code);
-
-      try {
-        await setDoc(roomRef, {
-          hostUid: currentUser.uid,
-          partnerUid: null,
-          createdAt: serverTimestamp(),
-          active: true
-        });
-
-        activeRoom = code;
-
-        document
-          .getElementById("roomCode")
-          .textContent = code;
-
-        status.textContent =
-          "💜 Room created. Send " +
-          code +
-          " to your partner.";
-
-        watchRoom(code);
-
-      } catch (error) {
-        console.error(error);
-
-        status.textContent =
-          "⚠️ Could not create room.";
-      }
-    };
+  } else {
+    pendingCandidates.push(candidate);
+  }
+}
 
 
-    window.joinRoom = async function () {
-      if (!currentUser) {
-        status.textContent =
-          "Still authenticating. Try again in a moment.";
-        return;
-      }
+async function flushPendingCandidates() {
 
-      const input =
-        document.getElementById("joinCode");
+  for (const candidate of pendingCandidates) {
 
-      const code =
-        input.value.trim().toUpperCase();
+    try {
+      await peerConnection.addIceCandidate(candidate);
+    } catch (error) {
+      console.error(error);
+    }
+  }
 
-      if (code.length !== 6) {
-        status.textContent =
-          "Enter the 6-character room code.";
-        return;
-      }
+  pendingCandidates = [];
+}
 
-      const roomRef =
-        doc(db, "rooms", code);
 
-      try {
-        const snapshot =
-          await getDoc(roomRef);
+function listenForCandidates(code, collectionName) {
 
-        if (!snapshot.exists()) {
-          status.textContent =
-            "Room not found. Check the code.";
-          return;
+  const candidatesRef =
+    collection(
+      db,
+      "rooms",
+      code,
+      collectionName
+    );
+
+  onSnapshot(
+    candidatesRef,
+
+    (snapshot) => {
+
+      snapshot.docChanges().forEach((change) => {
+
+        if (change.type === "added") {
+          addRemoteCandidate(
+            change.doc.data()
+          );
         }
+      });
+    },
+
+    (error) => {
+      console.error(
+        "Candidate listener error:",
+        error
+      );
+    }
+  );
+}
+
+
+function watchRoom(code) {
+
+  if (unsubscribeRoom) {
+    unsubscribeRoom();
+  }
+
+  const roomRef =
+    doc(db, "rooms", code);
+
+  unsubscribeRoom =
+    onSnapshot(
+      roomRef,
+
+      async (snapshot) => {
+
+        if (!snapshot.exists()) return;
 
         const room =
           snapshot.data();
 
-        if (!room.active) {
-          status.textContent =
-            "That room is no longer active.";
-          return;
-        }
-
-        await updateDoc(roomRef, {
-          partnerUid: currentUser.uid,
-          partnerJoinedAt: serverTimestamp()
-        });
-
-        activeRoom = code;
-
-        status.innerHTML =
-          '<span class="heart">❤️</span> Partner connected to room ' +
-          code;
-
-        watchRoom(code);
-
-      } catch (error) {
-        console.error(error);
-
-        status.textContent =
-          "⚠️ Could not join room.";
-      }
-    };
-
-
-    window.enableMedia = async function () {
-
-      if (
-        !navigator.mediaDevices ||
-        !navigator.mediaDevices.getUserMedia
-      ) {
-        mediaStatus.textContent =
-          "⚠️ Camera access is not available in this browser.";
-        return;
-      }
-
-      if (localStream) {
-        mediaStatus.textContent =
-          "📷 Camera and microphone are already ready.";
-        return;
-      }
-
-      try {
-        mediaButton.disabled = true;
-        mediaButton.textContent =
-          "Requesting permission...";
-
-        localStream =
-          await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: "user"
-            },
-            audio: true
-          });
-
-        localVideo.srcObject =
-          localStream;
-
-        localVideo.style.display =
-          "block";
-
-        mediaButton.textContent =
-          "Camera & microphone enabled";
-
-        mediaStatus.textContent =
-          "📷 Camera ready • 🎙️ Microphone ready";
-
-      } catch (error) {
-        console.error(error);
-
-        localStream = null;
-
-        mediaButton.disabled = false;
-        mediaButton.textContent =
-          "Enable camera & microphone";
 
         if (
-          error.name === "NotAllowedError" ||
-          error.name === "PermissionDeniedError"
+          role === "host" &&
+          room.partnerUid
         ) {
-          mediaStatus.textContent =
-            "⚠️ Camera or microphone permission was denied.";
-        } else {
-          mediaStatus.textContent =
-            "⚠️ Could not start camera and microphone.";
+          status.innerHTML =
+            '<span class="heart">❤️</span> Partner connected to room ' +
+            code;
         }
-      }
-    };
 
-  </script>
+
+        if (
+          role === "host" &&
+          room.answer &&
+          peerConnection &&
+          !peerConnection.currentRemoteDescription
+        ) {
+
+          try {
+
+            const answer =
+              new RTCSessionDescription(
+                room.answer
+              );
+
+            await peerConnection
+              .setRemoteDescription(answer);
+
+            remoteDescriptionReady = true;
+
+            await flushPendingCandidates();
+
+          } catch (error) {
+            console.error(
+              "Could not apply answer:",
+              error
+            );
+          }
+        }
+      },
+
+      (error) => {
+        console.error(error);
+      }
+    );
+}
+
+
+window.createRoom = async function () {
+
+  if (!currentUser) {
+    status.textContent =
+      "Still authenticating. Try again in a moment.";
+    return;
+  }
+
+  try {
+
+    await ensureMedia();
+
+    role = "host";
+
+    const code = makeRoomCode();
+
+    activeRoom = code;
+
+    const roomRef =
+      doc(db, "rooms", code);
+
+    createPeerConnection(code);
+
+    const offer =
+      await peerConnection.createOffer();
+
+    await peerConnection
+      .setLocalDescription(offer);
+
+    await setDoc(roomRef, {
+      hostUid: currentUser.uid,
+      partnerUid: null,
+      createdAt: serverTimestamp(),
+      active: true,
+
+      offer: {
+        type: offer.type,
+        sdp: offer.sdp
+      }
+    });
+
+
+    document
+      .getElementById("roomCode")
+      .textContent = code;
+
+    status.textContent =
+      "💜 Room created. Send " +
+      code +
+      " to your partner.";
+
+    connectionStatus.textContent =
+      "Waiting for your partner...";
+
+    watchRoom(code);
+
+    listenForCandidates(
+      code,
+      "partnerCandidates"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    status.textContent =
+      "⚠️ Could not start video room.";
+  }
+};
+
+
+window.joinRoom = async function () {
+
+  if (!currentUser) {
+    status.textContent =
+      "Still authenticating. Try again in a moment.";
+    return;
+  }
+
+  const input =
+    document.getElementById("joinCode");
+
+  const code =
+    input.value.trim().toUpperCase();
+
+  if (code.length !== 6) {
+    status.textContent =
+      "Enter the 6-character room code.";
+    return;
+  }
+
+  try {
+
+    await ensureMedia();
+
+    role = "partner";
+    activeRoom = code;
+
+    const roomRef =
+      doc(db, "rooms", code);
+
+    const snapshot =
+      await getDoc(roomRef);
+
+    if (!snapshot.exists()) {
+      status.textContent =
+        "Room not found. Check the code.";
+      return;
+    }
+
+    const room =
+      snapshot.data();
+
+    if (!room.active) {
+      status.textContent =
+        "That room is no longer active.";
+      return;
+    }
+
+    if (!room.offer) {
+      status.textContent =
+        "This room is not ready for video.";
+      return;
+    }
+
+
+    createPeerConnection(code);
+
+
+    const offer =
+      new RTCSessionDescription(
+        room.offer
+      );
+
+    await peerConnection
+      .setRemoteDescription(offer);
+
+    remoteDescriptionReady = true;
+
+    await flushPendingCandidates();
+
+
+    const answer =
+      await peerConnection.createAnswer();
+
+    await peerConnection
+      .setLocalDescription(answer);
+
+
+    await updateDoc(roomRef, {
+
+      partnerUid: currentUser.uid,
+
+      partnerJoinedAt:
+        serverTimestamp(),
+
+      answer: {
+        type: answer.type,
+        sdp: answer.sdp
+      }
+    });
+
+
+    status.innerHTML =
+      '<span class="heart">❤️</span> Partner connected to room ' +
+      code;
+
+    connectionStatus.textContent =
+      "Connecting video...";
+
+
+    watchRoom(code);
+
+    listenForCandidates(
+      code,
+      "hostCandidates"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    status.textContent =
+      "⚠️ Could not join video room.";
+  }
+};
+
+</script>
 </body>
 </html>
