@@ -178,8 +178,8 @@
   <div class="tagline">Making love not feel so distant.</div>
 
   <section class="card">
-    <h2>Start a connection</h2>
-    <p>Create a temporary room and send the code to your partner.</p>
+    <h2>Open your hand</h2>
+    <p>Let your partner know you are here and available to connect.</p>
 
     <button id="createButton" onclick="createRoom()" disabled>
       Connecting securely...
@@ -189,7 +189,7 @@
   </section>
 
   <section class="card">
-    <h2>Join your partner</h2>
+    <h2>Your partner is reaching for you</h2>
 
     <input
       id="joinCode"
@@ -389,8 +389,8 @@ function setReady() {
   createButton.disabled = false;
   joinButton.disabled = false;
 
-  createButton.textContent = "Create room";
-  joinButton.textContent = "Join room";
+  createButton.textContent = "My hand is open to yours";
+  joinButton.textContent = "Take her hand";
 
   status.textContent = "🔒 Secure connection ready";
   updatePairingStatus();
@@ -787,12 +787,12 @@ window.createRoom = async function () {
       .textContent = code;
 
     status.textContent =
-      "💜 Room created. Send " +
+      "💜 My hand is open to yours. Share " +
       code +
-      " to your partner.";
+      " with your partner.";
 
     connectionStatus.textContent =
-      "Waiting for your partner...";
+      "Your hand is open. Waiting for your partner...";
 
     watchRoom(code);
 
