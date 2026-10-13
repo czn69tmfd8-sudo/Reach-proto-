@@ -148,6 +148,71 @@
     .cameraButton {
       margin-top: 10px;
     }
+
+    /* FULLSCREEN PARTNER VIEW */
+
+    #videoContainer {
+      position: relative;
+    }
+
+    #fullscreenButton {
+      margin-top: 14px;
+      background: #334155;
+    }
+
+    #fullscreenOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: #000;
+      width: 100vw;
+      height: 100dvh;
+    }
+
+    #fullscreenOverlay.active {
+      display: block;
+    }
+
+    #fullscreenVideo {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      aspect-ratio: auto;
+      border-radius: 0;
+      object-fit: contain;
+      background: #000;
+    }
+
+    #exitFullscreenButton {
+      position: absolute;
+      top: max(18px, env(safe-area-inset-top));
+      right: 18px;
+      z-index: 10000;
+      width: 54px;
+      height: 54px;
+      padding: 0;
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(8px);
+      font-size: 28px;
+      line-height: 54px;
+    }
+
+    #fullscreenLabel {
+      position: absolute;
+      left: 20px;
+      bottom: max(24px, env(safe-area-inset-bottom));
+      z-index: 10000;
+      background: rgba(15, 23, 42, 0.70);
+      backdrop-filter: blur(8px);
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 700;
+    }
   </style>
 </head>
 
@@ -216,11 +281,20 @@
 
     <div class="videoLabel">LIVE CONNECTION</div>
 
-    <video
-      id="remoteVideo"
-      autoplay
-      playsinline
-    ></video>
+    <div id="videoContainer">
+      <video
+        id="remoteVideo"
+        autoplay
+        playsinline
+      ></video>
+    </div>
+
+    <button
+      id="fullscreenButton"
+      onclick="openPartnerFullscreen()"
+    >
+      ⛶ Full screen
+    </button>
 
     <div id="connectionStatus">
       Waiting for partner video...
@@ -234,6 +308,32 @@
   <div id="authStatus"></div>
 
 </main>
+
+
+<!-- Fullscreen partner overlay -->
+
+<div id="fullscreenOverlay">
+
+  <video
+    id="fullscreenVideo"
+    autoplay
+    playsinline
+  ></video>
+
+  <button
+    id="exitFullscreenButton"
+    onclick="closePartnerFullscreen()"
+    aria-label="Exit full screen"
+  >
+    ✕
+  </button>
+
+  <div id="fullscreenLabel">
+    ❤️ REACH
+  </div>
+
+</div>
+
 
 <script type="module">
 
@@ -292,573 +392,4 @@ const createButton =
   document.getElementById("createButton");
 
 const joinButton =
-  document.getElementById("joinButton");
-
-const status =
-  document.getElementById("status");
-
-const authStatus =
-  document.getElementById("authStatus");
-
-const mediaStatus =
-  document.getElementById("mediaStatus");
-
-const mediaButton =
-  document.getElementById("mediaButton");
-
-const localVideo =
-  document.getElementById("localVideo");
-
-const remoteVideo =
-  document.getElementById("remoteVideo");
-
-const remoteCard =
-  document.getElementById("remoteCard");
-
-const connectionStatus =
-  document.getElementById("connectionStatus");
-
-
-function setReady() {
-  createButton.disabled = false;
-  joinButton.disabled = false;
-
-  createButton.textContent = "Create room";
-  joinButton.textContent = "Join room";
-
-  status.textContent = "🔒 Secure connection ready";
-}
-
-
-onAuthStateChanged(auth, (user) => {
-  if (user) {
-    currentUser = user;
-    setReady();
-
-    authStatus.textContent =
-      "Authenticated device • " +
-      user.uid.substring(0, 8);
-  }
-});
-
-
-signInAnonymously(auth).catch((error) => {
-  console.error(error);
-
-  status.textContent =
-    "⚠️ Could not authenticate this device.";
-});
-
-
-function makeRoomCode() {
-  const chars =
-    "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-  let code = "";
-
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(
-      Math.floor(Math.random() * chars.length)
-    );
-  }
-
-  return code;
-}
-
-
-window.enableMedia = async function () {
-
-  if (localStream) {
-    mediaStatus.textContent =
-      "📷 Camera ready • 🎙️ Microphone ready";
-    return;
-  }
-
-  try {
-    mediaButton.disabled = true;
-    mediaButton.textContent =
-      "Requesting permission...";
-
-    localStream =
-      await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user"
-        },
-        audio: true
-      });
-
-    localVideo.srcObject = localStream;
-    localVideo.style.display = "block";
-
-    mediaButton.textContent =
-      "Camera & microphone enabled";
-
-    mediaStatus.textContent =
-      "📷 Camera ready • 🎙️ Microphone ready";
-
-  } catch (error) {
-
-    console.error(error);
-
-    mediaButton.disabled = false;
-    mediaButton.textContent =
-      "Enable camera & microphone";
-
-    mediaStatus.textContent =
-      "⚠️ Camera or microphone could not start.";
-  }
-};
-
-
-async function ensureMedia() {
-  if (!localStream) {
-    await window.enableMedia();
-  }
-
-  if (!localStream) {
-    throw new Error("Media unavailable");
-  }
-}
-
-
-function createPeerConnection(code) {
-
-  remoteDescriptionReady = false;
-  pendingCandidates = [];
-
-  peerConnection =
-    new RTCPeerConnection({
-      iceServers: [
-        {
-          urls: [
-            "stun:stun.l.google.com:19302",
-            "stun:stun1.l.google.com:19302"
-          ]
-        }
-      ]
-    });
-
-
-  remoteStream = new MediaStream();
-
-  remoteVideo.srcObject = remoteStream;
-  remoteCard.style.display = "block";
-
-
-  localStream.getTracks().forEach((track) => {
-    peerConnection.addTrack(track, localStream);
-  });
-
-
-  peerConnection.ontrack = (event) => {
-
-    event.streams[0].getTracks().forEach((track) => {
-
-      const alreadyAdded =
-        remoteStream
-          .getTracks()
-          .some((existingTrack) =>
-            existingTrack.id === track.id
-          );
-
-      if (!alreadyAdded) {
-        remoteStream.addTrack(track);
-      }
-    });
-
-    connectionStatus.textContent =
-      "❤️ Partner video connected";
-  };
-
-
-  peerConnection.onconnectionstatechange = () => {
-
-    const state =
-      peerConnection.connectionState;
-
-    if (state === "connected") {
-      connectionStatus.textContent =
-        "❤️ Live connection established";
-    }
-
-    if (state === "connecting") {
-      connectionStatus.textContent =
-        "Connecting to partner...";
-    }
-
-    if (state === "failed") {
-      connectionStatus.textContent =
-        "⚠️ Connection failed";
-    }
-
-    if (state === "disconnected") {
-      connectionStatus.textContent =
-        "Partner connection interrupted.";
-    }
-  };
-
-
-  peerConnection.onicecandidate = async (event) => {
-
-    if (!event.candidate) return;
-
-    try {
-
-      const candidateData =
-        event.candidate.toJSON();
-
-      const candidateCollection =
-        role === "host"
-          ? "hostCandidates"
-          : "partnerCandidates";
-
-      await addDoc(
-        collection(
-          db,
-          "rooms",
-          code,
-          candidateCollection
-        ),
-        candidateData
-      );
-
-    } catch (error) {
-      console.error(
-        "Could not save ICE candidate:",
-        error
-      );
-    }
-  };
-}
-
-
-async function addRemoteCandidate(data) {
-
-  const candidate =
-    new RTCIceCandidate(data);
-
-  if (remoteDescriptionReady) {
-
-    try {
-      await peerConnection.addIceCandidate(candidate);
-    } catch (error) {
-      console.error(
-        "Could not add ICE candidate:",
-        error
-      );
-    }
-
-  } else {
-    pendingCandidates.push(candidate);
-  }
-}
-
-
-async function flushPendingCandidates() {
-
-  for (const candidate of pendingCandidates) {
-
-    try {
-      await peerConnection.addIceCandidate(candidate);
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  pendingCandidates = [];
-}
-
-
-function listenForCandidates(code, collectionName) {
-
-  const candidatesRef =
-    collection(
-      db,
-      "rooms",
-      code,
-      collectionName
-    );
-
-  onSnapshot(
-    candidatesRef,
-
-    (snapshot) => {
-
-      snapshot.docChanges().forEach((change) => {
-
-        if (change.type === "added") {
-          addRemoteCandidate(
-            change.doc.data()
-          );
-        }
-      });
-    },
-
-    (error) => {
-      console.error(
-        "Candidate listener error:",
-        error
-      );
-    }
-  );
-}
-
-
-function watchRoom(code) {
-
-  if (unsubscribeRoom) {
-    unsubscribeRoom();
-  }
-
-  const roomRef =
-    doc(db, "rooms", code);
-
-  unsubscribeRoom =
-    onSnapshot(
-      roomRef,
-
-      async (snapshot) => {
-
-        if (!snapshot.exists()) return;
-
-        const room =
-          snapshot.data();
-
-
-        if (
-          role === "host" &&
-          room.partnerUid
-        ) {
-          status.innerHTML =
-            '<span class="heart">❤️</span> Partner connected to room ' +
-            code;
-        }
-
-
-        if (
-          role === "host" &&
-          room.answer &&
-          peerConnection &&
-          !peerConnection.currentRemoteDescription
-        ) {
-
-          try {
-
-            const answer =
-              new RTCSessionDescription(
-                room.answer
-              );
-
-            await peerConnection
-              .setRemoteDescription(answer);
-
-            remoteDescriptionReady = true;
-
-            await flushPendingCandidates();
-
-          } catch (error) {
-            console.error(
-              "Could not apply answer:",
-              error
-            );
-          }
-        }
-      },
-
-      (error) => {
-        console.error(error);
-      }
-    );
-}
-
-
-window.createRoom = async function () {
-
-  if (!currentUser) {
-    status.textContent =
-      "Still authenticating. Try again in a moment.";
-    return;
-  }
-
-  try {
-
-    await ensureMedia();
-
-    role = "host";
-
-    const code = makeRoomCode();
-
-    activeRoom = code;
-
-    const roomRef =
-      doc(db, "rooms", code);
-
-    createPeerConnection(code);
-
-    const offer =
-      await peerConnection.createOffer();
-
-    await peerConnection
-      .setLocalDescription(offer);
-
-    await setDoc(roomRef, {
-      hostUid: currentUser.uid,
-      partnerUid: null,
-      createdAt: serverTimestamp(),
-      active: true,
-
-      offer: {
-        type: offer.type,
-        sdp: offer.sdp
-      }
-    });
-
-
-    document
-      .getElementById("roomCode")
-      .textContent = code;
-
-    status.textContent =
-      "💜 Room created. Send " +
-      code +
-      " to your partner.";
-
-    connectionStatus.textContent =
-      "Waiting for your partner...";
-
-    watchRoom(code);
-
-    listenForCandidates(
-      code,
-      "partnerCandidates"
-    );
-
-  } catch (error) {
-
-    console.error(error);
-
-    status.textContent =
-      "⚠️ Could not start video room.";
-  }
-};
-
-
-window.joinRoom = async function () {
-
-  if (!currentUser) {
-    status.textContent =
-      "Still authenticating. Try again in a moment.";
-    return;
-  }
-
-  const input =
-    document.getElementById("joinCode");
-
-  const code =
-    input.value.trim().toUpperCase();
-
-  if (code.length !== 6) {
-    status.textContent =
-      "Enter the 6-character room code.";
-    return;
-  }
-
-  try {
-
-    await ensureMedia();
-
-    role = "partner";
-    activeRoom = code;
-
-    const roomRef =
-      doc(db, "rooms", code);
-
-    const snapshot =
-      await getDoc(roomRef);
-
-    if (!snapshot.exists()) {
-      status.textContent =
-        "Room not found. Check the code.";
-      return;
-    }
-
-    const room =
-      snapshot.data();
-
-    if (!room.active) {
-      status.textContent =
-        "That room is no longer active.";
-      return;
-    }
-
-    if (!room.offer) {
-      status.textContent =
-        "This room is not ready for video.";
-      return;
-    }
-
-
-    createPeerConnection(code);
-
-
-    const offer =
-      new RTCSessionDescription(
-        room.offer
-      );
-
-    await peerConnection
-      .setRemoteDescription(offer);
-
-    remoteDescriptionReady = true;
-
-    await flushPendingCandidates();
-
-
-    const answer =
-      await peerConnection.createAnswer();
-
-    await peerConnection
-      .setLocalDescription(answer);
-
-
-    await updateDoc(roomRef, {
-
-      partnerUid: currentUser.uid,
-
-      partnerJoinedAt:
-        serverTimestamp(),
-
-      answer: {
-        type: answer.type,
-        sdp: answer.sdp
-      }
-    });
-
-
-    status.innerHTML =
-      '<span class="heart">❤️</span> Partner connected to room ' +
-      code;
-
-    connectionStatus.textContent =
-      "Connecting video...";
-
-
-    watchRoom(code);
-
-    listenForCandidates(
-      code,
-      "hostCandidates"
-    );
-
-  } catch (error) {
-
-    console.error(error);
-
-    status.textContent =
-      "⚠️ Could not join video room.";
-  }
-};
-
-</script>
-</body>
-</html>
+  document.getElement
