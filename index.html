@@ -138,6 +138,19 @@
       min-height: 620px;
       max-height: 900px;
       object-fit: cover;
+      cursor: pointer;
+    }
+
+    #remoteVideo:fullscreen,
+    #remoteVideo:-webkit-full-screen {
+      width: 100vw;
+      height: 100vh;
+      min-height: 0;
+      max-height: none;
+      margin: 0;
+      border-radius: 0;
+      object-fit: contain;
+      background: #000;
     }
 
     .videoLabel {
@@ -323,6 +336,30 @@ const remoteCard =
 
 const connectionStatus =
   document.getElementById("connectionStatus");
+
+
+remoteVideo.addEventListener("click", async () => {
+  try {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
+      return;
+    }
+
+    if (remoteVideo.requestFullscreen) {
+      await remoteVideo.requestFullscreen();
+    } else if (remoteVideo.webkitEnterFullscreen) {
+      remoteVideo.webkitEnterFullscreen();
+    } else if (remoteVideo.webkitRequestFullscreen) {
+      remoteVideo.webkitRequestFullscreen();
+    }
+  } catch (error) {
+    console.error("Fullscreen unavailable:", error);
+  }
+});
 
 
 function setReady() {
