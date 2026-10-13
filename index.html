@@ -101,7 +101,8 @@
       min-height: 48px;
     }
 
-    #status {
+    #status,
+    #mediaStatus {
       background: #172033;
       border-radius: 20px;
       padding: 20px;
@@ -121,6 +122,20 @@
 
     .heart {
       color: #ef4444;
+    }
+
+    #localVideo {
+      display: none;
+      width: 100%;
+      margin-top: 22px;
+      border-radius: 20px;
+      background: #020617;
+      aspect-ratio: 3 / 4;
+      object-fit: cover;
+    }
+
+    .cameraButton {
+      margin-top: 10px;
     }
   </style>
 </head>
@@ -154,6 +169,34 @@
       <button id="joinButton" onclick="joinRoom()" disabled>
         Connecting securely...
       </button>
+    </section>
+
+    <section class="card">
+      <h2>Camera & microphone</h2>
+
+      <p>
+        Turn on your camera and microphone for this connection.
+        Your browser will ask for permission.
+      </p>
+
+      <button
+        id="mediaButton"
+        class="cameraButton"
+        onclick="enableMedia()"
+      >
+        Enable camera & microphone
+      </button>
+
+      <video
+        id="localVideo"
+        autoplay
+        muted
+        playsinline
+      ></video>
+
+      <div id="mediaStatus">
+        Camera and microphone are off.
+      </div>
     </section>
 
     <div id="status">
@@ -203,11 +246,28 @@
     let currentUser = null;
     let activeRoom = null;
     let unsubscribeRoom = null;
+    let localStream = null;
 
-    const createButton = document.getElementById("createButton");
-    const joinButton = document.getElementById("joinButton");
-    const status = document.getElementById("status");
-    const authStatus = document.getElementById("authStatus");
+    const createButton =
+      document.getElementById("createButton");
+
+    const joinButton =
+      document.getElementById("joinButton");
+
+    const status =
+      document.getElementById("status");
+
+    const authStatus =
+      document.getElementById("authStatus");
+
+    const mediaStatus =
+      document.getElementById("mediaStatus");
+
+    const mediaButton =
+      document.getElementById("mediaButton");
+
+    const localVideo =
+      document.getElementById("localVideo");
 
 
     function setReady() {
@@ -217,7 +277,8 @@
       createButton.textContent = "Create room";
       joinButton.textContent = "Join room";
 
-      status.textContent = "🔒 Secure connection ready";
+      status.textContent =
+        "🔒 Secure connection ready";
     }
 
 
@@ -235,13 +296,16 @@
 
     signInAnonymously(auth).catch((error) => {
       console.error(error);
+
       status.textContent =
         "⚠️ Could not authenticate this device.";
     });
 
 
     function makeRoomCode() {
-      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      const chars =
+        "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
       let code = "";
 
       for (let i = 0; i < 6; i++) {
@@ -259,7 +323,8 @@
         unsubscribeRoom();
       }
 
-      const roomRef = doc(db, "rooms", code);
+      const roomRef =
+        doc(db, "rooms", code);
 
       unsubscribeRoom = onSnapshot(
         roomRef,
@@ -295,7 +360,8 @@
       }
 
       const code = makeRoomCode();
-      const roomRef = doc(db, "rooms", code);
+      const roomRef =
+        doc(db, "rooms", code);
 
       try {
         await setDoc(roomRef, {
@@ -307,7 +373,9 @@
 
         activeRoom = code;
 
-        document.getElementById("roomCode").textContent = code;
+        document
+          .getElementById("roomCode")
+          .textContent = code;
 
         status.textContent =
           "💜 Room created. Send " +
@@ -320,7 +388,7 @@
         console.error(error);
 
         status.textContent =
-          "🔒 Database is locked. We need to publish the new authenticated Firestore rules next.";
+          "⚠️ Could not create room.";
       }
     };
 
@@ -344,10 +412,12 @@
         return;
       }
 
-      const roomRef = doc(db, "rooms", code);
+      const roomRef =
+        doc(db, "rooms", code);
 
       try {
-        const snapshot = await getDoc(roomRef);
+        const snapshot =
+          await getDoc(roomRef);
 
         if (!snapshot.exists()) {
           status.textContent =
@@ -355,7 +425,8 @@
           return;
         }
 
-        const room = snapshot.data();
+        const room =
+          snapshot.data();
 
         if (!room.active) {
           status.textContent =
@@ -380,9 +451,75 @@
         console.error(error);
 
         status.textContent =
-          "🔒 Database is locked. We need to publish the new authenticated Firestore rules next.";
+          "⚠️ Could not join room.";
       }
     };
+
+
+    window.enableMedia = async function () {
+
+      if (
+        !navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia
+      ) {
+        mediaStatus.textContent =
+          "⚠️ Camera access is not available in this browser.";
+        return;
+      }
+
+      if (localStream) {
+        mediaStatus.textContent =
+          "📷 Camera and microphone are already ready.";
+        return;
+      }
+
+      try {
+        mediaButton.disabled = true;
+        mediaButton.textContent =
+          "Requesting permission...";
+
+        localStream =
+          await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: "user"
+            },
+            audio: true
+          });
+
+        localVideo.srcObject =
+          localStream;
+
+        localVideo.style.display =
+          "block";
+
+        mediaButton.textContent =
+          "Camera & microphone enabled";
+
+        mediaStatus.textContent =
+          "📷 Camera ready • 🎙️ Microphone ready";
+
+      } catch (error) {
+        console.error(error);
+
+        localStream = null;
+
+        mediaButton.disabled = false;
+        mediaButton.textContent =
+          "Enable camera & microphone";
+
+        if (
+          error.name === "NotAllowedError" ||
+          error.name === "PermissionDeniedError"
+        ) {
+          mediaStatus.textContent =
+            "⚠️ Camera or microphone permission was denied.";
+        } else {
+          mediaStatus.textContent =
+            "⚠️ Could not start camera and microphone.";
+        }
+      }
+    };
+
   </script>
 </body>
 </html>
