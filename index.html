@@ -168,6 +168,12 @@
     .cameraButton {
       margin-top: 10px;
     }
+
+    #endButton {
+      display: none;
+      margin-top: 18px;
+      background: #be123c;
+    }
   </style>
 </head>
 
@@ -245,6 +251,10 @@
     <div id="connectionStatus">
       Waiting for partner video...
     </div>
+
+    <button id="endButton" onclick="endReach()">
+      End REACH
+    </button>
   </section>
 
   <div id="status">
@@ -307,6 +317,8 @@ let peerConnection = null;
 let role = null;
 let remoteDescriptionReady = false;
 let pendingCandidates = [];
+let candidateUnsubscribers = [];
+const SESSION_LENGTH_MS = 8 * 60 * 60 * 1000;
 let pairedPartnerUid = localStorage.getItem("reachPairedPartnerUid");
 
 
@@ -342,6 +354,9 @@ const remoteCard =
 
 const connectionStatus =
   document.getElementById("connectionStatus");
+
+const endButton =
+  document.getElementById("endButton");
 
 
 remoteVideo.addEventListener("click", async () => {
@@ -646,7 +661,7 @@ function listenForCandidates(code, collectionName) {
       collectionName
     );
 
-  onSnapshot(
+  const unsubscribeCandidates = onSnapshot(
     candidatesRef,
 
     (snapshot) => {
@@ -668,6 +683,8 @@ function listenForCandidates(code, collectionName) {
       );
     }
   );
+
+  candidateUnsubscribers.push(unsubscribeCandidates);
 }
 
 
@@ -690,6 +707,15 @@ function watchRoom(code) {
 
         const room =
           snapshot.data();
+
+        if (
+          room.active === false ||
+          (room.expiresAt && Date.now() > room.expiresAt)
+        ) {
+          connectionStatus.textContent = "This REACH session has ended.";
+          await cleanupConnection(false);
+          return;
+        }
 
 
         if (
@@ -740,6 +766,73 @@ function watchRoom(code) {
 }
 
 
+async function cleanupConnection(stopMedia = true) {
+  if (unsubscribeRoom) {
+    unsubscribeRoom();
+    unsubscribeRoom = null;
+  }
+
+  candidateUnsubscribers.forEach((unsubscribe) => unsubscribe());
+  candidateUnsubscribers = [];
+
+  if (peerConnection) {
+    peerConnection.close();
+    peerConnection = null;
+  }
+
+  if (remoteStream) {
+    remoteStream.getTracks().forEach((track) => track.stop());
+    remoteStream = null;
+  }
+
+  remoteVideo.srcObject = null;
+  remoteCard.style.display = "none";
+  endButton.style.display = "none";
+
+  if (stopMedia && localStream) {
+    localStream.getTracks().forEach((track) => track.stop());
+    localStream = null;
+    localVideo.srcObject = null;
+    localVideo.style.display = "none";
+    mediaButton.disabled = false;
+    mediaButton.textContent = "Enable camera & microphone";
+    mediaStatus.textContent = "Camera and microphone are off.";
+  }
+
+  activeRoom = null;
+  role = null;
+  remoteDescriptionReady = false;
+  pendingCandidates = [];
+}
+
+window.endReach = async function () {
+  const code = activeRoom;
+  const endingRole = role;
+
+  endButton.disabled = true;
+  endButton.textContent = "Ending REACH...";
+
+  try {
+    if (code && endingRole === "host") {
+      await updateDoc(doc(db, "rooms", code), {
+        active: false,
+        endedAt: serverTimestamp()
+      });
+    }
+  } catch (error) {
+    console.error("Could not mark room inactive:", error);
+  }
+
+  await cleanupConnection(true);
+
+  document.getElementById("roomCode").textContent = "------";
+  document.getElementById("joinCode").value = "";
+  connectionStatus.textContent = "Waiting for partner video...";
+  status.textContent = "REACH ended. Your hand is yours again.";
+  endButton.disabled = false;
+  endButton.textContent = "End REACH";
+};
+
 window.createRoom = async function () {
 
   if (!currentUser) {
@@ -773,6 +866,7 @@ window.createRoom = async function () {
       hostUid: currentUser.uid,
       partnerUid: null,
       createdAt: serverTimestamp(),
+      expiresAt: Date.now() + SESSION_LENGTH_MS,
       active: true,
 
       offer: {
@@ -793,6 +887,7 @@ window.createRoom = async function () {
 
     connectionStatus.textContent =
       "Your hand is open. Waiting for your partner...";
+    endButton.style.display = "block";
 
     watchRoom(code);
 
@@ -861,6 +956,12 @@ window.joinRoom = async function () {
       return;
     }
 
+    if (room.expiresAt && Date.now() > room.expiresAt) {
+      status.textContent =
+        "That REACH session has expired.";
+      return;
+    }
+
     if (!room.offer) {
       status.textContent =
         "This room is not ready for video.";
@@ -911,6 +1012,7 @@ window.joinRoom = async function () {
 
     connectionStatus.textContent =
       "Connecting video...";
+    endButton.style.display = "block";
 
 
     watchRoom(code);
