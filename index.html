@@ -184,6 +184,17 @@
   <div class="tagline">Making love not feel so distant.</div>
 
   <section class="card">
+    <h2>Pair a device ❤️</h2>
+    <p>Pair each phone once. Multiple devices can stay authorized, including a test phone.</p>
+    <button id="pairCreate" onclick="makePairCode()" disabled>Create one-time pairing code</button>
+    <div id="pairCode" style="text-align:center;color:#a5b4fc;font-size:26px;letter-spacing:2px;margin:15px 0"></div>
+    <input id="pairInput" maxlength="12" placeholder="PAIRING CODE" autocomplete="off">
+    <button id="pairClaim" onclick="claimPairCode()" disabled>Pair this phone</button>
+    <p id="pairMessage"></p>
+    <div id="pairedDevices"></div>
+  </section>
+
+  <section class="card">
     <h2>Open your hand</h2>
     <p>Let your partner know you are here and available to connect.</p>
 
@@ -317,6 +328,9 @@ let peerConnection = null;
 let role = null;
 let remoteDescriptionReady = false;
 let pendingCandidates = [];
+let pairedCodes = JSON.parse(localStorage.getItem("reachPairCodes") || "[]");
+let pairListeners = [];
+let pairSessionCode = null;
 let candidateUnsubscribers = [];
 const SESSION_LENGTH_MS = 8 * 60 * 60 * 1000;
 let pairedPartnerUid = localStorage.getItem("reachPairedPartnerUid");
@@ -409,6 +423,9 @@ function setReady() {
 
   status.textContent = "🔒 Secure connection ready";
   updatePairingStatus();
+  document.getElementById("pairCreate").disabled = false;
+  document.getElementById("pairClaim").disabled = false;
+  watchPairs();
 }
 
 
@@ -823,6 +840,12 @@ window.endReach = async function () {
     console.error("Could not mark room inactive:", error);
   }
 
+  if(pairSessionCode){
+    try{const ref=doc(db,"pairInvites",pairSessionCode),snap=await getDoc(ref);
+      if(snap.exists()&&snap.data().activeRoom===code)await updateDoc(ref,{activeRoom:null,openedBy:null});
+    }catch(err){console.error("Pair cleanup",err);}
+  }
+  pairSessionCode=null;
   await cleanupConnection(true);
 
   document.getElementById("roomCode").textContent = "------";
@@ -831,6 +854,55 @@ window.endReach = async function () {
   status.textContent = "REACH ended. Your hand is yours again.";
   endButton.disabled = false;
   endButton.textContent = "End REACH";
+};
+
+
+const pairMessage = document.getElementById("pairMessage");
+const pairedDevices = document.getElementById("pairedDevices");
+function savePairs(){ localStorage.setItem("reachPairCodes",JSON.stringify(pairedCodes)); }
+function watchPairs(){
+  pairListeners.forEach(stop=>stop()); pairListeners=[]; pairedDevices.replaceChildren();
+  for(const code of pairedCodes){
+    const open=document.createElement("button");
+    open.textContent="❤️ My hand is open ("+code.slice(0,4)+")";
+    open.style.marginTop="12px"; open.onclick=()=>openPairedHand(code); pairedDevices.appendChild(open);
+    pairListeners.push(onSnapshot(doc(db,"pairInvites",code),(snap)=>{
+      if(!snap.exists()||!currentUser)return; const pair=snap.data();
+      if(!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))return;
+      const old=document.getElementById("joinPair-"+code); if(old)old.remove();
+      if(pair.activeRoom&&pair.openedBy!==currentUser.uid&&!activeRoom){
+        const join=document.createElement("button"); join.id="joinPair-"+code;
+        join.textContent="❤️ Take their hand ("+code.slice(0,4)+")"; join.style.marginTop="12px";
+        join.onclick=async()=>{document.getElementById("joinCode").value=pair.activeRoom;pairSessionCode=code;await window.joinRoom();};
+        pairedDevices.appendChild(join);
+      }
+    },err=>{console.error(err);pairMessage.textContent="Pairing needs Firebase security rules."; }));
+  }
+}
+window.makePairCode=async()=>{
+  if(!currentUser)return; const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes=crypto.getRandomValues(new Uint8Array(12)); const code=Array.from(bytes,n=>chars[n%chars.length]).join("");
+  try{await setDoc(doc(db,"pairInvites",code),{hostUid:currentUser.uid,partnerUid:null,activeRoom:null,openedBy:null,createdAt:serverTimestamp()});
+    if(!pairedCodes.includes(code))pairedCodes.push(code);savePairs();watchPairs();
+    document.getElementById("pairCode").textContent=code;pairMessage.textContent="Share this code privately, just once.";
+  }catch(err){console.error(err);pairMessage.textContent="Pairing unavailable until its Firebase rules are published.";}
+};
+window.claimPairCode=async()=>{
+  if(!currentUser)return;const code=document.getElementById("pairInput").value.trim().toUpperCase();
+  if(code.length!==12){pairMessage.textContent="Enter the 12-character code.";return;}
+  try{const ref=doc(db,"pairInvites",code),snap=await getDoc(ref);
+    if(!snap.exists()||snap.data().partnerUid||snap.data().hostUid===currentUser.uid){pairMessage.textContent="Invalid or already claimed code.";return;}
+    await updateDoc(ref,{partnerUid:currentUser.uid});if(!pairedCodes.includes(code))pairedCodes.push(code);savePairs();watchPairs();
+    pairMessage.textContent="❤️ Paired. No room codes needed for this device pair.";
+  }catch(err){console.error(err);pairMessage.textContent="Pairing failed. Check Firebase rules.";}
+};
+window.openPairedHand=async(code)=>{
+  if(activeRoom){pairMessage.textContent="End your current REACH first.";return;}
+  try{const ref=doc(db,"pairInvites",code),snap=await getDoc(ref),pair=snap.data();
+    if(!pair||!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid)){pairMessage.textContent="Wait for the other phone to pair first.";return;}
+    await window.createRoom();if(!activeRoom)return;await updateDoc(ref,{activeRoom,openedBy:currentUser.uid});
+    pairSessionCode=code;pairMessage.textContent="❤️ Your hand is open.";
+  }catch(err){console.error(err);pairMessage.textContent="Could not open paired session.";}
 };
 
 window.createRoom = async function () {
