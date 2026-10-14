@@ -1272,6 +1272,7 @@ function watchPairs(){
       try{
         const ref=doc(db,"pairInvites",code),snap=await getDoc(ref);
         if(!snap.exists() || !currentUser || ![snap.data().hostUid,snap.data().partnerUid].includes(currentUser.uid))throw Error("Not authorized");
+        if(code===mainPairCode())throw Error("Main connection cannot be retired here");
         await updateDoc(ref,{revoked:true});
         pairedCodes=pairedCodes.filter(c=>c!==code);delete pairPrefs[code];savePairs();savePairPrefs();watchPairs();
         pairMessage.textContent="Connection retired and access revoked.";
@@ -1281,13 +1282,6 @@ function watchPairs(){
       pairPrefs[code]={...pairPrefsFor(code),hidden:!prefs.hidden};
       savePairPrefs();watchPairs();
     });
-    /* Legacy partner switching disabled in REACH v1.
-    if(code!==mainCode)smallButton("Make main",()=>{
-      pairPrefs[code]={...pairPrefsFor(code),hidden:false};
-      favoritePair=code;localStorage.setItem("reachFavoritePair",code);
-      savePairPrefs();watchPairs();
-    });
-    */
     item.appendChild(controls);
     list.appendChild(item);
     if(code===mainCode){
@@ -1449,9 +1443,10 @@ window.openPairedHand=async(code)=>{
   try{const ref=doc(db,"pairInvites",code),snap=await getDoc(ref),pair=snap.data();
     if(!pair||pair.revoked||!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid)){pairMessage.textContent="Wait for the other phone to pair first.";return;}
     await window.createRoom(code,pair);if(!activeRoom)return;
+    pairSessionCode=code;
     try{await updateDoc(ref,{activeRoom,openedBy:currentUser.uid});}
     catch(error){await window.endReach();throw error;}
-    pairSessionCode=code;pairMessage.textContent="❤️ Your hand is open.";
+    pairMessage.textContent="❤️ Your hand is open.";
   }catch(err){console.error(err);pairMessage.textContent="Could not open paired session.";}
 };
 
@@ -1534,8 +1529,9 @@ window.createRoom = async function (authorizedPairCode, authorizedPair) {
 
 window.joinRoom = async function () {
   if(!pairSessionCode){status.textContent="Join through your partner’s open hand, not a room code.";return;}
-  const authorizedPairSnap=await getDoc(doc(db,"pairInvites",pairSessionCode));
-  const authorizedPair=authorizedPairSnap.data();
+  let authorizedPair;
+  try{const authorizedPairSnap=await getDoc(doc(db,"pairInvites",pairSessionCode));authorizedPair=authorizedPairSnap.data();}
+  catch(error){console.error(error);status.textContent="Could not verify your partnership.";return;}
   if(!authorizedPair || authorizedPair.revoked || !authorizedPair.partnerUid || !currentUser || ![authorizedPair.hostUid,authorizedPair.partnerUid].includes(currentUser.uid)){
     status.textContent="This partnership is not authorized.";return;
   }
@@ -1552,9 +1548,8 @@ window.joinRoom = async function () {
   const code =
     input.value.trim().toUpperCase();
 
-  if (code.length !== 6) {
-    status.textContent =
-      "Enter the 6-character room code.";
+  if (code.length !== 6 || authorizedPair.activeRoom!==code || authorizedPair.openedBy===currentUser.uid) {
+    status.textContent = "No authorized open hand is available.";
     return;
   }
 
@@ -1573,34 +1568,34 @@ window.joinRoom = async function () {
 
     if (!snapshot.exists()) {
       status.textContent =
-        "Room not found. Check the code.";
-      return;
+        "This REACH session is no longer available.";
+      await cleanupConnection(true);return;
     }
 
     const room =
       snapshot.data();
 
-    if(room.pairCode!==pairSessionCode || room.partnerUid!==currentUser.uid || room.hostUid===currentUser.uid){
-      status.textContent="This private room is not authorized for you.";return;
+    if(room.pairCode!==pairSessionCode || room.partnerUid!==currentUser.uid || room.hostUid!==authorizedPair.openedBy || room.hostUid===currentUser.uid){
+      status.textContent="This private room is not authorized for you.";await cleanupConnection(true);return;
     }
     rememberPartner(room.hostUid);
 
     if (!room.active) {
       status.textContent =
         "That room is no longer active.";
-      return;
+      await cleanupConnection(true);return;
     }
 
     if (room.expiresAt && Date.now() > room.expiresAt) {
       status.textContent =
         "That REACH session has expired.";
-      return;
+      await cleanupConnection(true);return;
     }
 
     if (!room.offer) {
       status.textContent =
         "This room is not ready for video.";
-      return;
+      await cleanupConnection(true);return;
     }
 
 
