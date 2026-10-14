@@ -1076,7 +1076,7 @@ function watchRoom(code) {
 
         if (
           role === "host" &&
-          room.partnerUid
+          room.answer
         ) {
           rememberPartner(room.partnerUid);
           status.innerHTML =
@@ -1241,7 +1241,7 @@ function watchPairs(){
     const join=addAction(item,"❤️ Take their hand",async()=>{
       const snap=await getDoc(doc(db,"pairInvites",code));
       const pair=snap.data();
-      if(!pair||!pair.activeRoom||pair.openedBy===currentUser.uid){
+      if(!pair||pair.revoked||!pair.activeRoom||pair.openedBy===currentUser.uid){
         pairMessage.textContent="Your partner has not opened their hand yet.";return;
       }
       document.getElementById("joinCode").value=pair.activeRoom;
@@ -1275,7 +1275,7 @@ function watchPairs(){
       pairPrefs[code]={...pairPrefsFor(code),hidden:!prefs.hidden};
       savePairPrefs();watchPairs();
     });
-    if(code!==mainCode)smallButton("Make main",()=>{
+    if(false && code!==mainCode)smallButton("Make main",()=>{
       pairPrefs[code]={...pairPrefsFor(code),hidden:false};
       favoritePair=code;localStorage.setItem("reachFavoritePair",code);
       savePairPrefs();watchPairs();
@@ -1325,7 +1325,7 @@ function watchPairs(){
       pairListeners.push(onSnapshot(doc(db,"pairInvites",code),(snap)=>{
         if(!snap.exists()||!currentUser)return;
         const pair=snap.data();
-        if(pair.revoked){state.textContent="● Connection retired";heroJoin.disabled=true;return;}
+        if(pair.revoked){state.textContent="● Connection retired";heroJoin.disabled=true;heroOpen.disabled=true;return;}
         if(!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))return;
         // Read the other person's photo from the paired record, never from a local fallback.
         const remoteUid=pair.hostUid===currentUser.uid?pair.partnerUid:pair.hostUid;
