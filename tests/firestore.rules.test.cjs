@@ -154,8 +154,14 @@ test('existing paired users cannot be silently locked without explicit migration
  await assertSucceeds(getDoc(doc(db(partner),'pairInvites',code)));
 });
 test('pair owner cannot replace an existing lock with a different pairing',async()=>{
- const uid='lockedHost',d=db(uid);
- await assertFails(setDoc(doc(d,'memberLocks',uid),{pairCode:'OTHERPAIR999',createdAt:serverTimestamp()}));
+ const uid='lockedHost',code='LOCKEDPAIR01',d=db(uid);
+ await env.withSecurityRulesDisabled(async c=>{
+  const adminDb=c.firestore();
+  await setDoc(doc(adminDb,'pairInvites',code),{hostUid:uid,partnerUid:null,activeRoom:null,openedBy:null,createdAt:new Date()});
+  await setDoc(doc(adminDb,'memberLocks',uid),{pairCode:code,createdAt:new Date()});
+ });
+ await assertFails(updateDoc(doc(d,'memberLocks',uid),{pairCode:'OTHERPAIR999'}));
+ await assertSucceeds(getDoc(doc(d,'memberLocks',uid)));
 });
 test('a third party cannot create a lock on another account',async()=>{
  await assertFails(setDoc(doc(db('outsider'),'memberLocks','existingHost'),{pairCode:'EXISTINGPAIR',createdAt:serverTimestamp()}));
