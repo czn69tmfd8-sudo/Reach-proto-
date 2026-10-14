@@ -18,6 +18,32 @@ service cloud.firestore {
         && (resource.data.hostUid == request.auth.uid
           || resource.data.partnerUid == request.auth.uid);
     }
+    function lockPath(uid) { return /databases/$(database)/documents/memberLocks/$(uid); }
+    function lockMatches(uid, code) {
+      return exists(lockPath(uid)) && get(lockPath(uid)).data.pairCode == code;
+    }
+    function newPairLock(uid, code) {
+      return !exists(lockPath(uid))
+        && getAfter(lockPath(uid)).data.pairCode == code;
+    }
+    match /memberLocks/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list: if false;
+      allow create: if signedIn() && request.auth.uid == uid
+        && !exists(lockPath(uid))
+        && request.resource.data.keys().hasOnly(['pairCode','createdAt'])
+        && request.resource.data.pairCode is string
+        && request.resource.data.createdAt == request.time
+        && (
+          // The invite is being created in the same atomic transaction.
+          (getAfter(pairPath(request.resource.data.pairCode)).data.hostUid == uid
+            && getAfter(pairPath(request.resource.data.pairCode)).data.partnerUid == null)
+          ||
+          // This account is claiming an existing invite in the same transaction.
+          (getAfter(pairPath(request.resource.data.pairCode)).data.partnerUid == uid)
+        );
+      allow update, delete: if false;
+    }
     match /rooms/{roomId} {
       allow create: if signedIn()
         && request.resource.data.hostUid == request.auth.uid
@@ -97,6 +123,7 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.hostUid == request.auth.uid
         && request.resource.data.partnerUid == null
+        && newPairLock(request.auth.uid, pairCode)
         && request.resource.data.activeRoom == null
         && request.resource.data.openedBy == null
         && request.resource.data.keys().hasOnly(['hostUid','partnerUid','activeRoom','openedBy','createdAt']);
@@ -112,6 +139,7 @@ service cloud.firestore {
           (resource.data.partnerUid == null
             && resource.data.hostUid != request.auth.uid
             && request.resource.data.partnerUid == request.auth.uid
+            && newPairLock(request.auth.uid, pairCode)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['partnerUid']))
           || (resource.data.partnerUid != null
             && (resource.data.hostUid == request.auth.uid || resource.data.partnerUid == request.auth.uid)
