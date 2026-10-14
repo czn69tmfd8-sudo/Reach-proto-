@@ -514,6 +514,31 @@ window.toggleSelfView = () => {
     localVideo.play().catch(err => console.warn("Self-view playback:",err));
   }
 };
+// Drag the self-view within the visible call area; never drag the media stream itself.
+let selfDrag = null;
+localVideo.addEventListener("pointerdown", (event) => {
+  if (!document.body.classList.contains("reach-in-call")) return;
+  const rect = localVideo.getBoundingClientRect();
+  selfDrag = { id: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top };
+  localVideo.setPointerCapture(event.pointerId);
+  event.preventDefault();
+});
+localVideo.addEventListener("pointermove", (event) => {
+  if (!selfDrag || event.pointerId !== selfDrag.id) return;
+  const width = localVideo.offsetWidth, height = localVideo.offsetHeight;
+  const left = Math.max(8, Math.min(window.innerWidth - width - 8, event.clientX - selfDrag.dx));
+  const top = Math.max(8, Math.min(window.innerHeight - height - 8, event.clientY - selfDrag.dy));
+  localVideo.style.left = left + "px";
+  localVideo.style.top = top + "px";
+  localVideo.style.right = "auto";
+  event.preventDefault();
+});
+function finishSelfDrag(event) {
+  if (selfDrag && event.pointerId === selfDrag.id) selfDrag = null;
+}
+localVideo.addEventListener("pointerup", finishSelfDrag);
+localVideo.addEventListener("pointercancel", finishSelfDrag);
+
 window.exitCallView = () => {
   callViewDismissed = true;
   document.body.classList.remove("reach-in-call");
