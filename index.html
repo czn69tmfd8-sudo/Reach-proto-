@@ -224,7 +224,11 @@
       object-fit: cover;
       background: #020617;
       box-shadow: 0 4px 20px #0009;
-      pointer-events: none;
+      pointer-events: auto;
+      touch-action: none;
+      cursor: grab;
+      user-select: none;
+      -webkit-user-select: none;
     }
     body.reach-in-call #selfViewToggle {
       display: block;
@@ -518,6 +522,8 @@ window.exitCallView = () => {
 
 
 remoteVideo.addEventListener("click", async () => {
+  // Keep the custom in-call layer: native iOS fullscreen hides self-view.
+  if (document.body.classList.contains("reach-in-call")) return;
   try {
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       if (document.exitFullscreen) {
