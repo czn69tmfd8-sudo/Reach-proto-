@@ -310,6 +310,20 @@
     #mainConnectionCard #manageConnections summary { font-size:13px; }
     #pairCard { padding:20px; }
     @media(min-width:420px) { .reach-avatar{width:96px;height:96px;flex-basis:96px;} }
+
+    /* v1.8a — keep both connection actions on screen like the design. */
+    #mainConnectionCard .reach-main-actions:not(:has(.reach-take:not([hidden]))) .reach-open { grid-column:auto; }
+    #mainConnectionCard .reach-main-actions button { margin-top:0; min-height:128px; }
+    #mainConnectionCard .reach-main-actions button:disabled { opacity:.66;filter:saturate(.72); }
+    #mainConnectionCard .reach-main-actions button .reach-action-icon { font-size:30px; }
+    #mainConnectionCard .reach-main-actions button.reach-take { background:linear-gradient(145deg,#8052f4,#2859f5); }
+    #mainConnectionCard .reach-main-actions button.reach-open { background:linear-gradient(145deg,#fa4c91,#e52d77); }
+    #mainConnectionCard > h2 { display:none; }
+    #mainConnectionCard .reach-contact-head { margin:6px 0 19px; }
+    #mainConnectionCard #manageConnections { display:none; }
+    #mainConnectionCard .reach-contact-menu { border:1px solid rgba(255,255,255,.08); }
+    #mainConnectionCard { border-color:rgba(155,92,231,.35); }
+    #mainConnectionCard .reach-main-actions button .reach-action-sub { font-size:11px; }
     /* REACH v1.6 — visual layer only. Video and signaling remain untouched. */
     :root { color-scheme: dark; --rose:#ff5d9c; --violet:#9d79ff; --muted:#b7afca; }
     body {
@@ -380,7 +394,7 @@
     </details>
   </section>
 
-  <section class="card">
+  <section class="card" id="mediaCard">
     <h2>Camera & microphone</h2>
 
     <p>
@@ -1220,7 +1234,7 @@ function watchPairs(){
       heroOpen.classList.add("reach-open");
       heroOpen.innerHTML='<span class="reach-action-icon">♡</span><span>My hand is open</span><span class="reach-action-sub">I’m ready to connect</span>';
       const heroJoin=addAction(actions,"Take their hand",()=>join.click());
-      heroJoin.classList.add("reach-take");heroJoin.hidden=true;
+      heroJoin.classList.add("reach-take");heroJoin.disabled=true;heroJoin.setAttribute("aria-disabled","true");
       heroJoin.innerHTML='<span class="reach-action-icon">♡</span><span>Take their hand</span><span class="reach-action-sub">Connect to your partner</span>';
       hero.appendChild(actions);favorite.appendChild(hero);
       pairListeners.push(onSnapshot(doc(db,"pairInvites",code),(snap)=>{
@@ -1228,7 +1242,9 @@ function watchPairs(){
         const pair=snap.data();
         if(!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))return;
         const ready=!!pair.activeRoom&&pair.openedBy!==currentUser.uid&&!activeRoom;
-        heroJoin.hidden=!ready;
+        heroJoin.disabled=!ready;
+        heroJoin.setAttribute("aria-disabled",String(!ready));
+        heroJoin.querySelector(".reach-action-sub").textContent=ready?"Connect to your partner":"Waiting for their hand";
         join.style.display=ready?"block":"none";
       },err=>{console.error(err);pairMessage.textContent="Could not check paired connection."; }));
     }else{
