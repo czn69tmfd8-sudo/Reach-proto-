@@ -320,10 +320,29 @@
     #mainConnectionCard .reach-main-actions button.reach-open { background:linear-gradient(145deg,#fa4c91,#e52d77); }
     #mainConnectionCard > h2 { display:none; }
     #mainConnectionCard .reach-contact-head { margin:6px 0 19px; }
-    #mainConnectionCard #manageConnections { display:none; }
+    #mainConnectionCard #manageConnections { display:block; border:0; padding:0; margin:13px 0 0 !important; }
+    #mainConnectionCard #manageConnections:not([open]) { display:none; }
+    #mainConnectionCard #manageConnections summary { display:none; }
     #mainConnectionCard .reach-contact-menu { border:1px solid rgba(255,255,255,.08); }
     #mainConnectionCard { border-color:rgba(155,92,231,.35); }
     #mainConnectionCard .reach-main-actions button .reach-action-sub { font-size:11px; }
+
+    /* v1.8b — matching media tiles and refined vertical rhythm. */
+    #mediaCard { padding:21px 19px; }
+    #mediaCard h2 { font-size:21px; margin-bottom:8px; }
+    #mediaCard p { margin:0 0 15px; }
+    .reach-media-tiles { display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:16px 0 13px; }
+    .reach-media-tile { display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;
+      min-height:132px;border-radius:22px;border:1px solid rgba(151,145,230,.22);
+      background:linear-gradient(150deg,rgba(56,54,98,.8),rgba(34,38,75,.84)); }
+    .reach-media-icon { font-size:28px;line-height:1;color:white; }
+    .reach-media-tile strong { font-size:15px; }
+    .reach-media-pill { padding:5px 18px;border-radius:999px;font-size:13px;
+      background:rgba(124,130,156,.25);color:#d1d5db; }
+    .reach-media-pill.is-on { background:linear-gradient(110deg,#91f5b4,#56d997);color:#173b32;
+      box-shadow:0 0 17px rgba(86,217,151,.2);font-weight:750; }
+    #mediaCard #mediaButton { margin-top:10px; }
+    #mediaCard #mediaStatus { margin-top:12px; }
     /* REACH v1.6 — visual layer only. Video and signaling remain untouched. */
     :root { color-scheme: dark; --rose:#ff5d9c; --violet:#9d79ff; --muted:#b7afca; }
     body {
@@ -402,6 +421,10 @@
       or joining a video connection.
     </p>
 
+    <div class="reach-media-tiles" aria-label="Camera and microphone status">
+      <div class="reach-media-tile"><span class="reach-media-icon">▣</span><strong>Camera</strong><span class="reach-media-pill" id="reachCameraPill">Off</span></div>
+      <div class="reach-media-tile"><span class="reach-media-icon">♩</span><strong>Microphone</strong><span class="reach-media-pill" id="reachMicPill">Off</span></div>
+    </div>
     <button
       id="mediaButton"
       class="cameraButton"
@@ -1273,6 +1296,17 @@ document.getElementById("reachPhotoPicker").addEventListener("change",async(even
   }catch(err){console.error("Photo selection:",err);pairMessage.textContent="Couldn't save that photo on this phone.";}
   event.target.value="";
 });
+// Display status only: both media tracks are still controlled by the existing enable button.
+function refreshMediaTiles(){
+  const camera=!!(localStream&&localStream.getVideoTracks().some(t=>t.readyState==="live"&&t.enabled));
+  const mic=!!(localStream&&localStream.getAudioTracks().some(t=>t.readyState==="live"&&t.enabled));
+  for(const [id,on] of [["reachCameraPill",camera],["reachMicPill",mic]]){
+    const pill=document.getElementById(id);if(!pill)continue;
+    pill.textContent=on?"On":"Off";pill.classList.toggle("is-on",on);
+  }
+}
+new MutationObserver(refreshMediaTiles).observe(mediaStatus,{childList:true,characterData:true,subtree:true});
+refreshMediaTiles();
 window.makePairCode=async()=>{
   if(!currentUser)return; const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const bytes=crypto.getRandomValues(new Uint8Array(12)); const code=Array.from(bytes,n=>chars[n%chars.length]).join("");
