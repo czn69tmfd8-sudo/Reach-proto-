@@ -792,11 +792,9 @@ function makeRoomCode() {
     "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
   let code = "";
-
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
   for (let i = 0; i < 6; i++) {
-    code += chars.charAt(
-      Math.floor(Math.random() * chars.length)
-    );
+    code += chars.charAt(bytes[i] % chars.length);
   }
 
   return code;
@@ -1547,7 +1545,8 @@ window.createRoom = async function (authorizedPairCode, authorizedPair) {
 
 
 window.joinRoom = async function () {
-  if(!pairSessionCode){status.textContent="Join through your partner’s open hand, not a room code.";return;}
+  if(!pairSessionCode || pairSessionCode!==mainPairCode()){status.textContent="Join through your confirmed partnership.";return;}
+  if(activeRoom){status.textContent="End your current REACH first.";return;}
   let authorizedPair;
   try{const authorizedPairSnap=await getDoc(doc(db,"pairInvites",pairSessionCode));authorizedPair=authorizedPairSnap.data();}
   catch(error){console.error(error);status.textContent="Could not verify your partnership.";return;}
