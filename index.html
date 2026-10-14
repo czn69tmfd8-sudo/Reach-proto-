@@ -218,6 +218,21 @@
       box-shadow: 0 4px 20px #0009;
       pointer-events: none;
     }
+    body.reach-in-call #selfViewToggle {
+      display: block;
+      position: absolute;
+      z-index: 10003;
+      top: calc(env(safe-area-inset-top, 0px) + 178px);
+      right: 14px;
+      width: auto;
+      padding: 9px 12px;
+      font-size: 12px;
+      background: #334155;
+    }
+    body.reach-in-call.self-view-hidden #localVideo { display: none !important; }
+    body.reach-in-call.self-view-hidden #selfViewToggle {
+      top: calc(env(safe-area-inset-top, 0px) + 20px);
+    }
     body.reach-in-call #endButton {
       display: block !important;
       position: absolute;
@@ -263,7 +278,12 @@
     <input id="pairInput" maxlength="12" placeholder="PAIRING CODE" autocomplete="off">
     <button id="pairClaim" onclick="claimPairCode()" disabled>Pair this phone</button>
     <p id="pairMessage"></p>
-    <div id="pairedDevices"></div>
+    <div id="favoriteConnection"></div>
+    <details id="manageConnections" style="margin-top:20px">
+      <summary style="cursor:pointer;color:#a5b4fc;font-weight:700">Manage connections</summary>
+      <p>Rename, hide, or choose your main connection. Hiding does not revoke access.</p>
+      <div id="pairedDevices"></div>
+    </details>
   </section>
 
   <section class="card">
@@ -336,6 +356,7 @@
     </div>
 
     <button id="exitCallView" onclick="exitCallView()" style="display:none">Minimize</button>
+    <button id="selfViewToggle" onclick="toggleSelfView()" style="display:none">Hide me</button>
 
     <button id="endButton" onclick="endReach()">
       End REACH
@@ -403,6 +424,15 @@ let role = null;
 let remoteDescriptionReady = false;
 let pendingCandidates = [];
 let pairedCodes = JSON.parse(localStorage.getItem("reachPairCodes") || "[]");
+let pairPrefs = JSON.parse(localStorage.getItem("reachPairPreferences") || "{}");
+let favoritePair = localStorage.getItem("reachFavoritePair") || null;
+function savePairPrefs(){localStorage.setItem("reachPairPreferences",JSON.stringify(pairPrefs));}
+function pairPrefsFor(code){return pairPrefs[code] || {name:"",hidden:false};}
+function pairName(code){return pairPrefsFor(code).name || "Connection "+code.slice(0,4);}
+function mainPairCode(){
+  const visible=pairedCodes.filter(code=>!pairPrefsFor(code).hidden);
+  return visible.includes(favoritePair)?favoritePair:(visible[0]||null);
+}
 let pairListeners = [];
 let pairSessionCode = null;
 let candidateUnsubscribers = [];
@@ -451,8 +481,18 @@ function enterCallView() {
   if (callViewDismissed || !activeRoom || !remoteStream ||
       remoteStream.getVideoTracks().length === 0) return;
   document.body.classList.add("reach-in-call");
+  if (localStream && localVideo.srcObject !== localStream) localVideo.srcObject = localStream;
+  localVideo.play().catch(err => console.warn("Self-view playback:",err));
   remoteVideo.play().catch((error) => console.warn("Remote playback requires a tap:", error));
 }
+window.toggleSelfView = () => {
+  const hidden = document.body.classList.toggle("self-view-hidden");
+  document.getElementById("selfViewToggle").textContent = hidden ? "Show me" : "Hide me";
+  if (!hidden && localStream) {
+    localVideo.srcObject = localStream;
+    localVideo.play().catch(err => console.warn("Self-view playback:",err));
+  }
+};
 window.exitCallView = () => {
   callViewDismissed = true;
   document.body.classList.remove("reach-in-call");
@@ -873,7 +913,8 @@ function watchRoom(code) {
 
 
 async function cleanupConnection(stopMedia = true) {
-  document.body.classList.remove("reach-in-call");
+  document.body.classList.remove("reach-in-call","self-view-hidden");
+  document.getElementById("selfViewToggle").textContent = "Hide me";
   callViewDismissed = false;
   if (unsubscribeRoom) {
     unsubscribeRoom();
@@ -952,22 +993,89 @@ const pairMessage = document.getElementById("pairMessage");
 const pairedDevices = document.getElementById("pairedDevices");
 function savePairs(){ localStorage.setItem("reachPairCodes",JSON.stringify(pairedCodes)); }
 function watchPairs(){
-  pairListeners.forEach(stop=>stop()); pairListeners=[]; pairedDevices.replaceChildren();
+  pairListeners.forEach(stop=>stop()); pairListeners=[];
+  const list=document.getElementById("pairedDevices");
+  const favorite=document.getElementById("favoriteConnection");
+  list.replaceChildren();favorite.replaceChildren();
+  const mainCode=mainPairCode();
+  if(!mainCode){
+    const note=document.createElement("p");
+    note.textContent=pairedCodes.length ? "No main connection selected. Open Manage connections to show one." : "Pair a phone once to start reaching.";
+    favorite.appendChild(note);
+  }
+  function addAction(parent,label,action){
+    const button=document.createElement("button");
+    button.textContent=label;button.style.marginTop="10px";
+    button.onclick=action;parent.appendChild(button);return button;
+  }
   for(const code of pairedCodes){
-    const open=document.createElement("button");
-    open.textContent="❤️ My hand is open ("+code.slice(0,4)+")";
-    open.style.marginTop="12px"; open.onclick=()=>openPairedHand(code); pairedDevices.appendChild(open);
-    pairListeners.push(onSnapshot(doc(db,"pairInvites",code),(snap)=>{
-      if(!snap.exists()||!currentUser)return; const pair=snap.data();
-      if(!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))return;
-      const old=document.getElementById("joinPair-"+code); if(old)old.remove();
-      if(pair.activeRoom&&pair.openedBy!==currentUser.uid&&!activeRoom){
-        const join=document.createElement("button"); join.id="joinPair-"+code;
-        join.textContent="❤️ Take their hand ("+code.slice(0,4)+")"; join.style.marginTop="12px";
-        join.onclick=async()=>{document.getElementById("joinCode").value=pair.activeRoom;pairSessionCode=code;await window.joinRoom();};
-        pairedDevices.appendChild(join);
+    const prefs=pairPrefsFor(code);
+    const item=document.createElement("div");
+    item.style.cssText="padding:14px 0;border-bottom:1px solid #475569";
+    const heading=document.createElement("div");
+    heading.textContent=pairName(code)+(code===mainCode?" ❤️ Main":"");
+    heading.style.cssText="font-weight:700;margin:6px 0";
+    item.appendChild(heading);
+    const open=addAction(item,"❤️ My hand is open",()=>openPairedHand(code));
+    open.id="openPair-"+code;
+    const join=addAction(item,"❤️ Take their hand",async()=>{
+      const snap=await getDoc(doc(db,"pairInvites",code));
+      const pair=snap.data();
+      if(!pair||!pair.activeRoom||pair.openedBy===currentUser.uid){
+        pairMessage.textContent="Your partner has not opened their hand yet.";return;
       }
-    },err=>{console.error(err);pairMessage.textContent="Pairing needs Firebase security rules."; }));
+      document.getElementById("joinCode").value=pair.activeRoom;
+      pairSessionCode=code;await window.joinRoom();
+    });
+    join.style.display="none";
+    const controls=document.createElement("div");
+    controls.style.cssText="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px";
+    function smallButton(label,handler){
+      const b=document.createElement("button");
+      b.textContent=label;b.style.cssText="width:auto;padding:10px 12px;font-size:14px;background:#475569";
+      b.onclick=handler;controls.appendChild(b);
+    }
+    smallButton("Rename",()=>{
+      const name=prompt("Name this connection",prefs.name||"");
+      if(name===null)return;
+      pairPrefs[code]={...pairPrefsFor(code),name:name.trim().slice(0,32)};
+      savePairPrefs();watchPairs();
+    });
+    smallButton(prefs.hidden?"Show":"Hide",()=>{
+      pairPrefs[code]={...pairPrefsFor(code),hidden:!prefs.hidden};
+      savePairPrefs();watchPairs();
+    });
+    if(code!==mainCode)smallButton("Make main",()=>{
+      pairPrefs[code]={...pairPrefsFor(code),hidden:false};
+      favoritePair=code;localStorage.setItem("reachFavoritePair",code);
+      savePairPrefs();watchPairs();
+    });
+    item.appendChild(controls);
+    list.appendChild(item);
+    if(code===mainCode){
+      const hero=document.createElement("div");
+      const name=document.createElement("h2");name.textContent=pairName(code)+" ❤️";
+      hero.appendChild(name);
+      const heroOpen=addAction(hero,"❤️ My hand is open",()=>openPairedHand(code));
+      const heroJoin=addAction(hero,"❤️ Take their hand",()=>join.click());
+      heroJoin.style.display="none";
+      favorite.appendChild(hero);
+      pairListeners.push(onSnapshot(doc(db,"pairInvites",code),(snap)=>{
+        if(!snap.exists()||!currentUser)return;
+        const pair=snap.data();
+        if(!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))return;
+        const ready=!!pair.activeRoom&&pair.openedBy!==currentUser.uid&&!activeRoom;
+        heroJoin.style.display=ready?"block":"none";
+        join.style.display=ready?"block":"none";
+      },err=>{console.error(err);pairMessage.textContent="Could not check paired connection."; }));
+    }else{
+      pairListeners.push(onSnapshot(doc(db,"pairInvites",code),(snap)=>{
+        if(!snap.exists()||!currentUser)return;
+        const pair=snap.data();
+        if(!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))return;
+        join.style.display=pair.activeRoom&&pair.openedBy!==currentUser.uid&&!activeRoom?"block":"none";
+      },err=>console.error("Paired connection:",err)));
+    }
   }
 }
 window.makePairCode=async()=>{
