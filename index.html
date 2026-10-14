@@ -1427,12 +1427,16 @@ window.openPairedHand=async(code)=>{
   if(activeRoom){pairMessage.textContent="End your current REACH first.";return;}
   try{const ref=doc(db,"pairInvites",code),snap=await getDoc(ref),pair=snap.data();
     if(!pair||!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid)){pairMessage.textContent="Wait for the other phone to pair first.";return;}
-    await window.createRoom();if(!activeRoom)return;await updateDoc(ref,{activeRoom,openedBy:currentUser.uid});
+    await window.createRoom(code,pair);if(!activeRoom)return;await updateDoc(ref,{activeRoom,openedBy:currentUser.uid});
     pairSessionCode=code;pairMessage.textContent="❤️ Your hand is open.";
   }catch(err){console.error(err);pairMessage.textContent="Could not open paired session.";}
 };
 
-window.createRoom = async function () {
+window.createRoom = async function (authorizedPairCode, authorizedPair) {
+  if(!authorizedPairCode || !authorizedPair || !authorizedPair.partnerUid || !currentUser || ![authorizedPair.hostUid,authorizedPair.partnerUid].includes(currentUser.uid)){
+    status.textContent="Private REACH sessions require your confirmed partnership.";return;
+  }
+  const otherUid=authorizedPair.hostUid===currentUser.uid?authorizedPair.partnerUid:authorizedPair.hostUid;
 
   if (!currentUser) {
     status.textContent =
@@ -1463,7 +1467,8 @@ window.createRoom = async function () {
 
     await setDoc(roomRef, {
       hostUid: currentUser.uid,
-      partnerUid: null,
+      partnerUid: otherUid,
+      pairCode: authorizedPairCode,
       createdAt: serverTimestamp(),
       expiresAt: Date.now() + SESSION_LENGTH_MS,
       active: true,
@@ -1506,6 +1511,12 @@ window.createRoom = async function () {
 
 
 window.joinRoom = async function () {
+  if(!pairSessionCode){status.textContent="Join through your partner’s open hand, not a room code.";return;}
+  const authorizedPairSnap=await getDoc(doc(db,"pairInvites",pairSessionCode));
+  const authorizedPair=authorizedPairSnap.data();
+  if(!authorizedPair || !authorizedPair.partnerUid || !currentUser || ![authorizedPair.hostUid,authorizedPair.partnerUid].includes(currentUser.uid)){
+    status.textContent="This partnership is not authorized.";return;
+  }
 
   if (!currentUser) {
     status.textContent =
@@ -1547,6 +1558,9 @@ window.joinRoom = async function () {
     const room =
       snapshot.data();
 
+    if(room.pairCode!==pairSessionCode || room.partnerUid!==currentUser.uid || room.hostUid===currentUser.uid){
+      status.textContent="This private room is not authorized for you.";return;
+    }
     rememberPartner(room.hostUid);
 
     if (!room.active) {
@@ -1592,8 +1606,6 @@ window.joinRoom = async function () {
 
 
     await updateDoc(roomRef, {
-
-      partnerUid: currentUser.uid,
 
       partnerJoinedAt:
         serverTimestamp(),
