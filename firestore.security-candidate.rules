@@ -60,6 +60,7 @@ service cloud.firestore {
         && request.resource.data.expiresAt is int
         && request.resource.data.expiresAt > request.time.toMillis()
         && request.resource.data.expiresAt <= request.time.toMillis() + 28800000
+        && request.resource.data.createdAt == request.time
         && request.resource.data.offer.type == 'offer'
         && request.resource.data.offer.sdp is string
         && request.resource.data.offer.sdp.size() < 100000
@@ -76,10 +77,14 @@ service cloud.firestore {
         && (
           (request.auth.uid == resource.data.hostUid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active','endedAt'])
-            && request.resource.data.active == false)
+            && resource.data.active == true
+            && request.resource.data.active == false
+            && request.resource.data.endedAt == request.time)
           || (request.auth.uid == resource.data.partnerUid
             && resource.data.active == true
+            && resource.data.expiresAt > request.time.toMillis()
             && !resource.data.keys().hasAny(['answer'])
+            && request.resource.data.partnerJoinedAt == request.time
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['partnerJoinedAt','answer'])
             && request.resource.data.answer.type == 'answer'
             && request.resource.data.answer.sdp is string
@@ -123,6 +128,7 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.hostUid == request.auth.uid
         && request.resource.data.partnerUid == null
+        && request.resource.data.createdAt == request.time
         && newPairLock(request.auth.uid, pairCode)
         && request.resource.data.activeRoom == null
         && request.resource.data.openedBy == null
