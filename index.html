@@ -407,6 +407,7 @@
     #mainConnectionCard .reach-contact-menu { position:absolute;right:0;top:4px;margin:0; }
     @media(max-width:380px) { #mainConnectionCard .reach-couple-photos .reach-avatar{width:78px;height:78px;flex-basis:78px;} .reach-couple-photos{gap:9px;} }
     .tagline .reach-verse-ref { display:block; margin-top:8px; font-size:14px; letter-spacing:1px; color:#d8a9ca; font-weight:500; }
+    #reachDailyCard{padding:20px;border:1px solid #9f6b9555}#reachDailyCard h2{font-size:19px;margin:7px 0 14px}.rd-head{display:flex;justify-content:space-between;gap:8px;align-items:start}.rd-kicker{font-size:10px;letter-spacing:2px;color:#e6a5cb;font-weight:750}.rd-toggle{font-size:12px;white-space:nowrap;display:flex;gap:6px;align-items:center}.rd-toggle input{width:20px;height:20px;margin:0;accent-color:#df6aa8}.rd-quote{padding:25px 17px;border-radius:18px;text-align:center;font-size:19px;font-style:italic;line-height:1.5;background:linear-gradient(135deg,#834e7644,#654a9b44);color:#ffe7f2}.rd-actions{display:flex;gap:9px;margin-top:12px}#reachDailyCard .rd-actions button{flex:1;width:auto;padding:13px 7px;font-size:13px;border-radius:13px;background:#824c82}#reachDailyCard #rdShare{background:linear-gradient(120deg,#d54c92,#8c58ba)}.rd-saved{margin-top:16px;font-size:13px}.rd-saved summary{cursor:pointer}.rd-saved-item{padding:10px;margin-top:8px;background:#ffffff12;border-radius:12px;line-height:1.5}#rdMessage{font-size:12px;color:#d4b9d7;margin-top:9px}
   </style>
 </head>
 
@@ -459,6 +460,7 @@
     </div>
   </section>
 
+  <section class="card" id="reachDailyCard"><div class="rd-head"><div><span class="rd-kicker">A LITTLE LOVE, DAILY</span><h2>Today's little reminder ❤️</h2></div><label class="rd-toggle"><input id="rdEnabled" type="checkbox"> On</label></div><div id="rdBody"><div class="rd-quote" id="rdQuote"></div><div class="rd-actions"><button id="rdSave" type="button">♡ Save</button><button id="rdShare" type="button">↗ Share a nudge</button></div><details class="rd-saved"><summary>Our little reminders <span id="rdCount"></span></summary><div id="rdList"></div></details><div id="rdMessage" role="status"></div></div></section>
   <section class="card" id="pairCard">
     <h2>One-time pairing ❤️</h2>
     <p>Pair each phone once. Multiple devices can stay authorized, including a test phone.</p>
@@ -532,6 +534,27 @@
 
 </main>
 
+<script>
+const rdQuotes=["Love is found in the little moments we choose to share.","Being present is one of the simplest ways to say I love you.","A little kindness can travel any distance.","Gratitude makes ordinary moments feel extraordinary.","Love makes room for both closeness and breathing space.","The most meaningful gift is often your undivided attention.","Sometimes love sounds like: I'm here whenever you're ready.","The best conversations begin with genuine curiosity.","Distance changes where we are, not how deeply we can care.","A shared laugh can make the miles feel smaller.","An open hand is an invitation, never an expectation.","Kindness matters most in the moments that aren't easy.","A thoughtful pause can be an act of love.","Love is strengthened by honesty spoken with care.","Make space for joy, even on busy days.","The little things are often the big things in disguise.","Listening is love made visible.","There is tenderness in simply making time for each other.","Let appreciation be something you say, not only something you feel.","Connection is a choice we can make again and again.","Celebrate the ordinary days; they are part of your story.","Small acts of care create lasting memories.","Love grows when two people feel free to be themselves.","Choose patience when life asks you to wait.","A caring heart can turn an ordinary evening into a memory.","Be grateful for the person, not just the time you get together.","A gentle word can change the direction of a difficult day.","You don't have to share every moment to feel connected.","Sometimes the most beautiful plan is simply being together.","The way we treat each other in small moments shapes our story.","You can miss someone and still give them room to grow."];
+const rdEl=id=>document.getElementById(id);
+const rdEnabled=rdEl("rdEnabled"),rdBody=rdEl("rdBody");
+rdEnabled.checked=localStorage.getItem("reach-daily-enabled")!=="off";
+const rdIndex=()=>{const d=new Date();return Math.floor(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/86400000)%rdQuotes.length};
+function rdSaved(){try{const a=JSON.parse(localStorage.getItem("reach-daily-saved")||"[]");return Array.isArray(a)?a.filter(i=>Number.isInteger(i)&&i>=0&&i<rdQuotes.length):[]}catch{return []}}
+function rdRender(){
+rdBody.hidden=!rdEnabled.checked;if(!rdEnabled.checked)return;
+const i=rdIndex(),saved=rdSaved();rdEl("rdQuote").textContent="“"+rdQuotes[i]+"”";
+rdEl("rdSave").textContent=saved.includes(i)?"♥ Saved":"♡ Save";
+rdEl("rdCount").textContent="("+saved.length+")";
+const list=rdEl("rdList");list.replaceChildren();
+if(!saved.length){const p=document.createElement("p");p.textContent="Nothing saved yet.";list.appendChild(p)}
+saved.forEach(i=>{const item=document.createElement("div");item.className="rd-saved-item";item.textContent="“"+rdQuotes[i]+"”";list.appendChild(item)})
+}
+rdEnabled.addEventListener("change",()=>{localStorage.setItem("reach-daily-enabled",rdEnabled.checked?"on":"off");rdRender()});
+rdEl("rdSave").addEventListener("click",()=>{const i=rdIndex(),a=rdSaved(),p=a.indexOf(i);if(p<0)a.unshift(i);else a.splice(p,1);localStorage.setItem("reach-daily-saved",JSON.stringify(a));rdEl("rdMessage").textContent=p<0?"Saved on this phone.":"Removed from saved reminders.";rdRender()});
+rdEl("rdShare").addEventListener("click",async()=>{const msg="A little reminder from REACH ❤️\n\n“"+rdQuotes[rdIndex()]+"”\n\nThinking of you.";try{if(navigator.share)await navigator.share({text:msg});else if(navigator.clipboard){await navigator.clipboard.writeText(msg);rdEl("rdMessage").textContent="Copied to clipboard."}else rdEl("rdMessage").textContent="Sharing isn't available here."}catch(e){if(e.name!=="AbortError")rdEl("rdMessage").textContent="Could not share this time."}});
+rdRender();document.addEventListener("visibilitychange",()=>{if(!document.hidden)rdRender()});setInterval(()=>{if(!document.hidden)rdRender()},60000);
+</script>
 <script type="module">
 
 import { initializeApp } from
