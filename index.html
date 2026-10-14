@@ -1281,11 +1281,13 @@ function watchPairs(){
       pairPrefs[code]={...pairPrefsFor(code),hidden:!prefs.hidden};
       savePairPrefs();watchPairs();
     });
-    if(false && code!==mainCode)smallButton("Make main",()=>{
+    /* Legacy partner switching disabled in REACH v1.
+    if(code!==mainCode)smallButton("Make main",()=>{
       pairPrefs[code]={...pairPrefsFor(code),hidden:false};
       favoritePair=code;localStorage.setItem("reachFavoritePair",code);
       savePairPrefs();watchPairs();
     });
+    */
     item.appendChild(controls);
     list.appendChild(item);
     if(code===mainCode){
@@ -1446,7 +1448,9 @@ window.openPairedHand=async(code)=>{
   if(activeRoom){pairMessage.textContent="End your current REACH first.";return;}
   try{const ref=doc(db,"pairInvites",code),snap=await getDoc(ref),pair=snap.data();
     if(!pair||pair.revoked||!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid)){pairMessage.textContent="Wait for the other phone to pair first.";return;}
-    await window.createRoom(code,pair);if(!activeRoom)return;await updateDoc(ref,{activeRoom,openedBy:currentUser.uid});
+    await window.createRoom(code,pair);if(!activeRoom)return;
+    try{await updateDoc(ref,{activeRoom,openedBy:currentUser.uid});}
+    catch(error){await window.endReach();throw error;}
     pairSessionCode=code;pairMessage.textContent="❤️ Your hand is open.";
   }catch(err){console.error(err);pairMessage.textContent="Could not open paired session.";}
 };
@@ -1504,9 +1508,7 @@ window.createRoom = async function (authorizedPairCode, authorizedPair) {
       .textContent = code;
 
     status.textContent =
-      "💜 My hand is open to yours. Share " +
-      code +
-      " with your partner.";
+      "💜 My hand is open to yours. Waiting for your paired partner.";
 
     connectionStatus.textContent =
       "Your hand is open. Waiting for your partner...";
@@ -1525,6 +1527,7 @@ window.createRoom = async function (authorizedPairCode, authorizedPair) {
 
     status.textContent =
       "⚠️ Could not start video room.";
+    await cleanupConnection(true);
   }
 };
 
