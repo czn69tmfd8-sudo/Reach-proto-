@@ -2,8 +2,8 @@
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
-const html = fs.readFileSync('index.html','utf8');
-const rules = fs.readFileSync('firestore.security-candidate.rules','utf8');
+const html = fs.readFileSync('../index.html','utf8');
+const rules = fs.readFileSync('../firestore.security-candidate.rules','utf8');
 const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
 assert.ok(scripts.length >= 2, 'Expected inline app scripts');
 for (const [index, script] of scripts.entries()) {
