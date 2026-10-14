@@ -576,7 +576,8 @@ import {
   onSnapshot,
   serverTimestamp,
   collection,
-  addDoc
+  addDoc,
+  runTransaction
 } from
   "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
 
@@ -1410,32 +1411,50 @@ function refreshMediaTiles(){
 }
 new MutationObserver(refreshMediaTiles).observe(mediaStatus,{childList:true,characterData:true,subtree:true});
 refreshMediaTiles();
+// The memberLocks documents are enforced by the candidate rules for new pairs.
+// Existing partnerships require a one-time, explicitly reviewed migration.
 window.makePairCode=async()=>{
   if(!currentUser)return;
-  // REACH v1 is a one-partner experience. Preserve the existing connection.
-  if(mainPairCode()){
-    pairMessage.textContent="❤️ REACH is already paired with your person. Your existing connection is preserved.";
-    return;
-  } const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes=crypto.getRandomValues(new Uint8Array(12)); const code=Array.from(bytes,n=>chars[n%chars.length]).join("");
-  try{await setDoc(doc(db,"pairInvites",code),{hostUid:currentUser.uid,partnerUid:null,activeRoom:null,openedBy:null,createdAt:serverTimestamp()});
-    if(!pairedCodes.includes(code))pairedCodes.push(code);savePairs();watchPairs();
-    document.getElementById("pairCode").textContent=code;pairMessage.textContent="Share this code privately, just once.";
-  }catch(err){console.error(err);pairMessage.textContent="Pairing unavailable until its Firebase rules are published.";}
+  if(mainPairCode()){pairMessage.textContent="❤️ Your existing partnership is preserved.";return;}
+  const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes=crypto.getRandomValues(new Uint8Array(12));
+  const code=Array.from(bytes,n=>chars[n%chars.length]).join("");
+  try{
+    await runTransaction(db,async(tx)=>{
+      const lockRef=doc(db,"memberLocks",currentUser.uid);
+      const lock=await tx.get(lockRef);
+      if(lock.exists())throw Error("This account already has a partnership.");
+      tx.set(doc(db,"pairInvites",code),{
+        hostUid:currentUser.uid,partnerUid:null,activeRoom:null,openedBy:null,createdAt:serverTimestamp()
+      });
+      tx.set(lockRef,{pairCode:code,createdAt:serverTimestamp()});
+    });
+    if(!pairedCodes.includes(code))pairedCodes.push(code);
+    savePairs();watchPairs();
+    document.getElementById("pairCode").textContent=code;
+    pairMessage.textContent="Share this code privately, just once.";
+  }catch(err){console.error(err);pairMessage.textContent="Unable to create a pairing. Your existing connection was not changed.";}
 };
 window.claimPairCode=async()=>{
   if(!currentUser)return;
-  // Do not replace or add another partner through the pairing screen.
-  if(mainPairCode()){
-    pairMessage.textContent="❤️ You already have your person in REACH. Your pairing has not changed.";
-    return;
-  }const code=document.getElementById("pairInput").value.trim().toUpperCase();
+  if(mainPairCode()){pairMessage.textContent="❤️ Your existing partnership is preserved.";return;}
+  const code=document.getElementById("pairInput").value.trim().toUpperCase();
   if(code.length!==12){pairMessage.textContent="Enter the 12-character code.";return;}
-  try{const ref=doc(db,"pairInvites",code),snap=await getDoc(ref);
-    if(!snap.exists()||snap.data().partnerUid||snap.data().hostUid===currentUser.uid){pairMessage.textContent="Invalid or already claimed code.";return;}
-    await updateDoc(ref,{partnerUid:currentUser.uid});if(!pairedCodes.includes(code))pairedCodes.push(code);savePairs();watchPairs();
+  try{
+    await runTransaction(db,async(tx)=>{
+      const lockRef=doc(db,"memberLocks",currentUser.uid);
+      const pairRef=doc(db,"pairInvites",code);
+      const lock=await tx.get(lockRef);
+      const pairSnap=await tx.get(pairRef);
+      if(lock.exists())throw Error("This account already has a partnership.");
+      if(!pairSnap.exists()||pairSnap.data().revoked||pairSnap.data().partnerUid||pairSnap.data().hostUid===currentUser.uid)throw Error("Pair unavailable.");
+      tx.update(pairRef,{partnerUid:currentUser.uid});
+      tx.set(lockRef,{pairCode:code,createdAt:serverTimestamp()});
+    });
+    if(!pairedCodes.includes(code))pairedCodes.push(code);
+    savePairs();watchPairs();
     pairMessage.textContent="❤️ Paired. No room codes needed for this device pair.";
-  }catch(err){console.error(err);pairMessage.textContent="Pairing failed. Check Firebase rules.";}
+  }catch(err){console.error(err);pairMessage.textContent="Pairing failed. Your existing connection was not changed.";}
 };
 window.openPairedHand=async(code)=>{
   if(code!==mainPairCode()){pairMessage.textContent="Only your main partnership can connect.";return;}
