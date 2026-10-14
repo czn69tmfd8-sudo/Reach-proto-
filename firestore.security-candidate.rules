@@ -103,7 +103,11 @@ service cloud.firestore {
         )
         && request.resource.data.hostUid == resource.data.hostUid
         && request.resource.data.createdAt == resource.data.createdAt
-        && (request.resource.data.get('revoked', false) != true || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revoked']));
+        && (request.resource.data.partnerUid == resource.data.partnerUid
+          || (resource.data.partnerUid == null
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['partnerUid'])))
+        && (request.resource.data.get('revoked', false) != true
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revoked']));
       allow delete: if false;
     }
     match /{document=**} { allow read, write: if false; }
