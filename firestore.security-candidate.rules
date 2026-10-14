@@ -39,11 +39,15 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time
         && (
           // The invite is being created in the same atomic transaction.
-          (getAfter(pairPath(request.resource.data.pairCode)).data.hostUid == uid
+          (!exists(pairPath(request.resource.data.pairCode))
+            && getAfter(pairPath(request.resource.data.pairCode)).data.hostUid == uid
             && getAfter(pairPath(request.resource.data.pairCode)).data.partnerUid == null)
           ||
-          // This account is claiming an existing invite in the same transaction.
-          (getAfter(pairPath(request.resource.data.pairCode)).data.partnerUid == uid)
+          // Only a previously unclaimed invite may be claimed in this transaction.
+          (exists(pairPath(request.resource.data.pairCode))
+            && get(pairPath(request.resource.data.pairCode)).data.partnerUid == null
+            && get(pairPath(request.resource.data.pairCode)).data.hostUid != uid
+            && getAfter(pairPath(request.resource.data.pairCode)).data.partnerUid == uid)
         );
       allow update, delete: if false;
     }
