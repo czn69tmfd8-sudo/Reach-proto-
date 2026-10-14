@@ -31,6 +31,12 @@ service cloud.firestore {
             && pairData(request.resource.data.pairCode).hostUid == request.resource.data.partnerUid)
         )
         && request.resource.data.active == true
+        && request.resource.data.expiresAt is int
+        && request.resource.data.expiresAt > request.time.toMillis()
+        && request.resource.data.expiresAt <= request.time.toMillis() + 28800000
+        && request.resource.data.offer.type == 'offer'
+        && request.resource.data.offer.sdp is string
+        && request.resource.data.offer.sdp.size() < 100000
         && request.resource.data.keys().hasOnly(['hostUid','partnerUid','pairCode','createdAt','expiresAt','active','offer']);
       allow get: if roomMember();
       allow list: if false;
@@ -49,17 +55,43 @@ service cloud.firestore {
             && resource.data.active == true
             && !resource.data.keys().hasAny(['answer'])
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['partnerJoinedAt','answer'])
-            && request.resource.data.answer.type == 'answer')
+            && request.resource.data.answer.type == 'answer'
+            && request.resource.data.answer.sdp is string
+            && request.resource.data.answer.sdp.size() < 100000)
         );
       allow delete: if false;
-      match /{signalDocument=**} {
-        allow read, write: if signedIn()
+      // ICE candidates are readable only by the two paired room members.
+      function roomSignalMember() {
+        return signedIn()
           && exists(/databases/$(database)/documents/rooms/$(roomId))
           && pairMember(get(/databases/$(database)/documents/rooms/$(roomId)).data.pairCode)
           && (
             get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid == request.auth.uid
             || get(/databases/$(database)/documents/rooms/$(roomId)).data.partnerUid == request.auth.uid
           );
+      }
+      function activeRoomSignal() {
+        return roomSignalMember()
+          && get(/databases/$(database)/documents/rooms/$(roomId)).data.active == true
+          && get(/databases/$(database)/documents/rooms/$(roomId)).data.expiresAt > request.time.toMillis();
+      }
+      function validCandidate() {
+        return request.resource.data.keys().hasOnly(['candidate','sdpMid','sdpMLineIndex','usernameFragment'])
+          && request.resource.data.candidate is string
+          && request.resource.data.candidate.size() < 8192;
+      }
+      match /hostCandidates/{candidateId} {
+        allow get, list: if roomSignalMember();
+        allow create: if activeRoomSignal() && validCandidate()
+          && get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid == request.auth.uid;
+        allow update, delete: if false;
+      }
+      match /partnerCandidates/{candidateId} {
+        allow get, list: if roomSignalMember();
+        allow create: if activeRoomSignal() && validCandidate()
+          && get(/databases/$(database)/documents/rooms/$(roomId)).data.partnerUid == request.auth.uid
+          && get(/databases/$(database)/documents/rooms/$(roomId)).data.keys().hasAny(['answer']);
+        allow update, delete: if false;
       }
     }
     match /pairInvites/{pairCode} {
