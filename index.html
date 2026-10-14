@@ -393,6 +393,19 @@
     body.reach-in-call #endButton { background:linear-gradient(110deg,#c82b6e,#9d285c);
       box-shadow:0 8px 28px #0008; }
     @media(max-width:380px) { .card{padding:19px;} h1{letter-spacing:2px;} }
+
+    /* v1.9 — two people, two photos, one heart. */
+    #mainConnectionCard .reach-contact-head { position:relative; display:flex;flex-direction:column;gap:11px;align-items:center;padding-top:3px; }
+    .reach-couple-photos { display:flex;justify-content:center;align-items:center;gap:12px;width:100%; }
+    #mainConnectionCard .reach-couple-photos .reach-avatar { width:91px;height:91px;flex:0 0 91px;margin:0; }
+    #mainConnectionCard .reach-couple-photos .reach-avatar.partner { border-color:#aa8df9; }
+    .reach-couple-heart { color:#ff7ab8;font-size:29px;filter:drop-shadow(0 0 10px #e93b98aa); }
+    .reach-couple-labels { display:flex;justify-content:center;gap:42px;width:100%;font-size:12px;color:#dfc9e5; }
+    #mainConnectionCard .reach-contact-info { text-align:center;flex:none; }
+    #mainConnectionCard .reach-contact-name { font-size:24px; }
+    #mainConnectionCard .reach-contact-status { margin-top:5px; }
+    #mainConnectionCard .reach-contact-menu { position:absolute;right:0;top:4px;margin:0; }
+    @media(max-width:380px) { #mainConnectionCard .reach-couple-photos .reach-avatar{width:78px;height:78px;flex-basis:78px;} .reach-couple-photos{gap:9px;} }
   </style>
 </head>
 
@@ -1237,21 +1250,35 @@ function watchPairs(){
     if(code===mainCode){
       const hero=document.createElement("div");
       const head=document.createElement("div");head.className="reach-contact-head";
-      const avatar=document.createElement("button");avatar.type="button";avatar.className="reach-avatar";
-      avatar.setAttribute("aria-label","Choose a contact photo");
-      const image=document.createElement("img");
-      const storedPhoto=localStorage.getItem("reachPhoto-"+code);
-      const fallback=document.createElement("span");fallback.className="reach-avatar-fallback";fallback.textContent="❤️";
-      if(storedPhoto){image.src=storedPhoto;avatar.appendChild(image);}else avatar.appendChild(fallback);
-      avatar.onclick=()=>document.getElementById("reachPhotoPicker").click();
+      const photos=document.createElement("div");photos.className="reach-couple-photos";
+      function makeCoupleAvatar(who){
+        const avatar=document.createElement("button");avatar.type="button";avatar.className="reach-avatar "+who;
+        avatar.setAttribute("aria-label",who==="self"?"Choose your photo":"Your partner's photo (chosen on their phone)");
+        const img=document.createElement("img");img.alt=who==="self"?"Your profile photo":"Your partner's profile photo";
+        const fallback=document.createElement("span");fallback.className="reach-avatar-fallback";fallback.textContent=who==="self"?"＋":"❤️";
+        const own=who==="self";
+        const localKey=own?"reachMyPhoto-"+code:"reachPhoto-"+code;
+        const local=localStorage.getItem(localKey);
+        if(local){img.src=local;avatar.appendChild(img);}else avatar.appendChild(fallback);
+        if(own)avatar.onclick=()=>document.getElementById("reachPhotoPicker").click();
+        else {avatar.disabled=true;avatar.style.cursor="default";}
+        return {avatar,img,fallback,localKey};
+      }
+      const mine=makeCoupleAvatar("self"),theirs=makeCoupleAvatar("partner");
+      const heart=document.createElement("span");heart.className="reach-couple-heart";heart.textContent="♥";
+      photos.append(mine.avatar,heart,theirs.avatar);
+      const labels=document.createElement("div");labels.className="reach-couple-labels";
+      const mineLabel=document.createElement("span");mineLabel.textContent="You";
+      const theirsLabel=document.createElement("span");theirsLabel.textContent=pairName(code);
+      labels.append(mineLabel,theirsLabel);
       const info=document.createElement("div");info.className="reach-contact-info";
-      const name=document.createElement("div");name.className="reach-contact-name";name.textContent=pairName(code)+" ❤️";
+      const name=document.createElement("div");name.className="reach-contact-name";name.textContent="You & "+pairName(code)+" ❤️";
       const state=document.createElement("div");state.className="reach-contact-status";state.textContent="● Paired & ready";
       info.append(name,state);
       const menu=document.createElement("button");menu.type="button";menu.className="reach-contact-menu";menu.textContent="⋮";
       menu.setAttribute("aria-label","Manage connections");
       menu.onclick=()=>{const d=document.getElementById("manageConnections");d.open=!d.open;};
-      head.append(avatar,info,menu);hero.appendChild(head);
+      head.append(photos,labels,info,menu);hero.appendChild(head);
       const actions=document.createElement("div");actions.className="reach-main-actions";
       const heroOpen=addAction(actions,"My hand is open",()=>openPairedHand(code));
       heroOpen.classList.add("reach-open");
@@ -1264,6 +1291,16 @@ function watchPairs(){
         if(!snap.exists()||!currentUser)return;
         const pair=snap.data();
         if(!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))return;
+        // Profile photos are small JPEGs on the paired invite, indexed by the owner's UID.
+        // The original local contact photo remains a fallback if cloud sharing is unavailable.
+        const remoteUid=pair.hostUid===currentUser.uid?pair.partnerUid:pair.hostUid;
+        const profilePhotos=pair.profilePhotos||{};
+        function showPhoto(slot,data){
+          if(typeof data!=="string"||!data.startsWith("data:image/jpeg;base64,")||data.length>90000)return;
+          if(slot.img.src!==data){slot.img.src=data;slot.avatar.replaceChildren(slot.img);}
+        }
+        showPhoto(mine,profilePhotos[currentUser.uid]);
+        showPhoto(theirs,profilePhotos[remoteUid]);
         const ready=!!pair.activeRoom&&pair.openedBy!==currentUser.uid&&!activeRoom;
         heroJoin.disabled=!ready;
         heroJoin.setAttribute("aria-disabled",String(!ready));
@@ -1280,19 +1317,26 @@ function watchPairs(){
     }
   }
 }
-// Contact photos stay on this phone, not in Firebase.
+// Each person chooses their own photo. Store locally first, then sync a small copy.
 document.getElementById("reachPhotoPicker").addEventListener("change",async(event)=>{
   const file=event.target.files?.[0], code=mainPairCode();
-  if(!file||!code)return;
+  if(!file||!code||!currentUser)return;
   if(!file.type.startsWith("image/")){pairMessage.textContent="Please select a photo.";return;}
   try {
     const bitmap=await createImageBitmap(file);
-    const canvas=document.createElement("canvas");canvas.width=256;canvas.height=256;
+    const canvas=document.createElement("canvas");canvas.width=160;canvas.height=160;
     const ctx=canvas.getContext("2d"),side=Math.min(bitmap.width,bitmap.height);
-    ctx.drawImage(bitmap,(bitmap.width-side)/2,(bitmap.height-side)/2,side,side,0,0,256,256);
+    ctx.drawImage(bitmap,(bitmap.width-side)/2,(bitmap.height-side)/2,side,side,0,0,160,160);
     bitmap.close();
-    localStorage.setItem("reachPhoto-"+code,canvas.toDataURL("image/jpeg",.78));
+    const data=canvas.toDataURL("image/jpeg",.62);
+    localStorage.setItem("reachMyPhoto-"+code,data);
     watchPairs();
+    try {
+      await updateDoc(doc(db,"pairInvites",code),{["profilePhotos."+currentUser.uid]:data});
+    } catch(syncError) {
+      console.warn("Photo sync unavailable; saved locally:",syncError);
+      pairMessage.textContent="Your photo is saved on this phone. Sharing to your partner is not available yet.";
+    }
   }catch(err){console.error("Photo selection:",err);pairMessage.textContent="Couldn't save that photo on this phone.";}
   event.target.value="";
 });
