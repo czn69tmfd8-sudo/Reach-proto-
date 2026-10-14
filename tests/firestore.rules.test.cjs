@@ -1,7 +1,7 @@
 const {before,after,test}=require('node:test');
 const assert=require('node:assert/strict');
 const {initializeTestEnvironment,assertSucceeds,assertFails}=require('@firebase/rules-unit-testing');
-const {doc,setDoc,getDoc,updateDoc,collection,addDoc,getDocs}=require('firebase/firestore');
+const {doc,setDoc,getDoc,updateDoc,collection,addDoc,getDocs,runTransaction,serverTimestamp,deleteDoc}=require('firebase/firestore');
 const fs=require('node:fs');
 let env;
 const projectId='reach-security-test';
@@ -98,4 +98,45 @@ test('locked account cannot read a different legacy pairing',async()=>{
   await setDoc(doc(d,'rooms',room),{hostUid:'lockedHost',partnerUid:'legacyPartner',pairCode:code,createdAt:new Date(),expiresAt:Date.now()+3600000,active:true,offer:{type:'offer',sdp:'offer'}});
  });
  await assertFails(getDoc(doc(db('lockedHost'),'rooms',room)));
+});
+
+test('new pairing requires its member lock in the same transaction',async()=>{
+ const uid='newHostA',code='NEWPAIRCODE1';
+ await assertFails(setDoc(doc(db(uid),'pairInvites',code),{hostUid:uid,partnerUid:null,activeRoom:null,openedBy:null,createdAt:serverTimestamp()}));
+ await assertSucceeds(runTransaction(db(uid),async tx=>{
+  const lock=doc(db(uid),'memberLocks',uid);
+  assert.equal((await tx.get(lock)).exists(),false);
+  tx.set(doc(db(uid),'pairInvites',code),{hostUid:uid,partnerUid:null,activeRoom:null,openedBy:null,createdAt:serverTimestamp()});
+  tx.set(lock,{pairCode:code,createdAt:serverTimestamp()});
+ }));
+ await assertSucceeds(getDoc(doc(db(uid),'memberLocks',uid)));
+});
+test('claiming a pairing requires an atomic member lock',async()=>{
+ const host='newHostB',partner='newPartnerB',code='NEWPAIRCODE2';
+ await assertSucceeds(runTransaction(db(host),async tx=>{
+  const lock=doc(db(host),'memberLocks',host);
+  await tx.get(lock);
+  tx.set(doc(db(host),'pairInvites',code),{hostUid:host,partnerUid:null,activeRoom:null,openedBy:null,createdAt:serverTimestamp()});
+  tx.set(lock,{pairCode:code,createdAt:serverTimestamp()});
+ }));
+ await assertFails(updateDoc(doc(db(partner),'pairInvites',code),{partnerUid:partner}));
+ await assertSucceeds(runTransaction(db(partner),async tx=>{
+  const lock=doc(db(partner),'memberLocks',partner);
+  const pair=doc(db(partner),'pairInvites',code);
+  assert.equal((await tx.get(lock)).exists(),false);
+  assert.equal((await tx.get(pair)).data().partnerUid,null);
+  tx.update(pair,{partnerUid:partner});
+  tx.set(lock,{pairCode:code,createdAt:serverTimestamp()});
+ }));
+ await assertSucceeds(getDoc(doc(db(partner),'memberLocks',partner)));
+});
+test('an already-locked account cannot create a second pairing',async()=>{
+ const uid='newHostA',code='SECONDPAIR12';
+ await assertFails(runTransaction(db(uid),async tx=>{
+  const pair=doc(db(uid),'pairInvites',code);
+  tx.set(pair,{hostUid:uid,partnerUid:null,activeRoom:null,openedBy:null,createdAt:serverTimestamp()});
+ }));
+});
+test('a pairing lock cannot be deleted by its owner',async()=>{
+ await assertFails(deleteDoc(doc(db('newHostA'),'memberLocks','newHostA')));
 });
