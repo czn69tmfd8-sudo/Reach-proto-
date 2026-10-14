@@ -1230,6 +1230,9 @@ function watchPairs(){
   for(const code of pairedCodes){
     const prefs=pairPrefsFor(code);
     if(prefs.retired)continue;
+    // Only the established main partnership can initiate a private session.
+    // Legacy test connections remain visible solely for retirement.
+    const permittedMain = code===mainCode;
     const item=document.createElement("div");
     item.style.cssText="padding:14px 0;border-bottom:1px solid #475569";
     const heading=document.createElement("div");
@@ -1238,9 +1241,11 @@ function watchPairs(){
     item.appendChild(heading);
     const open=addAction(item,"❤️ My hand is open",()=>openPairedHand(code));
     open.id="openPair-"+code;
+    if(!permittedMain)open.disabled=true;
     const join=addAction(item,"❤️ Take their hand",async()=>{
       const snap=await getDoc(doc(db,"pairInvites",code));
       const pair=snap.data();
+      if(code!==mainPairCode()){pairMessage.textContent="Only your main partnership can connect.";return;}
       if(!pair||pair.revoked||!pair.activeRoom||pair.openedBy===currentUser.uid){
         pairMessage.textContent="Your partner has not opened their hand yet.";return;
       }
@@ -1248,6 +1253,7 @@ function watchPairs(){
       pairSessionCode=code;await window.joinRoom();
     });
     join.style.display="none";
+    if(!permittedMain)join.disabled=true;
     const controls=document.createElement("div");
     controls.style.cssText="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px";
     function smallButton(label,handler){
@@ -1436,6 +1442,7 @@ window.claimPairCode=async()=>{
   }catch(err){console.error(err);pairMessage.textContent="Pairing failed. Check Firebase rules.";}
 };
 window.openPairedHand=async(code)=>{
+  if(code!==mainPairCode()){pairMessage.textContent="Only your main partnership can connect.";return;}
   if(activeRoom){pairMessage.textContent="End your current REACH first.";return;}
   try{const ref=doc(db,"pairInvites",code),snap=await getDoc(ref),pair=snap.data();
     if(!pair||pair.revoked||!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid)){pairMessage.textContent="Wait for the other phone to pair first.";return;}
