@@ -1282,7 +1282,7 @@ function watchPairs(){
         const fallback=document.createElement("span");fallback.className="reach-avatar-fallback";fallback.textContent=who==="self"?"＋":"❤️";
         const own=who==="self";
         const localKey=own?"reachMyPhoto-"+code:"reachPhoto-"+code;
-        const local=localStorage.getItem(localKey);
+        const local=own?localStorage.getItem(localKey):null; // Do not mistake an old local contact picture for a synced partner photo.
         if(local){img.src=local;avatar.appendChild(img);}else avatar.appendChild(fallback);
         if(own)avatar.onclick=()=>document.getElementById("reachPhotoPicker").click();
         else {avatar.disabled=true;avatar.style.cursor="default";}
@@ -1315,16 +1315,25 @@ function watchPairs(){
         if(!snap.exists()||!currentUser)return;
         const pair=snap.data();
         if(!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))return;
-        // Profile photos are small JPEGs on the paired invite, indexed by the owner's UID.
-        // The original local contact photo remains a fallback if cloud sharing is unavailable.
+        // Read the other person's photo from the paired record, never from a local fallback.
         const remoteUid=pair.hostUid===currentUser.uid?pair.partnerUid:pair.hostUid;
         const profilePhotos=pair.profilePhotos||{};
         function showPhoto(slot,data){
-          if(typeof data!=="string"||!data.startsWith("data:image/jpeg;base64,")||data.length>90000)return;
-          if(slot.img.src!==data){slot.img.src=data;slot.avatar.replaceChildren(slot.img);}
+          if(typeof data!=="string"||!data.startsWith("data:image/jpeg;base64,")||data.length>140000)return;
+          if(slot.img.getAttribute("src")!==data){slot.img.src=data;slot.avatar.replaceChildren(slot.img);}
         }
         showPhoto(mine,profilePhotos[currentUser.uid]);
         showPhoto(theirs,profilePhotos[remoteUid]);
+        // Acknowledged cloud state, not merely the local image preview.
+        const localPhoto=localStorage.getItem("reachMyPhoto-"+code);
+        const synced=!!localPhoto&&profilePhotos[currentUser.uid]===localPhoto;
+        if(localPhoto&&!synced){
+          state.textContent="● Paired & ready · Photo only on this phone";
+          state.title="Your picture is saved locally but has not been confirmed in the shared connection.";
+        }else{
+          state.textContent="● Paired & ready";
+          state.title=synced?"Your profile photo is synchronized.":"";
+        }
         const ready=!!pair.activeRoom&&pair.openedBy!==currentUser.uid&&!activeRoom;
         heroJoin.disabled=!ready;
         heroJoin.setAttribute("aria-disabled",String(!ready));
@@ -1356,10 +1365,22 @@ document.getElementById("reachPhotoPicker").addEventListener("change",async(even
     localStorage.setItem("reachMyPhoto-"+code,data);
     watchPairs();
     try {
-      await updateDoc(doc(db,"pairInvites",code),{["profilePhotos."+currentUser.uid]:data});
+      // Use an explicit nested field path. Merge preserves the other person's photo.
+      const photoRef=doc(db,"pairInvites",code);
+      await setDoc(photoRef,{profilePhotos:{[currentUser.uid]:data}},{merge:true});
+      const verified=await getDoc(photoRef);
+      if(verified.data()?.profilePhotos?.[currentUser.uid]!==data){
+        throw new Error("Photo was not confirmed on the server.");
+      }
+      pairMessage.textContent="❤️ Photo shared with your partner.";
+      watchPairs();
     } catch(syncError) {
       console.warn("Photo sync unavailable; saved locally:",syncError);
-      pairMessage.textContent="Your photo is saved on this phone. Sharing to your partner is not available yet.";
+      const permission=syncError.code==="permission-denied";
+      pairMessage.textContent=permission
+        ?"Your photo is saved on this phone, but Firebase permissions are blocking sharing. The Firestore rules need updating."
+        :"Your photo is saved on this phone, but sharing has not been confirmed. Please try selecting it again.";
+      watchPairs();
     }
   }catch(err){console.error("Photo selection:",err);pairMessage.textContent="Couldn't save that photo on this phone.";}
   event.target.value="";
