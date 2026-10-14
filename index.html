@@ -613,7 +613,7 @@ function savePairPrefs(){localStorage.setItem("reachPairPreferences",JSON.string
 function pairPrefsFor(code){return pairPrefs[code] || {name:"",hidden:false};}
 function pairName(code){return pairPrefsFor(code).name || "Connection "+code.slice(0,4);}
 function mainPairCode(){
-  const visible=pairedCodes.filter(code=>!pairPrefsFor(code).hidden);
+  const visible=pairedCodes.filter(code=>!pairPrefsFor(code).hidden && !pairPrefsFor(code).retired);
   return visible.includes(favoritePair)?favoritePair:(visible[0]||null);
 }
 let pairListeners = [];
@@ -1229,6 +1229,7 @@ function watchPairs(){
   }
   for(const code of pairedCodes){
     const prefs=pairPrefsFor(code);
+    if(prefs.retired)continue;
     const item=document.createElement("div");
     item.style.cssText="padding:14px 0;border-bottom:1px solid #475569";
     const heading=document.createElement("div");
@@ -1259,6 +1260,16 @@ function watchPairs(){
       if(name===null)return;
       pairPrefs[code]={...pairPrefsFor(code),name:name.trim().slice(0,32)};
       savePairPrefs();watchPairs();
+    });
+    if(code!==mainCode)smallButton("Retire connection",async()=>{
+      if(!confirm("Retire "+pairName(code)+"? This revokes its REACH access for both phones. Your main connection stays unchanged."))return;
+      try{
+        const ref=doc(db,"pairInvites",code),snap=await getDoc(ref);
+        if(!snap.exists() || !currentUser || ![snap.data().hostUid,snap.data().partnerUid].includes(currentUser.uid))throw Error("Not authorized");
+        await updateDoc(ref,{revoked:true});
+        pairedCodes=pairedCodes.filter(c=>c!==code);delete pairPrefs[code];savePairs();savePairPrefs();watchPairs();
+        pairMessage.textContent="Connection retired and access revoked.";
+      }catch(err){console.error("Retirement failed",err);pairMessage.textContent="Could not revoke this connection. Nothing was removed locally.";}
     });
     smallButton(prefs.hidden?"Show":"Hide",()=>{
       pairPrefs[code]={...pairPrefsFor(code),hidden:!prefs.hidden};
@@ -1314,6 +1325,7 @@ function watchPairs(){
       pairListeners.push(onSnapshot(doc(db,"pairInvites",code),(snap)=>{
         if(!snap.exists()||!currentUser)return;
         const pair=snap.data();
+        if(pair.revoked){state.textContent="● Connection retired";heroJoin.disabled=true;return;}
         if(!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))return;
         // Read the other person's photo from the paired record, never from a local fallback.
         const remoteUid=pair.hostUid===currentUser.uid?pair.partnerUid:pair.hostUid;
@@ -1426,14 +1438,14 @@ window.claimPairCode=async()=>{
 window.openPairedHand=async(code)=>{
   if(activeRoom){pairMessage.textContent="End your current REACH first.";return;}
   try{const ref=doc(db,"pairInvites",code),snap=await getDoc(ref),pair=snap.data();
-    if(!pair||!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid)){pairMessage.textContent="Wait for the other phone to pair first.";return;}
+    if(!pair||pair.revoked||!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid)){pairMessage.textContent="Wait for the other phone to pair first.";return;}
     await window.createRoom(code,pair);if(!activeRoom)return;await updateDoc(ref,{activeRoom,openedBy:currentUser.uid});
     pairSessionCode=code;pairMessage.textContent="❤️ Your hand is open.";
   }catch(err){console.error(err);pairMessage.textContent="Could not open paired session.";}
 };
 
 window.createRoom = async function (authorizedPairCode, authorizedPair) {
-  if(!authorizedPairCode || !authorizedPair || !authorizedPair.partnerUid || !currentUser || ![authorizedPair.hostUid,authorizedPair.partnerUid].includes(currentUser.uid)){
+  if(!authorizedPairCode || !authorizedPair || authorizedPair.revoked || !authorizedPair.partnerUid || !currentUser || ![authorizedPair.hostUid,authorizedPair.partnerUid].includes(currentUser.uid)){
     status.textContent="Private REACH sessions require your confirmed partnership.";return;
   }
   const otherUid=authorizedPair.hostUid===currentUser.uid?authorizedPair.partnerUid:authorizedPair.hostUid;
@@ -1514,7 +1526,7 @@ window.joinRoom = async function () {
   if(!pairSessionCode){status.textContent="Join through your partner’s open hand, not a room code.";return;}
   const authorizedPairSnap=await getDoc(doc(db,"pairInvites",pairSessionCode));
   const authorizedPair=authorizedPairSnap.data();
-  if(!authorizedPair || !authorizedPair.partnerUid || !currentUser || ![authorizedPair.hostUid,authorizedPair.partnerUid].includes(currentUser.uid)){
+  if(!authorizedPair || authorizedPair.revoked || !authorizedPair.partnerUid || !currentUser || ![authorizedPair.hostUid,authorizedPair.partnerUid].includes(currentUser.uid)){
     status.textContent="This partnership is not authorized.";return;
   }
 
