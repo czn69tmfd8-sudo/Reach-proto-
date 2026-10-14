@@ -961,6 +961,15 @@ function watchRoom(code) {
 
 
 async function cleanupConnection(stopMedia = true) {
+  // Exit native fullscreen as well as our custom in-call layout.
+  try {
+    if (document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen();
+    else if (document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen();
+    else if (remoteVideo.webkitDisplayingFullscreen && remoteVideo.webkitExitFullscreen) remoteVideo.webkitExitFullscreen();
+  } catch (error) { console.warn("Fullscreen exit:", error); }
+  localVideo.style.left = "";
+  localVideo.style.top = "";
+  localVideo.style.right = "";
   document.body.classList.remove("reach-in-call","self-view-hidden");
   document.getElementById("selfViewToggle").textContent = "Hide me";
   callViewDismissed = false;
