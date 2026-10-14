@@ -89,8 +89,7 @@ service cloud.firestore {
       match /partnerCandidates/{candidateId} {
         allow get, list: if roomSignalMember();
         allow create: if activeRoomSignal() && validCandidate()
-          && get(/databases/$(database)/documents/rooms/$(roomId)).data.partnerUid == request.auth.uid
-          && get(/databases/$(database)/documents/rooms/$(roomId)).data.keys().hasAny(['answer']);
+          && get(/databases/$(database)/documents/rooms/$(roomId)).data.partnerUid == request.auth.uid;
         allow update, delete: if false;
       }
     }
