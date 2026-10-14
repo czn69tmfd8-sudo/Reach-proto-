@@ -1,0 +1,111 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function pairPath(code) { return /databases/$(database)/documents/pairInvites/$(code); }
+    function pairExists(code) { return exists(pairPath(code)); }
+    function pairData(code) { return get(pairPath(code)).data; }
+    function pairMember(code) {
+      return signedIn() && pairExists(code)
+        && pairData(code).partnerUid != null
+        && pairData(code).get('revoked', false) != true
+        && (pairData(code).hostUid == request.auth.uid
+          || pairData(code).partnerUid == request.auth.uid);
+    }
+    function roomMember() {
+      return signedIn() && resource.data.get('pairCode', '') is string
+        && pairMember(resource.data.pairCode)
+        && (resource.data.hostUid == request.auth.uid
+          || resource.data.partnerUid == request.auth.uid);
+    }
+    match /rooms/{roomId} {
+      allow create: if signedIn()
+        && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.partnerUid is string
+        && request.resource.data.pairCode is string
+        && pairMember(request.resource.data.pairCode)
+        && (
+          (pairData(request.resource.data.pairCode).hostUid == request.auth.uid
+            && pairData(request.resource.data.pairCode).partnerUid == request.resource.data.partnerUid)
+          || (pairData(request.resource.data.pairCode).partnerUid == request.auth.uid
+            && pairData(request.resource.data.pairCode).hostUid == request.resource.data.partnerUid)
+        )
+        && request.resource.data.active == true
+        && request.resource.data.keys().hasOnly(['hostUid','partnerUid','pairCode','createdAt','expiresAt','active','offer']);
+      allow get: if roomMember();
+      allow list: if false;
+      allow update: if roomMember()
+        && request.resource.data.hostUid == resource.data.hostUid
+        && request.resource.data.partnerUid == resource.data.partnerUid
+        && request.resource.data.pairCode == resource.data.pairCode
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.offer == resource.data.offer
+        && request.resource.data.expiresAt == resource.data.expiresAt
+        && (
+          (request.auth.uid == resource.data.hostUid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active','endedAt'])
+            && request.resource.data.active == false)
+          || (request.auth.uid == resource.data.partnerUid
+            && resource.data.active == true
+            && !resource.data.keys().hasAny(['answer'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['partnerJoinedAt','answer'])
+            && request.resource.data.answer.type == 'answer')
+        );
+      allow delete: if false;
+      match /{signalDocument=**} {
+        allow read, write: if signedIn()
+          && exists(/databases/$(database)/documents/rooms/$(roomId))
+          && pairMember(get(/databases/$(database)/documents/rooms/$(roomId)).data.pairCode)
+          && (
+            get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid == request.auth.uid
+            || get(/databases/$(database)/documents/rooms/$(roomId)).data.partnerUid == request.auth.uid
+          );
+      }
+    }
+    match /pairInvites/{pairCode} {
+      allow create: if signedIn()
+        && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.partnerUid == null
+        && request.resource.data.activeRoom == null
+        && request.resource.data.openedBy == null
+        && request.resource.data.keys().hasOnly(['hostUid','partnerUid','activeRoom','openedBy','createdAt']);
+      allow get: if signedIn()
+        && resource.data.get('revoked', false) != true
+        && (resource.data.partnerUid == null
+          || resource.data.hostUid == request.auth.uid
+          || resource.data.partnerUid == request.auth.uid);
+      allow list: if false;
+      allow update: if signedIn()
+        && resource.data.get('revoked', false) != true
+        && (
+          (resource.data.partnerUid == null
+            && resource.data.hostUid != request.auth.uid
+            && request.resource.data.partnerUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['partnerUid']))
+          || (resource.data.partnerUid != null
+            && (resource.data.hostUid == request.auth.uid || resource.data.partnerUid == request.auth.uid)
+            && (
+              (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeRoom','openedBy'])
+                && (request.resource.data.activeRoom == null
+                  || (request.resource.data.activeRoom is string
+                    && request.resource.data.openedBy == request.auth.uid)))
+              || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revoked'])
+                && request.resource.data.revoked == true)
+              || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['profilePhotos'])
+                && request.resource.data.profilePhotos is map
+                && request.resource.data.profilePhotos.diff(resource.data.get('profilePhotos', {}))
+                  .affectedKeys().hasOnly([request.auth.uid])
+                && request.resource.data.profilePhotos[request.auth.uid] is string
+                && request.resource.data.profilePhotos[request.auth.uid].size() < 140000
+                && request.resource.data.profilePhotos[request.auth.uid]
+                  .matches('^data:image/jpeg;base64,[A-Za-z0-9+/=]+$'))
+            ))
+        )
+        && request.resource.data.hostUid == resource.data.hostUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (request.resource.data.get('revoked', false) != true || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revoked']));
+      allow delete: if false;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
