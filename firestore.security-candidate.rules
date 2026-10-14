@@ -10,7 +10,10 @@ service cloud.firestore {
         && pairData(code).partnerUid != null
         && pairData(code).get('revoked', false) != true
         && (pairData(code).hostUid == request.auth.uid
-          || pairData(code).partnerUid == request.auth.uid);
+          || pairData(code).partnerUid == request.auth.uid)
+        // Existing users without a lock remain supported until admin migration.
+        // A locked user cannot access a different, older partnership.
+        && (!exists(lockPath(request.auth.uid)) || lockMatches(request.auth.uid, code));
     }
     function roomMember() {
       return signedIn() && resource.data.get('pairCode', '') is string
