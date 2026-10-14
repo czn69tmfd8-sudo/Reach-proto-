@@ -1190,9 +1190,9 @@ window.endReach = async function () {
     console.error("Could not mark room inactive:", error);
   }
 
-  if(pairSessionCode){
+  if(pairSessionCode && endingRole==="host"){
     try{const ref=doc(db,"pairInvites",pairSessionCode),snap=await getDoc(ref);
-      if(snap.exists()&&snap.data().activeRoom===code)await updateDoc(ref,{activeRoom:null,openedBy:null});
+      if(snap.exists()&&snap.data().activeRoom===code&&snap.data().openedBy===currentUser.uid)await updateDoc(ref,{activeRoom:null,openedBy:null});
     }catch(err){console.error("Pair cleanup",err);}
   }
   pairSessionCode=null;
