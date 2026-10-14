@@ -27,7 +27,7 @@
     h1 {
       font-size: 48px;
       margin: 25px 0 0;
-      letter-spacing: 5px;
+      letter-spacing: 3px;
     }
 
     .tagline {
@@ -85,6 +85,14 @@
 
     input::placeholder { color: #a3a3a3; }
 
+    #mainConnectionCard { border: 1px solid #4f46e5; }
+    #mainConnectionCard #favoriteConnection button { margin-top: 12px; }
+    #mainConnectionCard #favoriteConnection button:first-of-type { background: #e11d68; }
+    #pairCard { margin-top: 6px; }
+    #pairCard #pairCode { overflow-wrap: anywhere; }
+    #manualConnections > summary { font-size: 15px; }
+    #manualConnections .card { margin-top: 12px; }
+    @media(max-width:380px){ h1 {font-size:42px;letter-spacing:2px;} }
     #roomCode {
       text-align: center;
       color: #a5b4fc;
@@ -267,49 +275,17 @@
 <body>
 <main>
 
-  <h1>REACH</h1>
+  <h1>REACH ❤️</h1>
   <div class="tagline">Making love not feel so distant.</div>
 
-  <section class="card">
-    <h2>Pair a device ❤️</h2>
-    <p>Pair each phone once. Multiple devices can stay authorized, including a test phone.</p>
-    <button id="pairCreate" onclick="makePairCode()" disabled>Create one-time pairing code</button>
-    <div id="pairCode" style="text-align:center;color:#a5b4fc;font-size:26px;letter-spacing:2px;margin:15px 0"></div>
-    <input id="pairInput" maxlength="12" placeholder="PAIRING CODE" autocomplete="off">
-    <button id="pairClaim" onclick="claimPairCode()" disabled>Pair this phone</button>
-    <p id="pairMessage"></p>
+  <section class="card" id="mainConnectionCard">
+    <h2>Your connection ❤️</h2>
     <div id="favoriteConnection"></div>
     <details id="manageConnections" style="margin-top:20px">
       <summary style="cursor:pointer;color:#a5b4fc;font-weight:700">Manage connections</summary>
       <p>Rename, hide, or choose your main connection. Hiding does not revoke access.</p>
       <div id="pairedDevices"></div>
     </details>
-  </section>
-
-  <section class="card">
-    <h2>Open your hand</h2>
-    <p>Let your partner know you are here and available to connect.</p>
-
-    <button id="createButton" onclick="createRoom()" disabled>
-      Connecting securely...
-    </button>
-
-    <div id="roomCode">------</div>
-  </section>
-
-  <section class="card">
-    <h2>Your partner is reaching for you</h2>
-
-    <input
-      id="joinCode"
-      maxlength="6"
-      placeholder="ROOM CODE"
-      autocomplete="off"
-    >
-
-    <button id="joinButton" onclick="joinRoom()" disabled>
-      Connecting securely...
-    </button>
   </section>
 
   <section class="card">
@@ -339,6 +315,47 @@
       Camera and microphone are off.
     </div>
   </section>
+
+  <section class="card" id="pairCard">
+    <h2>One-time pairing ❤️</h2>
+    <p>Pair each phone once. Multiple devices can stay authorized, including a test phone.</p>
+    <button id="pairCreate" onclick="makePairCode()" disabled>Create one-time pairing code</button>
+    <div id="pairCode" style="text-align:center;color:#a5b4fc;font-size:26px;letter-spacing:2px;margin:15px 0"></div>
+    <input id="pairInput" maxlength="12" placeholder="PAIRING CODE" autocomplete="off">
+    <button id="pairClaim" onclick="claimPairCode()" disabled>Pair this phone</button>
+    <p id="pairMessage"></p>
+
+  </section>
+
+  <details id="manualConnections" style="margin-bottom:24px">
+    <summary style="cursor:pointer;color:#a5b4fc;padding:14px 6px">Manual room connection (testing)</summary>
+  <section class="card">
+    <h2>Open your hand</h2>
+    <p>Let your partner know you are here and available to connect.</p>
+
+    <button id="createButton" onclick="createRoom()" disabled>
+      Connecting securely...
+    </button>
+
+    <div id="roomCode">------</div>
+  </section>
+
+  <section class="card">
+    <h2>Your partner is reaching for you</h2>
+
+    <input
+      id="joinCode"
+      maxlength="6"
+      placeholder="ROOM CODE"
+      autocomplete="off"
+    >
+
+    <button id="joinButton" onclick="joinRoom()" disabled>
+      Connecting securely...
+    </button>
+  </section>
+
+  </details>
 
   <section class="card" id="remoteCard">
     <h2>Partner</h2>
