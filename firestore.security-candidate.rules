@@ -154,9 +154,19 @@ service cloud.firestore {
             && (resource.data.hostUid == request.auth.uid || resource.data.partnerUid == request.auth.uid)
             && (
               (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeRoom','openedBy'])
-                && (request.resource.data.activeRoom == null
-                  || (request.resource.data.activeRoom is string
-                    && request.resource.data.openedBy == request.auth.uid)))
+                && (
+                  (request.resource.data.activeRoom == null
+                    && request.resource.data.openedBy == null
+                    && resource.data.openedBy == request.auth.uid)
+                  || (resource.data.activeRoom == null
+                    && resource.data.openedBy == null
+                    && request.resource.data.activeRoom is string
+                    && request.resource.data.openedBy == request.auth.uid
+                    && exists(/databases/$(database)/documents/rooms/$(request.resource.data.activeRoom))
+                    && get(/databases/$(database)/documents/rooms/$(request.resource.data.activeRoom)).data.pairCode == pairCode
+                    && get(/databases/$(database)/documents/rooms/$(request.resource.data.activeRoom)).data.hostUid == request.auth.uid
+                    && get(/databases/$(database)/documents/rooms/$(request.resource.data.activeRoom)).data.active == true)
+                ))
               || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revoked'])
                 && request.resource.data.revoked == true)
               || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['profilePhotos'])
