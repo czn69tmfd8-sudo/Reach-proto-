@@ -273,6 +273,57 @@
       margin-top: 18px;
       background: #be123c;
     }
+
+    /* REACH v1.6 — visual layer only. Video and signaling remain untouched. */
+    :root { color-scheme: dark; --rose:#ff5d9c; --violet:#9d79ff; --muted:#b7afca; }
+    body {
+      background:
+        radial-gradient(ellipse 85% 34% at 50% -5%, rgba(170,75,181,.32), transparent 75%),
+        radial-gradient(ellipse 65% 38% at 100% 75%, rgba(83,52,153,.16), transparent 80%),
+        linear-gradient(170deg,#150e27 0%,#0d1022 54%,#0a0e1c 100%);
+      padding: max(24px,env(safe-area-inset-top,0px)) 17px 48px;
+      color:#fff8ff;
+    }
+    main { max-width: 490px; }
+    h1 { text-align:center; font-size:clamp(40px,10vw,53px); font-weight:850; letter-spacing:4px; margin:21px 0 0;
+      text-shadow:0 0 36px rgba(255,85,160,.19); }
+    .tagline { text-align:center; color:#c8b4d1; font-size:15px; letter-spacing:.3px; margin:8px 0 31px; }
+    .card { background:linear-gradient(150deg,rgba(42,29,64,.94),rgba(25,27,50,.96));
+      border:1px solid rgba(197,143,236,.14); border-radius:25px; padding:23px;
+      margin-bottom:17px; box-shadow:0 12px 32px rgba(0,0,0,.15); }
+    h2 { font-size:21px; letter-spacing:-.3px; margin-bottom:13px; }
+    p { color:var(--muted); font-size:14px; line-height:1.5; margin:10px 0 17px; }
+    button { border-radius:16px; padding:16px 14px; font-size:16px; letter-spacing:.1px;
+      background:linear-gradient(105deg,#7952df,#a45fdf); box-shadow:0 6px 20px rgba(97,58,164,.18);
+      transition:filter .18s ease, transform .18s ease; }
+    button:active:not(:disabled) { transform:scale(.985); filter:brightness(1.12); }
+    button:disabled { opacity:.5; box-shadow:none; }
+    input { border:1px solid rgba(180,145,226,.18); border-radius:14px; background:#211c38;
+      padding:16px 12px; font-size:16px; letter-spacing:2px; margin-bottom:12px; }
+    input:focus { border-color:var(--violet); box-shadow:0 0 0 3px rgba(157,121,255,.13); }
+    #mainConnectionCard { border:1px solid rgba(255,112,179,.48);
+      background:linear-gradient(145deg,rgba(74,33,79,.97),rgba(37,30,66,.98));
+      box-shadow:0 0 35px rgba(236,80,153,.09),0 15px 35px rgba(0,0,0,.17); }
+    #mainConnectionCard h2 { color:#ffd8ea; }
+    #mainConnectionCard #favoriteConnection button:first-of-type {
+      background:linear-gradient(110deg,#e94e96,#b34cbd); box-shadow:0 9px 23px rgba(234,72,143,.2); }
+    #mainConnectionCard #favoriteConnection button { margin-top:10px; }
+    #mediaStatus,#status,#connectionStatus { background:rgba(15,18,37,.62); color:#d1f9df;
+      border:1px solid rgba(154,222,187,.1); border-radius:14px; font-size:13px; padding:13px; }
+    #pairCard { border-color:rgba(168,133,215,.2); }
+    #pairCard #pairCode { color:#f5b7dc !important; font-size:22px !important; letter-spacing:2px !important; }
+    #manageConnections { border-top:1px solid rgba(255,255,255,.1); padding-top:16px; }
+    summary { color:#cbb2ff !important; font-size:14px; }
+    #manualConnections { opacity:.8; }
+    #manualConnections .card { margin-top:12px; }
+    body.reach-in-call #remoteCard { background:#020617; border:0; box-shadow:none; }
+    body.reach-in-call #localVideo { border:2px solid rgba(255,182,215,.9);
+      box-shadow:0 8px 28px #000a,0 0 0 3px rgba(245,84,163,.14); }
+    body.reach-in-call #selfViewToggle { display:block !important; background:rgba(45,33,68,.9);
+      border:1px solid rgba(255,255,255,.22); backdrop-filter:blur(8px); }
+    body.reach-in-call #endButton { background:linear-gradient(110deg,#c82b6e,#9d285c);
+      box-shadow:0 8px 28px #0008; }
+    @media(max-width:380px) { .card{padding:19px;} h1{letter-spacing:2px;} }
   </style>
 </head>
 
