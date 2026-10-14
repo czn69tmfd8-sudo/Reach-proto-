@@ -369,6 +369,7 @@
   <h1>REACH ❤️</h1>
   <div class="tagline">Making love not feel so distant.</div>
 
+  <input id="reachPhotoPicker" type="file" accept="image/*" style="display:none" aria-label="Choose a contact photo">
   <section class="card" id="mainConnectionCard">
     <h2>Your connection ❤️</h2>
     <div id="favoriteConnection"></div>
@@ -1198,18 +1199,36 @@ function watchPairs(){
     list.appendChild(item);
     if(code===mainCode){
       const hero=document.createElement("div");
-      const name=document.createElement("h2");name.textContent=pairName(code)+" ❤️";
-      hero.appendChild(name);
-      const heroOpen=addAction(hero,"❤️ My hand is open",()=>openPairedHand(code));
-      const heroJoin=addAction(hero,"❤️ Take their hand",()=>join.click());
-      heroJoin.style.display="none";
-      favorite.appendChild(hero);
+      const head=document.createElement("div");head.className="reach-contact-head";
+      const avatar=document.createElement("button");avatar.type="button";avatar.className="reach-avatar";
+      avatar.setAttribute("aria-label","Choose a contact photo");
+      const image=document.createElement("img");
+      const storedPhoto=localStorage.getItem("reachPhoto-"+code);
+      const fallback=document.createElement("span");fallback.className="reach-avatar-fallback";fallback.textContent="❤️";
+      if(storedPhoto){image.src=storedPhoto;avatar.appendChild(image);}else avatar.appendChild(fallback);
+      avatar.onclick=()=>document.getElementById("reachPhotoPicker").click();
+      const info=document.createElement("div");info.className="reach-contact-info";
+      const name=document.createElement("div");name.className="reach-contact-name";name.textContent=pairName(code)+" ❤️";
+      const state=document.createElement("div");state.className="reach-contact-status";state.textContent="● Paired & ready";
+      info.append(name,state);
+      const menu=document.createElement("button");menu.type="button";menu.className="reach-contact-menu";menu.textContent="⋮";
+      menu.setAttribute("aria-label","Manage connections");
+      menu.onclick=()=>{const d=document.getElementById("manageConnections");d.open=!d.open;};
+      head.append(avatar,info,menu);hero.appendChild(head);
+      const actions=document.createElement("div");actions.className="reach-main-actions";
+      const heroOpen=addAction(actions,"My hand is open",()=>openPairedHand(code));
+      heroOpen.classList.add("reach-open");
+      heroOpen.innerHTML='<span class="reach-action-icon">♡</span><span>My hand is open</span><span class="reach-action-sub">I’m ready to connect</span>';
+      const heroJoin=addAction(actions,"Take their hand",()=>join.click());
+      heroJoin.classList.add("reach-take");heroJoin.hidden=true;
+      heroJoin.innerHTML='<span class="reach-action-icon">♡</span><span>Take their hand</span><span class="reach-action-sub">Connect to your partner</span>';
+      hero.appendChild(actions);favorite.appendChild(hero);
       pairListeners.push(onSnapshot(doc(db,"pairInvites",code),(snap)=>{
         if(!snap.exists()||!currentUser)return;
         const pair=snap.data();
         if(!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))return;
         const ready=!!pair.activeRoom&&pair.openedBy!==currentUser.uid&&!activeRoom;
-        heroJoin.style.display=ready?"block":"none";
+        heroJoin.hidden=!ready;
         join.style.display=ready?"block":"none";
       },err=>{console.error(err);pairMessage.textContent="Could not check paired connection."; }));
     }else{
@@ -1222,6 +1241,22 @@ function watchPairs(){
     }
   }
 }
+// Contact photos stay on this phone, not in Firebase.
+document.getElementById("reachPhotoPicker").addEventListener("change",async(event)=>{
+  const file=event.target.files?.[0], code=mainPairCode();
+  if(!file||!code)return;
+  if(!file.type.startsWith("image/")){pairMessage.textContent="Please select a photo.";return;}
+  try {
+    const bitmap=await createImageBitmap(file);
+    const canvas=document.createElement("canvas");canvas.width=256;canvas.height=256;
+    const ctx=canvas.getContext("2d"),side=Math.min(bitmap.width,bitmap.height);
+    ctx.drawImage(bitmap,(bitmap.width-side)/2,(bitmap.height-side)/2,side,side,0,0,256,256);
+    bitmap.close();
+    localStorage.setItem("reachPhoto-"+code,canvas.toDataURL("image/jpeg",.78));
+    watchPairs();
+  }catch(err){console.error("Photo selection:",err);pairMessage.textContent="Couldn't save that photo on this phone.";}
+  event.target.value="";
+});
 window.makePairCode=async()=>{
   if(!currentUser)return; const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const bytes=crypto.getRandomValues(new Uint8Array(12)); const code=Array.from(bytes,n=>chars[n%chars.length]).join("");
