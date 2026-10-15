@@ -90,6 +90,8 @@ service cloud.firestore {
           || (request.auth.uid == resource.data.partnerUid
             && resource.data.active == true
             && resource.data.expiresAt > request.time.toMillis()
+            && pairData(resource.data.pairCode).activeRoom == roomId
+            && pairData(resource.data.pairCode).openedBy == resource.data.hostUid
             && !resource.data.keys().hasAny(['answer'])
             && request.resource.data.partnerJoinedAt == request.time
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['partnerJoinedAt','answer'])
@@ -111,7 +113,10 @@ service cloud.firestore {
       function activeRoomSignal() {
         return roomSignalMember()
           && get(/databases/$(database)/documents/rooms/$(roomId)).data.active == true
-          && get(/databases/$(database)/documents/rooms/$(roomId)).data.expiresAt > request.time.toMillis();
+          && get(/databases/$(database)/documents/rooms/$(roomId)).data.expiresAt > request.time.toMillis()
+          && pairData(get(/databases/$(database)/documents/rooms/$(roomId)).data.pairCode).activeRoom == roomId
+          && pairData(get(/databases/$(database)/documents/rooms/$(roomId)).data.pairCode).openedBy
+            == get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid;
       }
       function validCandidate() {
         return request.resource.data.keys().hasOnly(['candidate','sdpMid','sdpMLineIndex','usernameFragment'])
