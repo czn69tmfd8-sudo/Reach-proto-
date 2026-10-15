@@ -173,3 +173,26 @@ test('pair owner cannot replace an existing lock with a different pairing',async
 test('a third party cannot create a lock on another account',async()=>{
  await assertFails(setDoc(doc(db('outsider'),'memberLocks','existingHost'),{pairCode:'EXISTINGPAIR',createdAt:serverTimestamp()}));
 });
+
+test('ended rooms reject new ICE and late partner answers',async()=>{
+ const code='ENDEDPAIR123',room='ENDED1';
+ await env.withSecurityRulesDisabled(async c=>{
+  const d=c.firestore();
+  await setDoc(doc(d,'pairInvites',code),{hostUid:'endHost',partnerUid:'endPartner',activeRoom:room,openedBy:'endHost',createdAt:new Date()});
+  await setDoc(doc(d,'rooms',room),{hostUid:'endHost',partnerUid:'endPartner',pairCode:code,createdAt:new Date(),expiresAt:Date.now()+3600000,active:false,endedAt:new Date(),offer:{type:'offer',sdp:'offer'}});
+ });
+ await assertFails(addDoc(collection(db('endHost'),'rooms',room,'hostCandidates'),{candidate:'candidate:late'}));
+ await assertFails(addDoc(collection(db('endPartner'),'rooms',room,'partnerCandidates'),{candidate:'candidate:late'}));
+ await assertFails(updateDoc(doc(db('endPartner'),'rooms',room),{answer:{type:'answer',sdp:'late'},partnerJoinedAt:serverTimestamp()}));
+});
+test('stale activeRoom cannot be replaced before cleanup',async()=>{
+ const code='STALEPAIR123',oldRoom='STALE1',newRoom='STALE2';
+ await env.withSecurityRulesDisabled(async c=>{
+  const d=c.firestore();
+  await setDoc(doc(d,'pairInvites',code),{hostUid:'staleHost',partnerUid:'stalePartner',activeRoom:oldRoom,openedBy:'staleHost',createdAt:new Date()});
+  await setDoc(doc(d,'rooms',oldRoom),{hostUid:'staleHost',partnerUid:'stalePartner',pairCode:code,createdAt:new Date(),expiresAt:Date.now()-10000,active:true,offer:{type:'offer',sdp:'offer'}});
+  await setDoc(doc(d,'rooms',newRoom),{hostUid:'staleHost',partnerUid:'stalePartner',pairCode:code,createdAt:new Date(),expiresAt:Date.now()+3600000,active:true,offer:{type:'offer',sdp:'offer'}});
+ });
+ await assertFails(updateDoc(doc(db('staleHost'),'pairInvites',code),{activeRoom:newRoom,openedBy:'staleHost'}));
+ await assertSucceeds(updateDoc(doc(db('staleHost'),'pairInvites',code),{activeRoom:null,openedBy:null}));
+});
