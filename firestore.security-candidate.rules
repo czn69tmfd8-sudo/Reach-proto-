@@ -142,6 +142,9 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['hostUid','partnerUid','activeRoom','openedBy','createdAt']);
       allow get: if signedIn()
         && resource.data.get('revoked', false) != true
+        && (resource.data.partnerUid == null
+          || !exists(lockPath(request.auth.uid))
+          || lockMatches(request.auth.uid, pairCode))
         && (
           (resource.data.partnerUid == null
             && request.auth.uid == resource.data.hostUid)
@@ -155,6 +158,8 @@ service cloud.firestore {
       allow list: if false;
       allow update: if signedIn()
         && resource.data.get('revoked', false) != true
+        && (!exists(lockPath(request.auth.uid))
+          || lockMatches(request.auth.uid, pairCode))
         && (
           (resource.data.partnerUid == null
             && resource.data.hostUid != request.auth.uid
