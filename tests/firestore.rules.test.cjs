@@ -232,3 +232,24 @@ test('room creation rejects oversized or malformed offers',async()=>{
  await assertFails(setDoc(doc(db('offerHost'),'rooms','WRONG'),{...base,offer:{type:'answer',sdp:'small'}}));
  await assertFails(setDoc(doc(db('offerHost'),'rooms','EXTRA'),{...base,offer:{type:'offer',sdp:'small'},unexpected:true}));
 });
+
+test('revoked pairing cannot create rooms, signal, answer, or change photos',async()=>{
+ const code='REVOKEDEEP1',room='REVOKEROOM';
+ await env.withSecurityRulesDisabled(async c=>{
+  const d=c.firestore();
+  await setDoc(doc(d,'pairInvites',code),{hostUid:'revHost',partnerUid:'revPartner',activeRoom:room,openedBy:'revHost',createdAt:new Date(),revoked:true,profilePhotos:{}});
+  await setDoc(doc(d,'rooms',room),{hostUid:'revHost',partnerUid:'revPartner',pairCode:code,createdAt:new Date(),expiresAt:Date.now()+3600000,active:true,offer:{type:'offer',sdp:'offer'}});
+ });
+ await assertFails(getDoc(doc(db('revHost'),'pairInvites',code)));
+ await assertFails(getDoc(doc(db('revPartner'),'rooms',room)));
+ await assertFails(addDoc(collection(db('revHost'),'rooms',room,'hostCandidates'),{candidate:'candidate:revoked'}));
+ await assertFails(addDoc(collection(db('revPartner'),'rooms',room,'partnerCandidates'),{candidate:'candidate:revoked'}));
+ await assertFails(updateDoc(doc(db('revPartner'),'rooms',room),{answer:{type:'answer',sdp:'answer'},partnerJoinedAt:serverTimestamp()}));
+ await assertFails(updateDoc(doc(db('revHost'),'pairInvites',code),{profilePhotos:{revHost:'data:image/jpeg;base64,QQ=='}}));
+});
+test('revoked pairing cannot be reopened or unrevoked',async()=>{
+ const code='REVOKEDEEP2';
+ await env.withSecurityRulesDisabled(async c=>await setDoc(doc(c.firestore(),'pairInvites',code),{hostUid:'rev2Host',partnerUid:'rev2Partner',activeRoom:null,openedBy:null,createdAt:new Date(),revoked:true}));
+ await assertFails(updateDoc(doc(db('rev2Host'),'pairInvites',code),{activeRoom:'ANYROOM',openedBy:'rev2Host'}));
+ await assertFails(updateDoc(doc(db('rev2Host'),'pairInvites',code),{revoked:false}));
+});
