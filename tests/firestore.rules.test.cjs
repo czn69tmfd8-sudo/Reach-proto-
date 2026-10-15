@@ -297,3 +297,23 @@ test('migrated legacy pair remains usable and isolated',async()=>{
  await assertFails(deleteDoc(doc(db(host),'memberLocks',host)));
  await assertFails(updateDoc(doc(db(host),'memberLocks',host),{pairCode:other}));
 });
+
+test('expired room cannot be registered after activeRoom is clear',async()=>{
+ const code='EXPIREDREG12',room='EXPIREDROOM';
+ await env.withSecurityRulesDisabled(async c=>{
+  const d=c.firestore();
+  await setDoc(doc(d,'pairInvites',code),{hostUid:'expireHost',partnerUid:'expirePartner',activeRoom:null,openedBy:null,createdAt:new Date()});
+  await setDoc(doc(d,'rooms',room),{hostUid:'expireHost',partnerUid:'expirePartner',pairCode:code,createdAt:new Date(),expiresAt:Date.now()-1000,active:true,offer:{type:'offer',sdp:'offer'}});
+ });
+ await assertFails(updateDoc(doc(db('expireHost'),'pairInvites',code),{activeRoom:room,openedBy:'expireHost'}));
+});
+test('answered registered room rejects answer replay and identity mutation',async()=>{
+ const code='REPLAYPAIR12',room='REPLAYROOM';
+ await env.withSecurityRulesDisabled(async c=>{
+  const d=c.firestore();
+  await setDoc(doc(d,'pairInvites',code),{hostUid:'replayHost',partnerUid:'replayPartner',activeRoom:room,openedBy:'replayHost',createdAt:new Date()});
+  await setDoc(doc(d,'rooms',room),{hostUid:'replayHost',partnerUid:'replayPartner',pairCode:code,createdAt:new Date(),expiresAt:Date.now()+3600000,active:true,offer:{type:'offer',sdp:'offer'},answer:{type:'answer',sdp:'first'},partnerJoinedAt:new Date()});
+ });
+ await assertFails(updateDoc(doc(db('replayPartner'),'rooms',room),{answer:{type:'answer',sdp:'second'},partnerJoinedAt:serverTimestamp()}));
+ await assertFails(updateDoc(doc(db('replayHost'),'rooms',room),{partnerUid:'attacker'}));
+});
