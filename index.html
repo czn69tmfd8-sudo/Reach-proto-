@@ -607,6 +607,8 @@ let peerConnection = null;
 let role = null;
 let remoteDescriptionReady = false;
 let pendingCandidates = [];
+let signalingReady = false;
+let pendingLocalCandidates = [];
 let pairedCodes = JSON.parse(localStorage.getItem("reachPairCodes") || "[]");
 let pairPrefs = JSON.parse(localStorage.getItem("reachPairPreferences") || "{}");
 let favoritePair = localStorage.getItem("reachFavoritePair") || null;
@@ -860,6 +862,8 @@ function createPeerConnection(code) {
 
   remoteDescriptionReady = false;
   pendingCandidates = [];
+  signalingReady = false;
+  pendingLocalCandidates = [];
 
   peerConnection =
     new RTCPeerConnection({
@@ -949,6 +953,11 @@ function createPeerConnection(code) {
           ? "hostCandidates"
           : "partnerCandidates";
 
+      if (!signalingReady) {
+        pendingLocalCandidates.push({ candidateCollection, candidateData });
+        return;
+      }
+
       await addDoc(
         collection(
           db,
@@ -966,6 +975,20 @@ function createPeerConnection(code) {
       );
     }
   };
+}
+
+
+async function enableSignaling(code) {
+  signalingReady = true;
+  const queued = pendingLocalCandidates;
+  pendingLocalCandidates = [];
+  for (const item of queued) {
+    try {
+      await addDoc(collection(db, "rooms", code, item.candidateCollection), item.candidateData);
+    } catch (error) {
+      console.error("Could not flush ICE candidate:", error);
+    }
+  }
 }
 
 
@@ -1461,7 +1484,10 @@ window.openPairedHand=async(code)=>{
     if(!pair||pair.revoked||!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid)){pairMessage.textContent="Wait for the other phone to pair first.";return;}
     await window.createRoom(code,pair);if(!activeRoom)return;
     pairSessionCode=code;
-    try{await updateDoc(ref,{activeRoom,openedBy:currentUser.uid});}
+    try{
+      await updateDoc(ref,{activeRoom,openedBy:currentUser.uid});
+      await enableSignaling(activeRoom);
+    }
     catch(error){await window.endReach();throw error;}
     pairMessage.textContent="❤️ Your hand is open.";
   }catch(err){console.error(err);pairMessage.textContent="Could not open paired session.";}
@@ -1650,6 +1676,8 @@ window.joinRoom = async function () {
         sdp: answer.sdp
       }
     });
+
+    await enableSignaling(code);
 
 
     status.innerHTML =
