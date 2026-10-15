@@ -211,3 +211,24 @@ test('orphaned active room cannot accept ICE signaling',async()=>{
  await assertFails(addDoc(collection(db('orphanHost'),'rooms',room,'hostCandidates'),{candidate:'candidate:orphan'}));
  await assertFails(addDoc(collection(db('orphanPartner'),'rooms',room,'partnerCandidates'),{candidate:'candidate:orphan'}));
 });
+
+test('registered room rejects malformed and oversized ICE payloads',async()=>{
+ const code='PAYLOADPAIR1',room='PAYLOADROOM';
+ await env.withSecurityRulesDisabled(async c=>{
+  const d=c.firestore();
+  await setDoc(doc(d,'pairInvites',code),{hostUid:'payloadHost',partnerUid:'payloadPartner',activeRoom:room,openedBy:'payloadHost',createdAt:new Date()});
+  await setDoc(doc(d,'rooms',room),{hostUid:'payloadHost',partnerUid:'payloadPartner',pairCode:code,createdAt:new Date(),expiresAt:Date.now()+3600000,active:true,offer:{type:'offer',sdp:'offer'}});
+ });
+ await assertFails(addDoc(collection(db('payloadHost'),'rooms',room,'hostCandidates'),{candidate:'x'.repeat(8192)}));
+ await assertFails(addDoc(collection(db('payloadHost'),'rooms',room,'hostCandidates'),{candidate:'candidate:ok',unexpected:'nope'}));
+ await assertFails(addDoc(collection(db('payloadHost'),'rooms',room,'hostCandidates'),{candidate:123}));
+ await assertSucceeds(addDoc(collection(db('payloadHost'),'rooms',room,'hostCandidates'),{candidate:'candidate:valid'}));
+});
+test('room creation rejects oversized or malformed offers',async()=>{
+ const code='OFFERPAIR123';
+ await env.withSecurityRulesDisabled(async c=>await setDoc(doc(c.firestore(),'pairInvites',code),{hostUid:'offerHost',partnerUid:'offerPartner',activeRoom:null,openedBy:null,createdAt:new Date()}));
+ const base={hostUid:'offerHost',partnerUid:'offerPartner',pairCode:code,createdAt:serverTimestamp(),expiresAt:Date.now()+3600000,active:true};
+ await assertFails(setDoc(doc(db('offerHost'),'rooms','BIG'),{...base,offer:{type:'offer',sdp:'x'.repeat(100000)}}));
+ await assertFails(setDoc(doc(db('offerHost'),'rooms','WRONG'),{...base,offer:{type:'answer',sdp:'small'}}));
+ await assertFails(setDoc(doc(db('offerHost'),'rooms','EXTRA'),{...base,offer:{type:'offer',sdp:'small'},unexpected:true}));
+});
