@@ -186,7 +186,8 @@ service cloud.firestore {
                     && exists(/databases/$(database)/documents/rooms/$(request.resource.data.activeRoom))
                     && get(/databases/$(database)/documents/rooms/$(request.resource.data.activeRoom)).data.pairCode == pairCode
                     && get(/databases/$(database)/documents/rooms/$(request.resource.data.activeRoom)).data.hostUid == request.auth.uid
-                    && get(/databases/$(database)/documents/rooms/$(request.resource.data.activeRoom)).data.active == true)
+                    && get(/databases/$(database)/documents/rooms/$(request.resource.data.activeRoom)).data.active == true
+                    && get(/databases/$(database)/documents/rooms/$(request.resource.data.activeRoom)).data.expiresAt > request.time.toMillis())
                 ))
               || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revoked'])
                 && request.resource.data.revoked == true)
