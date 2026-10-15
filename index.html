@@ -619,6 +619,26 @@ function mainPairCode(){
   const visible=pairedCodes.filter(code=>!pairPrefsFor(code).hidden && !pairPrefsFor(code).retired);
   return visible.includes(favoritePair)?favoritePair:(visible[0]||null);
 }
+async function reconcileLockedPartnership(){
+  if(!currentUser)return;
+  try{
+    const snap=await getDoc(doc(db,"memberLocks",currentUser.uid));
+    if(!snap.exists())return;
+    const code=snap.data().pairCode;
+    if(typeof code!=="string"||!code)return;
+    if(!pairedCodes.includes(code)){pairedCodes.push(code);savePairs();}
+    favoritePair=code;
+    localStorage.setItem("reachFavoritePair",code);
+    for(const other of pairedCodes){
+      if(other===code){
+        pairPrefs[other]={...pairPrefsFor(other),hidden:false,retired:false};
+      }else{
+        pairPrefs[other]={...pairPrefsFor(other),hidden:true,retired:true};
+      }
+    }
+    savePairPrefs();
+  }catch(error){console.error("Could not reconcile partnership:",error);}
+}
 async function verifyPairLockReady(code){
   if(!currentUser || !code) return false;
   try{
@@ -788,9 +808,10 @@ function setReady() {
 }
 
 
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
+    await reconcileLockedPartnership();
     setReady();
 
     authStatus.textContent =
