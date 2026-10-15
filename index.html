@@ -469,6 +469,12 @@
     <input id="pairInput" maxlength="12" placeholder="PAIRING CODE" autocomplete="off">
     <button id="pairClaim" onclick="claimPairCode()" disabled>Pair this phone</button>
     <p id="pairMessage"></p>
+    <details style="margin-top:16px">
+      <summary style="cursor:pointer;color:#a5b4fc">Connection health check</summary>
+      <p style="color:#cbd5e1;font-size:14px">Read-only check. Nothing will be changed or reset.</p>
+      <button id="pairHealthButton" type="button" onclick="checkPairHealth()" disabled>Check my connection</button>
+      <pre id="pairHealthResult" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;color:#cbd5e1"></pre>
+    </details>
 
   </section>
 
@@ -658,6 +664,40 @@ async function verifyPairLockReady(code){
     return false;
   }
 }
+window.checkPairHealth = async function(){
+  const output=document.getElementById("pairHealthResult");
+  const button=document.getElementById("pairHealthButton");
+  if(!currentUser){output.textContent="This phone is not authenticated yet.";return;}
+  button.disabled=true;
+  output.textContent="Checking without changing anything...";
+  try{
+    const lockSnap=await getDoc(doc(db,"memberLocks",currentUser.uid));
+    const code=lockSnap.exists() ? lockSnap.data().pairCode : mainPairCode();
+    if(!code){output.textContent="No connection selected on this phone.";return;}
+    const pairSnap=await getDoc(doc(db,"pairInvites",code));
+    if(!pairSnap.exists()){
+      output.textContent="Selected connection: "+code+"\\nPairing record: missing or inaccessible\\nMy lock: "+(lockSnap.exists() ? "present" : "missing")+"\\nNo changes made.";
+      return;
+    }
+    const pair=pairSnap.data();
+    const isMember=pair.hostUid===currentUser.uid || pair.partnerUid===currentUser.uid;
+    const otherUid=pair.hostUid===currentUser.uid ? pair.partnerUid : pair.hostUid;
+    output.textContent=[
+      "Selected connection: "+code,
+      "Pairing record: found",
+      "This phone belongs to pairing: "+(isMember ? "yes" : "NO"),
+      "Partner identity recorded: "+(typeof otherUid==="string" ? "yes" : "no"),
+      "Pair revoked: "+(pair.revoked===true ? "YES" : "no"),
+      "Active call: "+(pair.activeRoom ? "registered" : "none"),
+      "My security lock: "+(lockSnap.exists() ? (lockSnap.data().pairCode===code ? "matches" : "MISMATCH") : "missing"),
+      "Partner security lock: cannot be read from this phone",
+      "No changes made."
+    ].join("\\n");
+  }catch(error){
+    console.error("Read-only connection check failed",error);
+    output.textContent="Could not complete read-only check: "+(error.code||"unknown error")+"\\nNo changes made.";
+  }finally{button.disabled=false;}
+};
 let pairListeners = [];
 let pairSessionCode = null;
 let candidateUnsubscribers = [];
@@ -804,6 +844,7 @@ function setReady() {
   updatePairingStatus();
   document.getElementById("pairCreate").disabled = false;
   document.getElementById("pairClaim").disabled = false;
+  document.getElementById("pairHealthButton").disabled = false;
   watchPairs();
 }
 
