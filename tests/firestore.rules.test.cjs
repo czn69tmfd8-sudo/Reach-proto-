@@ -100,6 +100,13 @@ test('locked account cannot read a different legacy pairing',async()=>{
  await assertFails(getDoc(doc(db('lockedHost'),'rooms',room)));
 });
 
+test('locked account cannot directly read or modify a different legacy pairing',async()=>{
+ const code='LEGACYPAIR12';
+ await assertFails(getDoc(doc(db('lockedHost'),'pairInvites',code)));
+ await assertFails(updateDoc(doc(db('lockedHost'),'pairInvites',code),{revoked:true}));
+ await assertSucceeds(getDoc(doc(db('legacyPartner'),'pairInvites',code)));
+});
+
 test('new pairing requires its member lock in the same transaction',async()=>{
  const uid='newHostA',code='NEWPAIRCODE1',d=db(uid);
  await assertFails(setDoc(doc(d,'pairInvites',code),{hostUid:uid,partnerUid:null,activeRoom:null,openedBy:null,createdAt:serverTimestamp()}));
