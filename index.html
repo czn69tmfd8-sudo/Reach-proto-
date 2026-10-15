@@ -619,6 +619,25 @@ function mainPairCode(){
   const visible=pairedCodes.filter(code=>!pairPrefsFor(code).hidden && !pairPrefsFor(code).retired);
   return visible.includes(favoritePair)?favoritePair:(visible[0]||null);
 }
+async function verifyPairLockReady(code){
+  if(!currentUser || !code) return false;
+  try{
+    const snap=await getDoc(doc(db,"memberLocks",currentUser.uid));
+    if(!snap.exists()){
+      pairMessage.textContent="Security upgrade required before this connection can go live.";
+      return false;
+    }
+    if(snap.data().pairCode!==code){
+      pairMessage.textContent="This phone is locked to a different REACH partnership.";
+      return false;
+    }
+    return true;
+  }catch(error){
+    console.error("Could not verify partnership lock:",error);
+    pairMessage.textContent="Could not verify the security upgrade.";
+    return false;
+  }
+}
 let pairListeners = [];
 let pairSessionCode = null;
 let candidateUnsubscribers = [];
@@ -1479,6 +1498,7 @@ window.claimPairCode=async()=>{
 };
 window.openPairedHand=async(code)=>{
   if(code!==mainPairCode()){pairMessage.textContent="Only your main partnership can connect.";return;}
+  if(!(await verifyPairLockReady(code))) return;
   if(activeRoom){pairMessage.textContent="End your current REACH first.";return;}
   try{const ref=doc(db,"pairInvites",code),snap=await getDoc(ref),pair=snap.data();
     if(!pair||pair.revoked||!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid)){pairMessage.textContent="Wait for the other phone to pair first.";return;}
@@ -1572,6 +1592,7 @@ window.createRoom = async function (authorizedPairCode, authorizedPair) {
 
 window.joinRoom = async function () {
   if(!pairSessionCode || pairSessionCode!==mainPairCode()){status.textContent="Join through your confirmed partnership.";return;}
+  if(!(await verifyPairLockReady(pairSessionCode))){status.textContent="Security upgrade required before joining.";return;}
   if(activeRoom){status.textContent="End your current REACH first.";return;}
   let authorizedPair;
   try{const authorizedPairSnap=await getDoc(doc(db,"pairInvites",pairSessionCode));authorizedPair=authorizedPairSnap.data();}
