@@ -253,3 +253,26 @@ test('revoked pairing cannot be reopened or unrevoked',async()=>{
  await assertFails(updateDoc(doc(db('rev2Host'),'pairInvites',code),{activeRoom:'ANYROOM',openedBy:'rev2Host'}));
  await assertFails(updateDoc(doc(db('rev2Host'),'pairInvites',code),{revoked:false}));
 });
+
+test('a second room cannot replace the currently registered active session',async()=>{
+ const code='RACEPAIR1234',first='RACEONE',second='RACETWO';
+ await env.withSecurityRulesDisabled(async c=>{
+  const d=c.firestore();
+  await setDoc(doc(d,'pairInvites',code),{hostUid:'raceHost',partnerUid:'racePartner',activeRoom:first,openedBy:'raceHost',createdAt:new Date()});
+  for(const room of [first,second]) await setDoc(doc(d,'rooms',room),{hostUid:'raceHost',partnerUid:'racePartner',pairCode:code,createdAt:new Date(),expiresAt:Date.now()+3600000,active:true,offer:{type:'offer',sdp:'offer'}});
+ });
+ await assertFails(updateDoc(doc(db('raceHost'),'pairInvites',code),{activeRoom:second,openedBy:'raceHost'}));
+ await assertFails(updateDoc(doc(db('racePartner'),'pairInvites',code),{activeRoom:second,openedBy:'racePartner'}));
+ await assertSucceeds(addDoc(collection(db('raceHost'),'rooms',first,'hostCandidates'),{candidate:'candidate:first'}));
+ await assertFails(addDoc(collection(db('raceHost'),'rooms',second,'hostCandidates'),{candidate:'candidate:second'}));
+});
+test('partner cannot hijack activeRoom registration for a host-created room',async()=>{
+ const code='HIJACKPAIR12',room='HOSTROOM';
+ await env.withSecurityRulesDisabled(async c=>{
+  const d=c.firestore();
+  await setDoc(doc(d,'pairInvites',code),{hostUid:'hijackHost',partnerUid:'hijackPartner',activeRoom:null,openedBy:null,createdAt:new Date()});
+  await setDoc(doc(d,'rooms',room),{hostUid:'hijackHost',partnerUid:'hijackPartner',pairCode:code,createdAt:new Date(),expiresAt:Date.now()+3600000,active:true,offer:{type:'offer',sdp:'offer'}});
+ });
+ await assertFails(updateDoc(doc(db('hijackPartner'),'pairInvites',code),{activeRoom:room,openedBy:'hijackPartner'}));
+ await assertSucceeds(updateDoc(doc(db('hijackHost'),'pairInvites',code),{activeRoom:room,openedBy:'hijackHost'}));
+});
