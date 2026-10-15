@@ -276,3 +276,24 @@ test('partner cannot hijack activeRoom registration for a host-created room',asy
  await assertFails(updateDoc(doc(db('hijackPartner'),'pairInvites',code),{activeRoom:room,openedBy:'hijackPartner'}));
  await assertSucceeds(updateDoc(doc(db('hijackHost'),'pairInvites',code),{activeRoom:room,openedBy:'hijackHost'}));
 });
+
+test('migrated legacy pair remains usable and isolated',async()=>{
+ const code='LEGACYPAIR12',other='OLDPAIR99999',host='legacyHost',partner='legacyPartner',room='LEGACYROOM';
+ await env.withSecurityRulesDisabled(async c=>{
+  const d=c.firestore();
+  await setDoc(doc(d,'pairInvites',code),{hostUid:host,partnerUid:partner,activeRoom:room,openedBy:host,createdAt:new Date(),profilePhotos:{}});
+  await setDoc(doc(d,'pairInvites',other),{hostUid:host,partnerUid:'oldPartner',activeRoom:null,openedBy:null,createdAt:new Date()});
+  await setDoc(doc(d,'memberLocks',host),{pairCode:code,createdAt:new Date()});
+  await setDoc(doc(d,'memberLocks',partner),{pairCode:code,createdAt:new Date()});
+  await setDoc(doc(d,'rooms',room),{hostUid:host,partnerUid:partner,pairCode:code,createdAt:new Date(),expiresAt:Date.now()+3600000,active:true,offer:{type:'offer',sdp:'offer'}});
+ });
+ await assertSucceeds(getDoc(doc(db(host),'pairInvites',code)));
+ await assertSucceeds(getDoc(doc(db(partner),'pairInvites',code)));
+ await assertFails(getDoc(doc(db(host),'pairInvites',other)));
+ await assertFails(updateDoc(doc(db(host),'pairInvites',other),{revoked:true}));
+ await assertSucceeds(updateDoc(doc(db(host),'pairInvites',code),{profilePhotos:{[host]:'data:image/jpeg;base64,QQ=='}}));
+ await assertSucceeds(addDoc(collection(db(host),'rooms',room,'hostCandidates'),{candidate:'candidate:legacy'}));
+ await assertSucceeds(updateDoc(doc(db(partner),'rooms',room),{answer:{type:'answer',sdp:'answer'},partnerJoinedAt:serverTimestamp()}));
+ await assertFails(deleteDoc(doc(db(host),'memberLocks',host)));
+ await assertFails(updateDoc(doc(db(host),'memberLocks',host),{pairCode:other}));
+});
