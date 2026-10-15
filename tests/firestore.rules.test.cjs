@@ -196,3 +196,18 @@ test('stale activeRoom cannot be replaced before cleanup',async()=>{
  await assertFails(updateDoc(doc(db('staleHost'),'pairInvites',code),{activeRoom:newRoom,openedBy:'staleHost'}));
  await assertSucceeds(updateDoc(doc(db('staleHost'),'pairInvites',code),{activeRoom:null,openedBy:null}));
 });
+
+test('orphaned active room cannot accept a partner answer',async()=>{
+ const code='ORPHANPAIR12',room='ORPHAN';
+ await env.withSecurityRulesDisabled(async c=>{
+  const d=c.firestore();
+  await setDoc(doc(d,'pairInvites',code),{hostUid:'orphanHost',partnerUid:'orphanPartner',activeRoom:null,openedBy:null,createdAt:new Date()});
+  await setDoc(doc(d,'rooms',room),{hostUid:'orphanHost',partnerUid:'orphanPartner',pairCode:code,createdAt:new Date(),expiresAt:Date.now()+3600000,active:true,offer:{type:'offer',sdp:'offer'}});
+ });
+ await assertFails(updateDoc(doc(db('orphanPartner'),'rooms',room),{answer:{type:'answer',sdp:'answer'},partnerJoinedAt:serverTimestamp()}));
+});
+test('orphaned active room cannot accept ICE signaling',async()=>{
+ const code='ORPHANPAIR12',room='ORPHAN';
+ await assertFails(addDoc(collection(db('orphanHost'),'rooms',room,'hostCandidates'),{candidate:'candidate:orphan'}));
+ await assertFails(addDoc(collection(db('orphanPartner'),'rooms',room,'partnerCandidates'),{candidate:'candidate:orphan'}));
+});
