@@ -673,6 +673,7 @@ window.checkPairHealth = async function(){
   const lines=["Read-only REACH connection check","This phone UID: "+currentUser.uid];
   const localCode=mainPairCode();
   lines.push("Phone's selected pairing: "+(localCode||"none"));
+  let ready=false;
   try{
     const lockSnap=await getDoc(doc(db,"memberLocks",currentUser.uid));
     const lockedCode=lockSnap.exists()?lockSnap.data().pairCode:null;
@@ -681,34 +682,40 @@ window.checkPairHealth = async function(){
       lines.push("WARNING: phone pairing and security lock disagree");
     }
     const code=lockedCode||localCode;
-    if(!code){lines.push("No pairing to inspect.");return;}
-    try{
-      const pairSnap=await getDoc(doc(db,"pairInvites",code));
-      if(!pairSnap.exists()){
-        lines.push("Pair record: NOT FOUND (or inaccessible)");
-      }else{
-        const pair=pairSnap.data();
-        const mine=pair.hostUid===currentUser.uid||pair.partnerUid===currentUser.uid;
-        const otherUid=pair.hostUid===currentUser.uid?pair.partnerUid:pair.hostUid;
-        lines.push("Pair record: found");
-        lines.push("This phone belongs to pairing: "+(mine?"yes":"NO"));
-        lines.push("Partner recorded: "+(typeof otherUid==="string"?"yes":"no"));
-        lines.push("Pair identities distinct: "+(pair.hostUid && pair.partnerUid && pair.hostUid!==pair.partnerUid?"yes":"NO / incomplete"));
-        const photos=pair.profilePhotos && typeof pair.profilePhotos==="object"?pair.profilePhotos:{};
-        const ownPhoto=typeof photos[currentUser.uid]==="string" && photos[currentUser.uid].startsWith("data:image/jpeg;base64,");
-        const partnerPhoto=typeof otherUid==="string" && typeof photos[otherUid]==="string" && photos[otherUid].startsWith("data:image/jpeg;base64,");
-        lines.push("Your photo stored in pair: "+(ownPhoto?"yes":"not found"));
-        lines.push("Partner photo stored in pair: "+(partnerPhoto?"yes":"not found"));
-        lines.push("Revoked: "+(pair.revoked===true?"YES":"no"));
-        lines.push("Active call: "+(pair.activeRoom?"registered":"none"));
+    if(!code){
+      lines.push("No pairing to inspect.");
+    }else{
+      try{
+        const pairSnap=await getDoc(doc(db,"pairInvites",code));
+        if(!pairSnap.exists()){
+          lines.push("Pair record: NOT FOUND");
+        }else{
+          const pair=pairSnap.data();
+          const mine=pair.hostUid===currentUser.uid||pair.partnerUid===currentUser.uid;
+          const distinct=typeof pair.hostUid==="string" && typeof pair.partnerUid==="string" && pair.hostUid!==pair.partnerUid;
+          const otherUid=pair.hostUid===currentUser.uid?pair.partnerUid:pair.hostUid;
+          const photos=pair.profilePhotos && typeof pair.profilePhotos==="object"?pair.profilePhotos:{};
+          const ownPhoto=typeof photos[currentUser.uid]==="string" && photos[currentUser.uid].startsWith("data:image/jpeg;base64,");
+          const partnerPhoto=typeof otherUid==="string" && typeof photos[otherUid]==="string" && photos[otherUid].startsWith("data:image/jpeg;base64,");
+          lines.push("Pair record: found");
+          lines.push("This phone belongs to pairing: "+(mine?"yes":"NO"));
+          lines.push("Partner recorded: "+(typeof otherUid==="string"?"yes":"no"));
+          lines.push("Pair identities distinct: "+(distinct?"yes":"NO / incomplete"));
+          lines.push("Your photo stored in pair: "+(ownPhoto?"yes":"not found"));
+          lines.push("Partner photo stored in pair: "+(partnerPhoto?"yes":"not found"));
+          lines.push("Revoked: "+(pair.revoked===true?"YES":"no"));
+          lines.push("Active call: "+(pair.activeRoom?"registered":"none"));
+          ready=Boolean(lockedCode && localCode===lockedCode && mine && distinct && pair.revoked!==true && ownPhoto && partnerPhoto);
+        }
+      }catch(error){
+        lines.push("Pair record check failed: "+(error.code||"unknown error"));
       }
-    }catch(error){
-      lines.push("Pair record check failed: "+(error.code||"unknown error"));
     }
-    lines.push("Partner's lock: cannot inspect from this phone");
+    lines.push("Partner's lock: must be checked on partner's phone");
   }catch(error){
     lines.push("My lock check failed: "+(error.code||"unknown error"));
   }finally{
+    lines.push(ready?"This phone: local checks passed; NOT a production approval.":"This phone: requires review before security rollout.");
     lines.push("No data changed.");
     output.textContent=lines.join("\n");
     button.disabled=false;
