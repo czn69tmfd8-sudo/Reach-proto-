@@ -350,3 +350,21 @@ test('migrated real-style partnership keeps both members, photos, and room reada
  await assertFails(getDocs(collection(db('migrationOutsider'),'rooms',room,'hostCandidates')));
  await assertSucceeds(updateDoc(doc(db(host),'pairInvites',code),{['profilePhotos.'+host]:'data:image/jpeg;base64,YWJj'}));
 });
+
+test('Safari RTCIceCandidate.toJSON full candidate shape works for both paired devices',async()=>{
+ const code='SAFARIPAIR12',room='SAFARI1';
+ await env.withSecurityRulesDisabled(async c=>{
+  const d=c.firestore();
+  await setDoc(doc(d,'pairInvites',code),{hostUid:'safariHost',partnerUid:'safariPartner',activeRoom:room,openedBy:'safariHost',createdAt:new Date()});
+  await setDoc(doc(d,'memberLocks','safariHost'),{pairCode:code,createdAt:new Date()});
+  await setDoc(doc(d,'memberLocks','safariPartner'),{pairCode:code,createdAt:new Date()});
+  await setDoc(doc(d,'rooms',room),{hostUid:'safariHost',partnerUid:'safariPartner',pairCode:code,createdAt:new Date(),expiresAt:Date.now()+3600000,active:true,offer:{type:'offer',sdp:'offer'}});
+ });
+ const safariCandidate={candidate:'candidate:842163049 1 udp 1677729535 192.0.2.1 54321 typ srflx',sdpMid:'0',sdpMLineIndex:0,usernameFragment:'abc123'};
+ await assertSucceeds(addDoc(collection(db('safariHost'),'rooms',room,'hostCandidates'),safariCandidate));
+ await assertSucceeds(addDoc(collection(db('safariPartner'),'rooms',room,'partnerCandidates'),{...safariCandidate,sdpMid:null,usernameFragment:null}));
+ await assertFails(addDoc(collection(db('outsider'),'rooms',room,'hostCandidates'),safariCandidate));
+ await assertFails(addDoc(collection(db('safariPartner'),'rooms',room,'hostCandidates'),safariCandidate));
+ await assertFails(addDoc(collection(db('safariHost'),'rooms',room,'partnerCandidates'),safariCandidate));
+ await assertFails(addDoc(collection(db('safariHost'),'rooms',room,'hostCandidates'),{...safariCandidate,extra:'not allowed'}));
+});
