@@ -578,6 +578,7 @@ import {
   doc,
   setDoc,
   getDoc,
+  getDocFromServer,
   updateDoc,
   onSnapshot,
   serverTimestamp,
@@ -647,20 +648,25 @@ async function reconcileLockedPartnership(){
 }
 async function verifyPairLockReady(code){
   if(!currentUser || !code) return false;
+  const lockRef=doc(db,"memberLocks",currentUser.uid);
   try{
-    const snap=await getDoc(doc(db,"memberLocks",currentUser.uid));
+    // A call is a security-sensitive transition. Force a server read here so an
+    // older Safari/Firestore cache entry cannot report a migrated lock as missing.
+    const snap=await getDocFromServer(lockRef);
     if(!snap.exists()){
+      console.warn("REACH lock missing on server for authenticated UID",currentUser.uid);
       pairMessage.textContent="Security upgrade required before this connection can go live.";
       return false;
     }
     if(snap.data().pairCode!==code){
+      console.warn("REACH lock/pair mismatch",{uid:currentUser.uid,selectedPair:code,lockedPair:snap.data().pairCode});
       pairMessage.textContent="This phone is locked to a different REACH partnership.";
       return false;
     }
     return true;
   }catch(error){
-    console.error("Could not verify partnership lock:",error);
-    pairMessage.textContent="Could not verify the security upgrade.";
+    console.error("Could not verify partnership lock from server:",error);
+    pairMessage.textContent="Could not verify the secure connection. Check your internet connection and try again.";
     return false;
   }
 }
