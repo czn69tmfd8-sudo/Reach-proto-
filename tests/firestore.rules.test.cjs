@@ -317,3 +317,36 @@ test('answered registered room rejects answer replay and identity mutation',asyn
  await assertFails(updateDoc(doc(db('replayPartner'),'rooms',room),{answer:{type:'answer',sdp:'second'},partnerJoinedAt:serverTimestamp()}));
  await assertFails(updateDoc(doc(db('replayHost'),'rooms',room),{partnerUid:'attacker'}));
 });
+
+
+test('migrated real-style partnership keeps both members, photos, and room readable',async()=>{
+ const code='MIGRATEDPAIR',room='MIGRAT',host='migrationHost',partner='migrationPartner';
+ await env.withSecurityRulesDisabled(async c=>{
+  const d=c.firestore();
+  await setDoc(doc(d,'pairInvites',code),{
+   hostUid:host,partnerUid:partner,activeRoom:room,openedBy:host,createdAt:new Date(),
+   profilePhotos:{
+    [host]:'data:image/jpeg;base64,YWJj',
+    [partner]:'data:image/jpeg;base64,ZGVm'
+   }
+  });
+  await setDoc(doc(d,'memberLocks',host),{pairCode:code,createdAt:new Date()});
+  await setDoc(doc(d,'memberLocks',partner),{pairCode:code,createdAt:new Date()});
+  await setDoc(doc(d,'rooms',room),{
+   hostUid:host,partnerUid:partner,pairCode:code,createdAt:new Date(),
+   expiresAt:Date.now()+3600000,active:true,offer:{type:'offer',sdp:'offer'}
+  });
+ });
+ for(const uid of [host,partner]){
+  const d=db(uid);
+  const pair=await assertSucceeds(getDoc(doc(d,'pairInvites',code)));
+  assert.equal(pair.data().profilePhotos[host],'data:image/jpeg;base64,YWJj');
+  assert.equal(pair.data().profilePhotos[partner],'data:image/jpeg;base64,ZGVm');
+  assert.equal((await assertSucceeds(getDoc(doc(d,'memberLocks',uid)))).data().pairCode,code);
+  await assertSucceeds(getDoc(doc(d,'rooms',room)));
+ }
+ await assertFails(getDoc(doc(db('migrationOutsider'),'pairInvites',code)));
+ await assertFails(getDoc(doc(db('migrationOutsider'),'rooms',room)));
+ await assertFails(getDocs(collection(db('migrationOutsider'),'rooms',room,'hostCandidates')));
+ await assertSucceeds(updateDoc(doc(db(host),'pairInvites',code),{['profilePhotos.'+host]:'data:image/jpeg;base64,YWJj'}));
+});
