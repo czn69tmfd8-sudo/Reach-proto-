@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>REACH — Read-only Connection Check</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0f172a;color:#fff;margin:0;padding:24px 18px}main{max-width:540px;margin:auto}h1{letter-spacing:2px}p{color:#cbd5e1;line-height:1.5}.card{background:#1e293b;padding:22px;border-radius:20px;margin:20px 0}button{border:0;border-radius:14px;background:#6366f1;color:white;padding:16px;font-size:17px;font-weight:700;width:100%}button:disabled{opacity:.5}pre{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;font-size:14px}a{color:#a5b4fc}small{color:#94a3b8}</style></head>
+<body><main><h1>REACH</h1><p>Private connection check — development diagnostic</p><section class="card"><strong>Read-only. Your partnership will not be changed.</strong><p>Open this page in the same normal Safari browser as REACH. Do not use Private Browsing. Do not clear website data. This page does not create a login, pairing, call, or photo.</p><p id="auth">Checking existing login…</p><button id="check" disabled>Check my connection</button><pre id="result" aria-live="polite"></pre></section><p><a href="../">Return to live REACH</a></p><small>For privacy, the report never shows full user IDs, pairing codes, or images. Only share the result with someone you trust.</small></main>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
+import {getAuth,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
+import {getFirestore,doc,getDoc} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+const app=initializeApp({
+ apiKey:"AIzaSyCz2DVsAyjUWiKLxChzPWhPO5Dg4BaddEM",
+ authDomain:"reach-prototype-d70ef.firebaseapp.com",
+ projectId:"reach-prototype-d70ef",
+ storageBucket:"reach-prototype-d70ef.firebasestorage.app",
+ messagingSenderId:"250530646851",
+ appId:"1:250530646851:web:a2087cbf72cde0ffa5fdf6"
+});
+const auth=getAuth(app),db=getFirestore(app);
+const button=document.getElementById("check"),status=document.getElementById("auth"),result=document.getElementById("result");
+let user=null;
+onAuthStateChanged(auth,u=>{
+ user=u;
+ if(u && u.isAnonymous){
+  status.textContent="Existing anonymous REACH login detected. Ready to check.";
+  button.disabled=false;
+ }else if(u){
+  status.textContent="A login exists, but it is not an anonymous REACH login. Do not reset anything.";
+  button.disabled=true;
+ }else{
+  status.textContent="No existing REACH login detected in this browser. Open your normal REACH page first, then return here. Do not create a new pairing or clear Safari data.";
+  button.disabled=true;
+ }
+},e=>{status.textContent="Unable to read existing login: "+(e.code||"unknown error");button.disabled=true;});
+button.addEventListener("click",async()=>{
+ if(!user)return;
+ button.disabled=true;result.textContent="Reading existing records…";
+ const lines=["REACH — READ-ONLY CONNECTION CHECK"];
+ let lockCode=null,localCode=null,ok=false;
+ try{
+  const raw=localStorage.getItem("reachPairCodes");
+  let codes=[];
+  try{const parsed=JSON.parse(raw||"[]");if(Array.isArray(parsed))codes=parsed.filter(x=>typeof x==="string");}catch{}
+  const favorite=localStorage.getItem("reachFavoritePair");
+  localCode=(favorite&&codes.includes(favorite))?favorite:(codes[0]||null);
+  lines.push("Saved pairing on this phone: "+(localCode?"yes":"missing"));
+  const lock=await getDoc(doc(db,"memberLocks",user.uid));
+  lockCode=lock.exists() && typeof lock.data().pairCode==="string"?lock.data().pairCode:null;
+  lines.push("Permanent member lock: "+(lockCode?"found":"missing"));
+  lines.push("Phone pairing matches member lock: "+(lockCode&&localCode===lockCode?"yes":"NO / unknown"));
+  const code=lockCode||localCode;
+  if(code){
+   try{
+    const snapshot=await getDoc(doc(db,"pairInvites",code));
+    if(!snapshot.exists())lines.push("Pair record: missing");
+    else{
+     const pair=snapshot.data();
+     const member=pair.hostUid===user.uid||pair.partnerUid===user.uid;
+     const distinct=typeof pair.hostUid==="string"&&typeof pair.partnerUid==="string"&&pair.hostUid!==pair.partnerUid;
+     const partner=pair.hostUid===user.uid?pair.partnerUid:pair.hostUid;
+     const photos=pair.profilePhotos&&typeof pair.profilePhotos==="object"?pair.profilePhotos:{};
+     const ownPhoto=typeof photos[user.uid]==="string"&&photos[user.uid].startsWith("data:image/jpeg;base64,");
+     const otherPhoto=typeof partner==="string"&&typeof photos[partner]==="string"&&photos[partner].startsWith("data:image/jpeg;base64,");
+     const revoked=pair.revoked===true;
+     lines.push("Pair record: found");
+     lines.push("This phone belongs to pair: "+(member?"yes":"NO"));
+     lines.push("Two distinct members recorded: "+(distinct?"yes":"NO"));
+     lines.push("Your photo present: "+(ownPhoto?"yes":"not found"));
+     lines.push("Partner photo present: "+(otherPhoto?"yes":"not found"));
+     lines.push("Pair revoked: "+(revoked?"YES":"no"));
+     lines.push("Active room pointer: "+(pair.activeRoom?"set":"clear"));
+     ok=Boolean(localCode&&lockCode===localCode&&member&&distinct&&ownPhoto&&otherPhoto&&!revoked);
+    }
+   }catch(e){lines.push("Pair read failed: "+(e.code||"unknown error"));}
+  }
+  lines.push("Other phone's lock: check separately on that phone");
+  lines.push(ok?"RESULT: This phone's checks passed. Not a deployment approval.":"RESULT: Review required before upgrading.");
+ }catch(e){lines.push("Check failed: "+(e.code||"unknown error"));}
+ finally{lines.push("No records were changed.");result.textContent=lines.join("\n");button.disabled=false;}
+});
+</script></body></html>
