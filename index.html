@@ -1297,6 +1297,8 @@ async function cleanupConnection(stopMedia = true) {
   role = null;
   remoteDescriptionReady = false;
   pendingCandidates = [];
+  signalingReady = false;
+  pendingLocalCandidates = [];
 }
 
 window.endReach = async function () {
@@ -1587,6 +1589,7 @@ window.openPairedHand=async(code)=>{
   if(activeRoom){pairMessage.textContent="End your current REACH first.";return;}
   try{const ref=doc(db,"pairInvites",code),snap=await getDoc(ref),pair=snap.data();
     if(!pair||pair.revoked||!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid)){pairMessage.textContent="Wait for the other phone to pair first.";return;}
+    if(pair.activeRoom!==null || pair.openedBy!==null){pairMessage.textContent="A REACH is already open. End it before opening another.";return;}
     await window.createRoom(code,pair);if(!activeRoom)return;
     pairSessionCode=code;
     try{
