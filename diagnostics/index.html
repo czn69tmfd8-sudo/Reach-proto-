@@ -42,11 +42,15 @@ button.addEventListener("click",async()=>{
   const favorite=localStorage.getItem("reachFavoritePair");
   localCode=(favorite&&codes.includes(favorite))?favorite:(codes[0]||null);
   lines.push("Saved pairing on this phone: "+(localCode?"yes":"missing"));
-  const lock=await getDoc(doc(db,"memberLocks",user.uid));
-  lockCode=lock.exists() && typeof lock.data().pairCode==="string"?lock.data().pairCode:null;
-  lines.push("Permanent member lock: "+(lockCode?"found":"missing"));
-  lines.push("Phone pairing matches member lock: "+(lockCode&&localCode===lockCode?"yes":"NO / unknown"));
-  const code=lockCode||localCode;
+  try {
+    const lock = await getDoc(doc(db, "memberLocks", user.uid));
+    lockCode = lock.exists() ? lock.data().pairCode : null;
+    lines.push("Permanent member lock: " + (lockCode ? "found" : "missing"));
+  } catch (error) {
+    lines.push("Permanent member lock: not readable under current rules (" + (error.code || "unknown") + ")");
+  }
+  lines.push("Phone pairing matches member lock: " + (!lockCode ? "not yet verifiable" : (lockCode === localCode ? "yes" : "NO")));
+  const code = lockCode || localCode;
   if(code){
    try{
     const snapshot=await getDoc(doc(db,"pairInvites",code));
