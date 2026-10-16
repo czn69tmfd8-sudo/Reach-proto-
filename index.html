@@ -693,6 +693,12 @@ window.checkPairHealth = async function(){
         lines.push("Pair record: found");
         lines.push("This phone belongs to pairing: "+(mine?"yes":"NO"));
         lines.push("Partner recorded: "+(typeof otherUid==="string"?"yes":"no"));
+        lines.push("Pair identities distinct: "+(pair.hostUid && pair.partnerUid && pair.hostUid!==pair.partnerUid?"yes":"NO / incomplete"));
+        const photos=pair.profilePhotos && typeof pair.profilePhotos==="object"?pair.profilePhotos:{};
+        const ownPhoto=typeof photos[currentUser.uid]==="string" && photos[currentUser.uid].startsWith("data:image/jpeg;base64,");
+        const partnerPhoto=typeof otherUid==="string" && typeof photos[otherUid]==="string" && photos[otherUid].startsWith("data:image/jpeg;base64,");
+        lines.push("Your photo stored in pair: "+(ownPhoto?"yes":"not found"));
+        lines.push("Partner photo stored in pair: "+(partnerPhoto?"yes":"not found"));
         lines.push("Revoked: "+(pair.revoked===true?"YES":"no"));
         lines.push("Active call: "+(pair.activeRoom?"registered":"none"));
       }
