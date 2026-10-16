@@ -30,9 +30,10 @@ The candidate rules permit an existing non-revoked pair to keep reading its room
 If either phone loses its real pairing, photos, or video connection, stop testing. Restore the saved live HTML and matching original Firestore rules. Be aware that new-schema room records and memberLocks created during the cutover may not be compatible with the old app. Rollback does not erase data or restore lost anonymous authentication identities.
 
 ## Known blockers
-- Firebase emulator tests not yet run.
-- No admin access in this branch to inspect/backfill existing memberLocks.
-- Existing account migration and two-phone video tests not done.
+- The two phone-specific read-only health checks have not been performed on the candidate build.
+- Firebase emulator validation of the candidate rules is not confirmed by this rollout document; a green GitHub workflow alone does not establish real-device readiness.
+- No Firebase Admin access is connected for independent inspection of production documents. Screenshots indicate two existing memberLocks with the same pairCode, but do not replace read-only checks on both phones.
+- Coordinated two-phone video tests on the new app and rules have not been done.
 - Security audit of Firebase Storage and any other backend services remains to be performed.
 
 ## October 2026: read-only diagnosis before considering a fresh pairing
