@@ -76,7 +76,7 @@ button.addEventListener("click",async()=>{
    }catch(e){lines.push("Pair read failed: "+(e.code||"unknown error"));}
   }
   lines.push("Other phone's lock: check separately on that phone");
-  lines.push(ok?"RESULT: This phone's checks passed. Not a deployment approval.":"RESULT: Review required before upgrading.");
+  lines.push(ok ? "RESULT: Local checks passed (not deployment approval)." : (!lockCode ? "RESULT: Pair checked; lock verification pending rule upgrade." : "RESULT: Review required before upgrading."));
  }catch(e){lines.push("Check failed: "+(e.code||"unknown error"));}
  finally{lines.push("No records were changed.");result.textContent=lines.join("\n");button.disabled=false;}
 });
