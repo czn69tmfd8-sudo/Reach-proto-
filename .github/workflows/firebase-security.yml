@@ -1,0 +1,30 @@
+name: REACH Firebase Security Tests
+on:
+  push:
+    branches:
+      - security/one-partner-v1
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  firestore-emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install test dependencies
+        run: npm install --no-audit --no-fund
+      - name: Static source checks
+        run: node security-static.cjs
+      - name: Firebase emulator security tests
+        run: npx firebase emulators:exec --project reach-security-test --only firestore "npm test"

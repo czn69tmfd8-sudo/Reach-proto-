@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "scripts": {
+    "test": "node --test firestore.rules.test.cjs",
+    "test:static": "node security-static.cjs"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "firebase": "12.4.0",
+    "firebase-tools": "^14.0.0"
+  }
+}
