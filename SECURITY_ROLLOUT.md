@@ -46,7 +46,7 @@ If either phone loses its real pairing, photos, or video connection, stop testin
 
 ## Known blockers
 - Both phone-specific checks passed against current production pairing data; candidate memberLock reads remain untested on-device.
-- The GitHub Firebase emulator workflow passed on candidate commit ba04684; real-device validation of candidate rules is still pending.
+- The GitHub Firebase emulator workflow passed through the Safari ICE candidate coverage run shown green as REACH Firebase Security Tests #34. Later client hardening commits must also be green before cutover; real-device validation of candidate rules is still pending.
 - No Firebase Admin access is connected for independent inspection of production documents. Screenshots indicate two existing memberLocks with the same pairCode, but do not replace read-only checks on both phones.
 - Coordinated two-phone video tests on the new app and rules have not been done.
 - Security audit of Firebase Storage and any other backend services remains to be performed.
@@ -64,6 +64,14 @@ Before any reset, capture the two phones' diagnostic outputs, verify the existin
 ## October 16, 2026 follow-up review (GitHub only; no production writes)
 - Inspected candidate Firestore rules and candidate `index.html` together. The candidate requires `rooms` documents with `partnerUid`, `pairCode`, `createdAt`, `expiresAt`, `active`, and `offer`; the current live version uses a different room schema. **Never deploy only one half.**
 - Candidate code reads `/memberLocks/{currentUser.uid}` to restore the intended pairing and rejects opening/joining when the lock is absent or mismatched. Both migrated UID documents now appear together in the canonical-looking collection in the user's latest screenshot.
-- Candidate room opening requires pair `activeRoom == null` AND `openedBy == null` before setting a new pointer. User verified `activeRoom == null`, but `openedBy` has NOT been verified; a stale non-null `openedBy` would block calls under candidate rules. Check without changing the record before cutover.
-- The candidate uses `RTCIceCandidate.toJSON()` for ICE writes. The rule accepts `candidate`, `sdpMid`, `sdpMLineIndex`, `usernameFragment` only. Validate actual iPhone Safari output and optional/null values in emulator before cutover.
+- Candidate room opening requires pair `activeRoom == null` AND `openedBy == null` before setting a new pointer. User verified both `activeRoom == null` and `openedBy == null` in the latest pair-document screenshot. The candidate client now also refuses to create a second room when either field is non-null.
+- The candidate uses `RTCIceCandidate.toJSON()` for ICE writes. The rule accepts `candidate`, `sdpMid`, `sdpMLineIndex`, `usernameFragment` only. The emulator suite now covers the full RTCIceCandidate.toJSON() field shape plus optional/null Safari fields, and REACH Firebase Security Tests #34 passed. Real-device candidate behavior remains part of the final two-phone cutover test.
 - No production rules, pair records, photos, live HTML, or phone browser state were modified by this review. The working live call remains the baseline.
+
+
+## Final pre-cutover audit — October 16, 2026
+- Candidate app and candidate Firestore rules were reviewed together after the Safari ICE test passed.
+- Client cleanup now resets signaling state and discards queued local ICE state so a later call cannot inherit signaling state from a previous call.
+- Client checks the shared pair record before room creation and refuses to open another hand while activeRoom or openedBy is non-null; server rules remain the authoritative enforcement layer.
+- Production remains unchanged. Do not merge the candidate HTML by itself and do not publish the candidate rules by themselves.
+- Next human-required gate is a coordinated maintenance window: no active REACH call, publish the matching rules/app as one cutover, reload both phones normally, verify each phone's own lock and pair, then complete a short two-way call. Never clear Safari website data.
