@@ -469,6 +469,12 @@
     <input id="pairInput" maxlength="12" placeholder="PAIRING CODE" autocomplete="off">
     <button id="pairClaim" onclick="claimPairCode()" disabled>Pair this phone</button>
     <p id="pairMessage"></p>
+    <details style="margin-top:16px">
+      <summary style="cursor:pointer;color:#a5b4fc">Connection health check</summary>
+      <p style="color:#cbd5e1;font-size:14px">Read-only check. Nothing will be changed or reset.</p>
+      <button id="pairHealthButton" type="button" onclick="checkPairHealth()" disabled>Check my connection</button>
+      <pre id="pairHealthResult" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;color:#cbd5e1"></pre>
+    </details>
 
   </section>
 
@@ -576,7 +582,8 @@ import {
   onSnapshot,
   serverTimestamp,
   collection,
-  addDoc
+  addDoc,
+  runTransaction
 } from
   "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
 
@@ -606,6 +613,8 @@ let peerConnection = null;
 let role = null;
 let remoteDescriptionReady = false;
 let pendingCandidates = [];
+let signalingReady = false;
+let pendingLocalCandidates = [];
 let pairedCodes = JSON.parse(localStorage.getItem("reachPairCodes") || "[]");
 let pairPrefs = JSON.parse(localStorage.getItem("reachPairPreferences") || "{}");
 let favoritePair = localStorage.getItem("reachFavoritePair") || null;
@@ -613,9 +622,105 @@ function savePairPrefs(){localStorage.setItem("reachPairPreferences",JSON.string
 function pairPrefsFor(code){return pairPrefs[code] || {name:"",hidden:false};}
 function pairName(code){return pairPrefsFor(code).name || "Connection "+code.slice(0,4);}
 function mainPairCode(){
-  const visible=pairedCodes.filter(code=>!pairPrefsFor(code).hidden);
+  const visible=pairedCodes.filter(code=>!pairPrefsFor(code).hidden && !pairPrefsFor(code).retired);
   return visible.includes(favoritePair)?favoritePair:(visible[0]||null);
 }
+async function reconcileLockedPartnership(){
+  if(!currentUser)return;
+  try{
+    const snap=await getDoc(doc(db,"memberLocks",currentUser.uid));
+    if(!snap.exists())return;
+    const code=snap.data().pairCode;
+    if(typeof code!=="string"||!code)return;
+    if(!pairedCodes.includes(code)){pairedCodes.push(code);savePairs();}
+    favoritePair=code;
+    localStorage.setItem("reachFavoritePair",code);
+    for(const other of pairedCodes){
+      if(other===code){
+        pairPrefs[other]={...pairPrefsFor(other),hidden:false,retired:false};
+      }else{
+        pairPrefs[other]={...pairPrefsFor(other),hidden:true,retired:true};
+      }
+    }
+    savePairPrefs();
+  }catch(error){console.error("Could not reconcile partnership:",error);}
+}
+async function verifyPairLockReady(code){
+  if(!currentUser || !code) return false;
+  try{
+    const snap=await getDoc(doc(db,"memberLocks",currentUser.uid));
+    if(!snap.exists()){
+      pairMessage.textContent="Security upgrade required before this connection can go live.";
+      return false;
+    }
+    if(snap.data().pairCode!==code){
+      pairMessage.textContent="This phone is locked to a different REACH partnership.";
+      return false;
+    }
+    return true;
+  }catch(error){
+    console.error("Could not verify partnership lock:",error);
+    pairMessage.textContent="Could not verify the security upgrade.";
+    return false;
+  }
+}
+window.checkPairHealth = async function(){
+  const output=document.getElementById("pairHealthResult");
+  const button=document.getElementById("pairHealthButton");
+  if(!currentUser){output.textContent="This phone is not authenticated yet.";return;}
+  button.disabled=true;
+  output.textContent="Checking without changing anything...";
+  const lines=["Read-only REACH connection check","This phone UID: "+currentUser.uid];
+  const localCode=mainPairCode();
+  lines.push("Phone's selected pairing: "+(localCode||"none"));
+  let ready=false;
+  try{
+    const lockSnap=await getDoc(doc(db,"memberLocks",currentUser.uid));
+    const lockedCode=lockSnap.exists()?lockSnap.data().pairCode:null;
+    lines.push("Permanent lock: "+(lockedCode||"missing"));
+    if(lockedCode && localCode && lockedCode!==localCode){
+      lines.push("WARNING: phone pairing and security lock disagree");
+    }
+    const code=lockedCode||localCode;
+    if(!code){
+      lines.push("No pairing to inspect.");
+    }else{
+      try{
+        const pairSnap=await getDoc(doc(db,"pairInvites",code));
+        if(!pairSnap.exists()){
+          lines.push("Pair record: NOT FOUND");
+        }else{
+          const pair=pairSnap.data();
+          const mine=pair.hostUid===currentUser.uid||pair.partnerUid===currentUser.uid;
+          const distinct=typeof pair.hostUid==="string" && typeof pair.partnerUid==="string" && pair.hostUid!==pair.partnerUid;
+          const otherUid=pair.hostUid===currentUser.uid?pair.partnerUid:pair.hostUid;
+          const photos=pair.profilePhotos && typeof pair.profilePhotos==="object"?pair.profilePhotos:{};
+          const ownPhoto=typeof photos[currentUser.uid]==="string" && photos[currentUser.uid].startsWith("data:image/jpeg;base64,");
+          const partnerPhoto=typeof otherUid==="string" && typeof photos[otherUid]==="string" && photos[otherUid].startsWith("data:image/jpeg;base64,");
+          lines.push("Pair record: found");
+          lines.push("This phone belongs to pairing: "+(mine?"yes":"NO"));
+          lines.push("Partner recorded: "+(typeof otherUid==="string"?"yes":"no"));
+          lines.push("Pair identities distinct: "+(distinct?"yes":"NO / incomplete"));
+          lines.push("Your photo stored in pair: "+(ownPhoto?"yes":"not found"));
+          lines.push("Partner photo stored in pair: "+(partnerPhoto?"yes":"not found"));
+          lines.push("Revoked: "+(pair.revoked===true?"YES":"no"));
+          lines.push("Active call: "+(pair.activeRoom?"registered":"none"));
+          ready=Boolean(lockedCode && localCode===lockedCode && mine && distinct && pair.revoked!==true && ownPhoto && partnerPhoto);
+        }
+      }catch(error){
+        lines.push("Pair record check failed: "+(error.code||"unknown error"));
+      }
+    }
+    lines.push("Partner's lock: must be checked on partner's phone");
+  }catch(error){
+    lines.push("My lock check failed: "+(error.code||"unknown error"));
+  }finally{
+    lines.push(ready?"This phone: local checks passed; NOT a production approval.":"This phone: requires review before security rollout.");
+    lines.push("No data changed.");
+    output.textContent=lines.join("\n");
+    button.disabled=false;
+  }
+};
 let pairListeners = [];
 let pairSessionCode = null;
 let candidateUnsubscribers = [];
@@ -762,13 +867,15 @@ function setReady() {
   updatePairingStatus();
   document.getElementById("pairCreate").disabled = false;
   document.getElementById("pairClaim").disabled = false;
+  document.getElementById("pairHealthButton").disabled = false;
   watchPairs();
 }
 
 
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
+    await reconcileLockedPartnership();
     setReady();
 
     authStatus.textContent =
@@ -791,11 +898,9 @@ function makeRoomCode() {
     "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
   let code = "";
-
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
   for (let i = 0; i < 6; i++) {
-    code += chars.charAt(
-      Math.floor(Math.random() * chars.length)
-    );
+    code += chars.charAt(bytes[i] % chars.length);
   }
 
   return code;
@@ -861,6 +966,8 @@ function createPeerConnection(code) {
 
   remoteDescriptionReady = false;
   pendingCandidates = [];
+  signalingReady = false;
+  pendingLocalCandidates = [];
 
   peerConnection =
     new RTCPeerConnection({
@@ -950,6 +1057,11 @@ function createPeerConnection(code) {
           ? "hostCandidates"
           : "partnerCandidates";
 
+      if (!signalingReady) {
+        pendingLocalCandidates.push({ candidateCollection, candidateData });
+        return;
+      }
+
       await addDoc(
         collection(
           db,
@@ -967,6 +1079,20 @@ function createPeerConnection(code) {
       );
     }
   };
+}
+
+
+async function enableSignaling(code) {
+  signalingReady = true;
+  const queued = pendingLocalCandidates;
+  pendingLocalCandidates = [];
+  for (const item of queued) {
+    try {
+      await addDoc(collection(db, "rooms", code, item.candidateCollection), item.candidateData);
+    } catch (error) {
+      console.error("Could not flush ICE candidate:", error);
+    }
+  }
 }
 
 
@@ -1076,7 +1202,7 @@ function watchRoom(code) {
 
         if (
           role === "host" &&
-          room.partnerUid
+          room.answer
         ) {
           rememberPartner(room.partnerUid);
           status.innerHTML =
@@ -1171,6 +1297,8 @@ async function cleanupConnection(stopMedia = true) {
   role = null;
   remoteDescriptionReady = false;
   pendingCandidates = [];
+  signalingReady = false;
+  pendingLocalCandidates = [];
 }
 
 window.endReach = async function () {
@@ -1191,9 +1319,9 @@ window.endReach = async function () {
     console.error("Could not mark room inactive:", error);
   }
 
-  if(pairSessionCode){
+  if(pairSessionCode && endingRole==="host"){
     try{const ref=doc(db,"pairInvites",pairSessionCode),snap=await getDoc(ref);
-      if(snap.exists()&&snap.data().activeRoom===code)await updateDoc(ref,{activeRoom:null,openedBy:null});
+      if(snap.exists()&&snap.data().activeRoom===code&&snap.data().openedBy===currentUser.uid)await updateDoc(ref,{activeRoom:null,openedBy:null});
     }catch(err){console.error("Pair cleanup",err);}
   }
   pairSessionCode=null;
@@ -1229,6 +1357,10 @@ function watchPairs(){
   }
   for(const code of pairedCodes){
     const prefs=pairPrefsFor(code);
+    if(prefs.retired)continue;
+    // Only the established main partnership can initiate a private session.
+    // Legacy test connections remain visible solely for retirement.
+    const permittedMain = code===mainCode;
     const item=document.createElement("div");
     item.style.cssText="padding:14px 0;border-bottom:1px solid #475569";
     const heading=document.createElement("div");
@@ -1237,16 +1369,19 @@ function watchPairs(){
     item.appendChild(heading);
     const open=addAction(item,"❤️ My hand is open",()=>openPairedHand(code));
     open.id="openPair-"+code;
+    if(!permittedMain)open.disabled=true;
     const join=addAction(item,"❤️ Take their hand",async()=>{
       const snap=await getDoc(doc(db,"pairInvites",code));
       const pair=snap.data();
-      if(!pair||!pair.activeRoom||pair.openedBy===currentUser.uid){
+      if(code!==mainPairCode()){pairMessage.textContent="Only your main partnership can connect.";return;}
+      if(!pair||pair.revoked||!pair.activeRoom||pair.openedBy===currentUser.uid){
         pairMessage.textContent="Your partner has not opened their hand yet.";return;
       }
       document.getElementById("joinCode").value=pair.activeRoom;
       pairSessionCode=code;await window.joinRoom();
     });
     join.style.display="none";
+    if(!permittedMain)join.disabled=true;
     const controls=document.createElement("div");
     controls.style.cssText="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px";
     function smallButton(label,handler){
@@ -1260,13 +1395,19 @@ function watchPairs(){
       pairPrefs[code]={...pairPrefsFor(code),name:name.trim().slice(0,32)};
       savePairPrefs();watchPairs();
     });
+    if(code!==mainCode)smallButton("Retire connection",async()=>{
+      if(!confirm("Retire "+pairName(code)+"? This revokes its REACH access for both phones. Your main connection stays unchanged."))return;
+      try{
+        const ref=doc(db,"pairInvites",code),snap=await getDoc(ref);
+        if(!snap.exists() || !currentUser || ![snap.data().hostUid,snap.data().partnerUid].includes(currentUser.uid))throw Error("Not authorized");
+        if(code===mainPairCode())throw Error("Main connection cannot be retired here");
+        await updateDoc(ref,{revoked:true});
+        pairedCodes=pairedCodes.filter(c=>c!==code);delete pairPrefs[code];savePairs();savePairPrefs();watchPairs();
+        pairMessage.textContent="Connection retired and access revoked.";
+      }catch(err){console.error("Retirement failed",err);pairMessage.textContent="Could not revoke this connection. Nothing was removed locally.";}
+    });
     smallButton(prefs.hidden?"Show":"Hide",()=>{
       pairPrefs[code]={...pairPrefsFor(code),hidden:!prefs.hidden};
-      savePairPrefs();watchPairs();
-    });
-    if(code!==mainCode)smallButton("Make main",()=>{
-      pairPrefs[code]={...pairPrefsFor(code),hidden:false};
-      favoritePair=code;localStorage.setItem("reachFavoritePair",code);
       savePairPrefs();watchPairs();
     });
     item.appendChild(controls);
@@ -1314,6 +1455,7 @@ function watchPairs(){
       pairListeners.push(onSnapshot(doc(db,"pairInvites",code),(snap)=>{
         if(!snap.exists()||!currentUser)return;
         const pair=snap.data();
+        if(pair.revoked){state.textContent="● Connection retired";heroJoin.disabled=true;heroOpen.disabled=true;return;}
         if(!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))return;
         // Read the other person's photo from the paired record, never from a local fallback.
         const remoteUid=pair.hostUid===currentUser.uid?pair.partnerUid:pair.hostUid;
@@ -1396,43 +1538,74 @@ function refreshMediaTiles(){
 }
 new MutationObserver(refreshMediaTiles).observe(mediaStatus,{childList:true,characterData:true,subtree:true});
 refreshMediaTiles();
+// The memberLocks documents are enforced by the candidate rules for new pairs.
+// Existing partnerships require a one-time, explicitly reviewed migration.
 window.makePairCode=async()=>{
   if(!currentUser)return;
-  // REACH v1 is a one-partner experience. Preserve the existing connection.
-  if(mainPairCode()){
-    pairMessage.textContent="❤️ REACH is already paired with your person. Your existing connection is preserved.";
-    return;
-  } const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes=crypto.getRandomValues(new Uint8Array(12)); const code=Array.from(bytes,n=>chars[n%chars.length]).join("");
-  try{await setDoc(doc(db,"pairInvites",code),{hostUid:currentUser.uid,partnerUid:null,activeRoom:null,openedBy:null,createdAt:serverTimestamp()});
-    if(!pairedCodes.includes(code))pairedCodes.push(code);savePairs();watchPairs();
-    document.getElementById("pairCode").textContent=code;pairMessage.textContent="Share this code privately, just once.";
-  }catch(err){console.error(err);pairMessage.textContent="Pairing unavailable until its Firebase rules are published.";}
+  if(mainPairCode()){pairMessage.textContent="❤️ Your existing partnership is preserved.";return;}
+  const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes=crypto.getRandomValues(new Uint8Array(12));
+  const code=Array.from(bytes,n=>chars[n%chars.length]).join("");
+  try{
+    await runTransaction(db,async(tx)=>{
+      const lockRef=doc(db,"memberLocks",currentUser.uid);
+      const lock=await tx.get(lockRef);
+      if(lock.exists())throw Error("This account already has a partnership.");
+      tx.set(doc(db,"pairInvites",code),{
+        hostUid:currentUser.uid,partnerUid:null,activeRoom:null,openedBy:null,createdAt:serverTimestamp()
+      });
+      tx.set(lockRef,{pairCode:code,createdAt:serverTimestamp()});
+    });
+    if(!pairedCodes.includes(code))pairedCodes.push(code);
+    savePairs();watchPairs();
+    document.getElementById("pairCode").textContent=code;
+    pairMessage.textContent="Share this code privately, just once.";
+  }catch(err){console.error(err);pairMessage.textContent="Unable to create a pairing. Your existing connection was not changed.";}
 };
 window.claimPairCode=async()=>{
   if(!currentUser)return;
-  // Do not replace or add another partner through the pairing screen.
-  if(mainPairCode()){
-    pairMessage.textContent="❤️ You already have your person in REACH. Your pairing has not changed.";
-    return;
-  }const code=document.getElementById("pairInput").value.trim().toUpperCase();
+  if(mainPairCode()){pairMessage.textContent="❤️ Your existing partnership is preserved.";return;}
+  const code=document.getElementById("pairInput").value.trim().toUpperCase();
   if(code.length!==12){pairMessage.textContent="Enter the 12-character code.";return;}
-  try{const ref=doc(db,"pairInvites",code),snap=await getDoc(ref);
-    if(!snap.exists()||snap.data().partnerUid||snap.data().hostUid===currentUser.uid){pairMessage.textContent="Invalid or already claimed code.";return;}
-    await updateDoc(ref,{partnerUid:currentUser.uid});if(!pairedCodes.includes(code))pairedCodes.push(code);savePairs();watchPairs();
+  try{
+    await runTransaction(db,async(tx)=>{
+      const lockRef=doc(db,"memberLocks",currentUser.uid);
+      const pairRef=doc(db,"pairInvites",code);
+      const lock=await tx.get(lockRef);
+      const pairSnap=await tx.get(pairRef);
+      if(lock.exists())throw Error("This account already has a partnership.");
+      if(!pairSnap.exists()||pairSnap.data().revoked||pairSnap.data().partnerUid||pairSnap.data().hostUid===currentUser.uid)throw Error("Pair unavailable.");
+      tx.update(pairRef,{partnerUid:currentUser.uid});
+      tx.set(lockRef,{pairCode:code,createdAt:serverTimestamp()});
+    });
+    if(!pairedCodes.includes(code))pairedCodes.push(code);
+    savePairs();watchPairs();
     pairMessage.textContent="❤️ Paired. No room codes needed for this device pair.";
-  }catch(err){console.error(err);pairMessage.textContent="Pairing failed. Check Firebase rules.";}
+  }catch(err){console.error(err);pairMessage.textContent="Pairing failed. Your existing connection was not changed.";}
 };
 window.openPairedHand=async(code)=>{
+  if(code!==mainPairCode()){pairMessage.textContent="Only your main partnership can connect.";return;}
+  if(!(await verifyPairLockReady(code))) return;
   if(activeRoom){pairMessage.textContent="End your current REACH first.";return;}
   try{const ref=doc(db,"pairInvites",code),snap=await getDoc(ref),pair=snap.data();
-    if(!pair||!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid)){pairMessage.textContent="Wait for the other phone to pair first.";return;}
-    await window.createRoom();if(!activeRoom)return;await updateDoc(ref,{activeRoom,openedBy:currentUser.uid});
-    pairSessionCode=code;pairMessage.textContent="❤️ Your hand is open.";
+    if(!pair||pair.revoked||!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid)){pairMessage.textContent="Wait for the other phone to pair first.";return;}
+    if(pair.activeRoom!==null || pair.openedBy!==null){pairMessage.textContent="A REACH is already open. End it before opening another.";return;}
+    await window.createRoom(code,pair);if(!activeRoom)return;
+    pairSessionCode=code;
+    try{
+      await updateDoc(ref,{activeRoom,openedBy:currentUser.uid});
+      await enableSignaling(activeRoom);
+    }
+    catch(error){await window.endReach();throw error;}
+    pairMessage.textContent="❤️ Your hand is open.";
   }catch(err){console.error(err);pairMessage.textContent="Could not open paired session.";}
 };
 
-window.createRoom = async function () {
+window.createRoom = async function (authorizedPairCode, authorizedPair) {
+  if(!authorizedPairCode || !authorizedPair || authorizedPair.revoked || !authorizedPair.partnerUid || !currentUser || ![authorizedPair.hostUid,authorizedPair.partnerUid].includes(currentUser.uid)){
+    status.textContent="Private REACH sessions require your confirmed partnership.";return;
+  }
+  const otherUid=authorizedPair.hostUid===currentUser.uid?authorizedPair.partnerUid:authorizedPair.hostUid;
 
   if (!currentUser) {
     status.textContent =
@@ -1463,7 +1636,8 @@ window.createRoom = async function () {
 
     await setDoc(roomRef, {
       hostUid: currentUser.uid,
-      partnerUid: null,
+      partnerUid: otherUid,
+      pairCode: authorizedPairCode,
       createdAt: serverTimestamp(),
       expiresAt: Date.now() + SESSION_LENGTH_MS,
       active: true,
@@ -1480,9 +1654,7 @@ window.createRoom = async function () {
       .textContent = code;
 
     status.textContent =
-      "💜 My hand is open to yours. Share " +
-      code +
-      " with your partner.";
+      "💜 My hand is open to yours. Waiting for your paired partner.";
 
     connectionStatus.textContent =
       "Your hand is open. Waiting for your partner...";
@@ -1501,11 +1673,21 @@ window.createRoom = async function () {
 
     status.textContent =
       "⚠️ Could not start video room.";
+    await cleanupConnection(true);
   }
 };
 
 
 window.joinRoom = async function () {
+  if(!pairSessionCode || pairSessionCode!==mainPairCode()){status.textContent="Join through your confirmed partnership.";return;}
+  if(!(await verifyPairLockReady(pairSessionCode))){status.textContent="Security upgrade required before joining.";return;}
+  if(activeRoom){status.textContent="End your current REACH first.";return;}
+  let authorizedPair;
+  try{const authorizedPairSnap=await getDoc(doc(db,"pairInvites",pairSessionCode));authorizedPair=authorizedPairSnap.data();}
+  catch(error){console.error(error);status.textContent="Could not verify your partnership.";return;}
+  if(!authorizedPair || authorizedPair.revoked || !authorizedPair.partnerUid || !currentUser || ![authorizedPair.hostUid,authorizedPair.partnerUid].includes(currentUser.uid)){
+    status.textContent="This partnership is not authorized.";return;
+  }
 
   if (!currentUser) {
     status.textContent =
@@ -1519,9 +1701,8 @@ window.joinRoom = async function () {
   const code =
     input.value.trim().toUpperCase();
 
-  if (code.length !== 6) {
-    status.textContent =
-      "Enter the 6-character room code.";
+  if (code.length !== 6 || authorizedPair.activeRoom!==code || authorizedPair.openedBy===currentUser.uid) {
+    status.textContent = "No authorized open hand is available.";
     return;
   }
 
@@ -1540,31 +1721,34 @@ window.joinRoom = async function () {
 
     if (!snapshot.exists()) {
       status.textContent =
-        "Room not found. Check the code.";
-      return;
+        "This REACH session is no longer available.";
+      await cleanupConnection(true);return;
     }
 
     const room =
       snapshot.data();
 
+    if(room.pairCode!==pairSessionCode || room.partnerUid!==currentUser.uid || room.hostUid!==authorizedPair.openedBy || room.hostUid===currentUser.uid){
+      status.textContent="This private room is not authorized for you.";await cleanupConnection(true);return;
+    }
     rememberPartner(room.hostUid);
 
     if (!room.active) {
       status.textContent =
         "That room is no longer active.";
-      return;
+      await cleanupConnection(true);return;
     }
 
     if (room.expiresAt && Date.now() > room.expiresAt) {
       status.textContent =
         "That REACH session has expired.";
-      return;
+      await cleanupConnection(true);return;
     }
 
     if (!room.offer) {
       status.textContent =
         "This room is not ready for video.";
-      return;
+      await cleanupConnection(true);return;
     }
 
 
@@ -1593,8 +1777,6 @@ window.joinRoom = async function () {
 
     await updateDoc(roomRef, {
 
-      partnerUid: currentUser.uid,
-
       partnerJoinedAt:
         serverTimestamp(),
 
@@ -1603,6 +1785,8 @@ window.joinRoom = async function () {
         sdp: answer.sdp
       }
     });
+
+    await enableSignaling(code);
 
 
     status.innerHTML =
