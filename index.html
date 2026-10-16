@@ -670,33 +670,43 @@ window.checkPairHealth = async function(){
   if(!currentUser){output.textContent="This phone is not authenticated yet.";return;}
   button.disabled=true;
   output.textContent="Checking without changing anything...";
+  const lines=["Read-only REACH connection check","This phone UID: "+currentUser.uid];
+  const localCode=mainPairCode();
+  lines.push("Phone's selected pairing: "+(localCode||"none"));
   try{
     const lockSnap=await getDoc(doc(db,"memberLocks",currentUser.uid));
-    const code=lockSnap.exists() ? lockSnap.data().pairCode : mainPairCode();
-    if(!code){output.textContent="No connection selected on this phone.";return;}
-    const pairSnap=await getDoc(doc(db,"pairInvites",code));
-    if(!pairSnap.exists()){
-      output.textContent="Selected connection: "+code+"\\nPairing record: missing or inaccessible\\nMy lock: "+(lockSnap.exists() ? "present" : "missing")+"\\nNo changes made.";
-      return;
+    const lockedCode=lockSnap.exists()?lockSnap.data().pairCode:null;
+    lines.push("Permanent lock: "+(lockedCode||"missing"));
+    if(lockedCode && localCode && lockedCode!==localCode){
+      lines.push("WARNING: phone pairing and security lock disagree");
     }
-    const pair=pairSnap.data();
-    const isMember=pair.hostUid===currentUser.uid || pair.partnerUid===currentUser.uid;
-    const otherUid=pair.hostUid===currentUser.uid ? pair.partnerUid : pair.hostUid;
-    output.textContent=[
-      "Selected connection: "+code,
-      "Pairing record: found",
-      "This phone belongs to pairing: "+(isMember ? "yes" : "NO"),
-      "Partner identity recorded: "+(typeof otherUid==="string" ? "yes" : "no"),
-      "Pair revoked: "+(pair.revoked===true ? "YES" : "no"),
-      "Active call: "+(pair.activeRoom ? "registered" : "none"),
-      "My security lock: "+(lockSnap.exists() ? (lockSnap.data().pairCode===code ? "matches" : "MISMATCH") : "missing"),
-      "Partner security lock: cannot be read from this phone",
-      "No changes made."
-    ].join("\\n");
+    const code=lockedCode||localCode;
+    if(!code){lines.push("No pairing to inspect.");return;}
+    try{
+      const pairSnap=await getDoc(doc(db,"pairInvites",code));
+      if(!pairSnap.exists()){
+        lines.push("Pair record: NOT FOUND (or inaccessible)");
+      }else{
+        const pair=pairSnap.data();
+        const mine=pair.hostUid===currentUser.uid||pair.partnerUid===currentUser.uid;
+        const otherUid=pair.hostUid===currentUser.uid?pair.partnerUid:pair.hostUid;
+        lines.push("Pair record: found");
+        lines.push("This phone belongs to pairing: "+(mine?"yes":"NO"));
+        lines.push("Partner recorded: "+(typeof otherUid==="string"?"yes":"no"));
+        lines.push("Revoked: "+(pair.revoked===true?"YES":"no"));
+        lines.push("Active call: "+(pair.activeRoom?"registered":"none"));
+      }
+    }catch(error){
+      lines.push("Pair record check failed: "+(error.code||"unknown error"));
+    }
+    lines.push("Partner's lock: cannot inspect from this phone");
   }catch(error){
-    console.error("Read-only connection check failed",error);
-    output.textContent="Could not complete read-only check: "+(error.code||"unknown error")+"\\nNo changes made.";
-  }finally{button.disabled=false;}
+    lines.push("My lock check failed: "+(error.code||"unknown error"));
+  }finally{
+    lines.push("No data changed.");
+    output.textContent=lines.join("\n");
+    button.disabled=false;
+  }
 };
 let pairListeners = [];
 let pairSessionCode = null;
