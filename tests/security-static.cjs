@@ -25,6 +25,8 @@ const checks = [
   ['read-only connection check exists', html.includes('window.checkPairHealth = async function()')],
   ['connection check compares local pairing and permanent lock', html.includes('phone pairing and security lock disagree')],
   ['connection check identifies authenticated phone', html.includes('This phone UID: ')],
+  ['cleanup resets local signaling gate', /pendingCandidates = \[\];\s*signalingReady = false;\s*pendingLocalCandidates = \[\];/.test(html)],
+  ['client blocks duplicate open hand before room creation', html.includes('pair.activeRoom!==null || pair.openedBy!==null')],
 
 ];
 for (const [name, pass] of checks) {
