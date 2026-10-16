@@ -34,3 +34,13 @@ If either phone loses its real pairing, photos, or video connection, stop testin
 - No admin access in this branch to inspect/backfill existing memberLocks.
 - Existing account migration and two-phone video tests not done.
 - Security audit of Firebase Storage and any other backend services remains to be performed.
+
+## October 2026: read-only diagnosis before considering a fresh pairing
+
+The live REACH screen showing a named partner and cached photos is not proof that the selected Firestore pair document is currently accessible. The mobile Firebase console also does not reliably show all collection documents in a narrow layout.
+
+The development-only **Connection health check** reports the current anonymous auth UID, locally selected pair code, own permanent lock's pair code, and whether the selected pair record is readable and contains this UID. It never creates or changes data. Do not publish the diagnostic to production until the security test suite passes and the team agrees to deploy.
+
+**Do not implement a client-side "reset partnership" button that deletes or rewrites memberLocks.** Immutable locks are the one-partner security boundary; weakening them to let a client pick any new partner would undo that protection. A fresh pairing using the *same anonymous UIDs* requires a privileged, authenticated administrator migration with verified consent of both members and an auditable plan for old-pair revocation. This project has no connected Firebase Admin write capability. If admin access is unavailable, use a supervised, controlled migration, not a broad Firestore rule that permits self-reset.
+
+Before any reset, capture the two phones' diagnostic outputs, verify the existing pair's hostUid/partnerUid and both locks with trusted Firebase admin access, and check whether the existing pairing can simply be repaired. Preserve both browser identities and photos until after a successful two-phone call. Never instruct users to clear Safari data.
