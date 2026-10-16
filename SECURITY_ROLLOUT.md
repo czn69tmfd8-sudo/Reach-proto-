@@ -13,6 +13,21 @@
 - Verify room create, partner answer, candidate exchange, room end, reconnect, photo syncing and revocation.
 - Do not clear Safari website data on either phone.
 
+## Verified live baseline — October 16, 2026
+- Both iPhones successfully authenticated as their existing anonymous Firebase identities.
+- Both phones read the same existing pair document and confirmed distinct partner UIDs, both JPEG profile photos, no revocation, and a clear active-room pointer.
+- The current published Firestore rules correctly deny client reads of memberLocks; neither phone's diagnostic can independently validate the lock until rules change.
+- The couple completed a live two-phone REACH video call, confirming two-way audio, video, and a stable connection.
+- Firebase security workflow for candidate branch commit ba04684 completed successfully, including migration-style tests with two locks and both photos.
+- **Do not interpret this as a candidate-app call test.** The working call was on the unchanged main app with unchanged production rules.
+
+## Mandatory release gate (remaining)
+1. Verify both immutable memberLocks reside in the *same exact canonical* `memberLocks` collection, with each document ID equal to the respective pair member UID and each `pairCode` equal to the real pair. Prior console screenshots showed apparently duplicate root collection labels; visually similar names can hide a trailing character. Do not publish the strict candidate until both are verified. Use authenticated admin read-only inspection if available.
+2. Validate production-specific room signaling and profile photo updates against candidate rules in the emulator, including the exact WebRTC candidate shapes emitted by Safari.
+3. Confirm a reversible, time-boxed coordinated cutover plan. Current production Firestore rules are preserved in the chat; do not rely solely on version history.
+4. Publish new app HTML and new rules only as an explicitly approved coordinated cutover. Existing live sessions must be ended first. A partial rollout can interrupt calling.
+5. Verify both phones and run a two-way call, then verify unauthorized third-party room access is denied. Roll back both components if the baseline regresses.
+
 ## Migration
 The candidate rules permit an existing non-revoked pair to keep reading its rooms/photos without memberLocks; the lock migration is for future single-partner enforcement and must be done carefully. An account with an old pair but no lock could otherwise create another pair, so do not call the one-partner guarantee complete until legacy identities are backfilled.
 
@@ -30,8 +45,8 @@ The candidate rules permit an existing non-revoked pair to keep reading its room
 If either phone loses its real pairing, photos, or video connection, stop testing. Restore the saved live HTML and matching original Firestore rules. Be aware that new-schema room records and memberLocks created during the cutover may not be compatible with the old app. Rollback does not erase data or restore lost anonymous authentication identities.
 
 ## Known blockers
-- The two phone-specific read-only health checks have not been performed on the candidate build.
-- Firebase emulator validation of the candidate rules is not confirmed by this rollout document; a green GitHub workflow alone does not establish real-device readiness.
+- Both phone-specific checks passed against current production pairing data; candidate memberLock reads remain untested on-device.
+- The GitHub Firebase emulator workflow passed on candidate commit ba04684; real-device validation of candidate rules is still pending.
 - No Firebase Admin access is connected for independent inspection of production documents. Screenshots indicate two existing memberLocks with the same pairCode, but do not replace read-only checks on both phones.
 - Coordinated two-phone video tests on the new app and rules have not been done.
 - Security audit of Firebase Storage and any other backend services remains to be performed.
