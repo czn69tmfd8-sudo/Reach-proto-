@@ -22,6 +22,10 @@ const checks = [
   ['room ownership check', rules.includes('data.pairCode == pairCode')],
   ['secure room code generator', html.includes('crypto.getRandomValues(new Uint8Array(6))')],
   ['host-only room pointer cleanup', html.includes('pairSessionCode && endingRole==="host"')],
+  ['read-only connection check exists', html.includes('window.checkPairHealth = async function()')],
+  ['connection check compares local pairing and permanent lock', html.includes('phone pairing and security lock disagree')],
+  ['connection check identifies authenticated phone', html.includes('This phone UID: ')],
+
 ];
 for (const [name, pass] of checks) {
   assert.ok(pass, 'Failed static invariant: ' + name);
