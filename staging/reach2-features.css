@@ -26,3 +26,13 @@
 .r2-modal .r2-milestone b,.r2-modal .r2-milestone small{display:block!important}
 .r2-modal .r2-milestone small{margin-top:4px!important;color:#cdbbd3!important;font-size:12px!important}
 .r2-modal .r2-mini-danger{width:38px!important;min-width:38px!important;height:38px!important;margin:0!important;padding:0!important;border-radius:50%!important;background:#a9336555!important;box-shadow:none!important}
+
+/* iOS Safari: keep the profile milestone date control aligned with the form. */
+.r2-modal .r2-add-milestone input[type="date"]{
+ -webkit-appearance:none!important;appearance:none!important;
+ width:100%!important;min-width:100%!important;max-width:100%!important;
+ box-sizing:border-box!important;
+}
+.r2-modal .r2-add-milestone input[type="date"]::-webkit-date-and-time-value{
+ text-align:left!important;
+}
