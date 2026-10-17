@@ -10,5 +10,24 @@ function notifications(){const s=read();const m=modal("Notifications",'<p>Choose
 function sleep(){modal("Sleep Connection 🌙",'<div class="r2-sleep"><span>🌙</span><h3>Fall asleep together, from anywhere.</h3><p>An overnight session is intentionally started by one partner. Access is granted only to the approved partner and expires automatically.</p></div><div class="r2-safety"><b>Designed around consent</b><p>Clear start • revocable permission • visible session state • automatic expiry</p></div><button class="r2-primary" disabled>Start staging setup</button><p class="r2-note">Interface preview only. We will not activate overnight access until the two-device call path and permission model are tested end-to-end.</p>')}
 function history(){modal("Our History 💗",'<div class="r2-empty"><span>💗</span><h3>Your story will live here.</h3><p>Saved reminders, shared answers, milestones and memories will form a private timeline for the two of you.</p></div>')}
 function coming(title,icon,copy){modal(title, '<div class="r2-empty"><span>'+icon+'</span><h3>'+title+' is next.</h3><p>'+copy+'</p><span class="reach2-badge">Staging preview</span></div>')}
-function bind(){var answerButton=document.querySelector('[data-r2-action="answer"]');if(answerButton)answerButton.addEventListener("click",function(e){e.preventDefault();question()});const us=[...document.querySelectorAll('[data-view="us"] .reach2-row')];us.forEach((row,i)=>{row.tabIndex=0;row.setAttribute("role","button");row.onclick=()=>{if(i===0)profile();else if(i===1){var legacy=document.querySelector(".reach2-legacy-settings");if(legacy){legacy.setAttribute("open","");legacy.scrollIntoView({behavior:"smooth",block:"center"})}}else if(i===2)notifications();else if(i===3)sleep();else if(i===4)history();else if(i===5){var legacy=document.querySelector(".reach2-legacy-settings");if(legacy){legacy.setAttribute("open","");legacy.scrollIntoView({behavior:"smooth",block:"center"})}}});const tiles=[...document.querySelectorAll('[data-view="together"] .reach2-tile')];const data=[["Play a Game","🎮","Quick games built for two people, whether you’re beside each other or thousands of kilometres apart."],["Date Ideas","💡","Save ideas for tonight, your next visit, or something completely ridiculous you want to try together."],["Shared Memories","🖼️","A private place for photos and the little stories you never want to lose."],["Challenges","💗","Small intentional acts that keep connection alive without turning love into homework."]];tiles.forEach((t,i)=>{t.tabIndex=0;t.setAttribute("role","button");t.onclick=()=>coming(...data[i])})}
-document.readyState==="loading"?document.addEventListener("DOMContentLoaded",()=>setTimeout(bind,0)):setTimeout(bind,0)})();
+function bind(){
+ var answerButton=document.querySelector('[data-r2-action="answer"]');
+ if(answerButton)answerButton.onclick=function(e){e.preventDefault();question()};
+ var us=document.querySelectorAll('[data-view="us"] .reach2-row');
+ for(var i=0;i<us.length;i++){
+   (function(row,index){
+     row.tabIndex=0;row.setAttribute("role","button");
+     row.onclick=function(){
+       if(index===0)profile();
+       else if(index===1||index===5){var legacy=document.querySelector(".reach2-legacy-settings");if(legacy){legacy.setAttribute("open","");legacy.scrollIntoView()}}
+       else if(index===2)notifications();
+       else if(index===3)sleep();
+       else if(index===4)history();
+     };
+   })(us[i],i);
+ }
+ var tiles=document.querySelectorAll('[data-view="together"] .reach2-tile');
+ var data=[["Play a Game","🎮","Quick games built for two people, whether you’re beside each other or thousands of kilometres apart."],["Date Ideas","💡","Save ideas for tonight, your next visit, or something completely ridiculous you want to try together."],["Shared Memories","🖼️","A private place for photos and the little stories you never want to lose."],["Challenges","💗","Small intentional acts that keep connection alive without turning love into homework."]];
+ for(var j=0;j<tiles.length;j++){(function(tile,item){tile.tabIndex=0;tile.setAttribute("role","button");tile.onclick=function(){coming(item[0],item[1],item[2])}})(tiles[j],data[j])}
+}
+document.readyState==="loading"?document.addEventListener("DOMContentLoaded",function(){setTimeout(bind,0)}):setTimeout(bind,0)})();
