@@ -766,9 +766,18 @@ const endButton =
   document.getElementById("endButton");
 
 let callViewDismissed = false;
+let disconnectTimer = null;
+let remoteVideoTimer = null;
+
+function remoteVideoIsActuallyPlaying() {
+  const track = remoteStream && remoteStream.getVideoTracks().find(t => t.readyState === "live");
+  return Boolean(track && remoteVideo.srcObject === remoteStream &&
+    remoteVideo.readyState >= 2 && remoteVideo.videoWidth > 0 && remoteVideo.videoHeight > 0);
+}
+
 function enterCallView() {
-  if (callViewDismissed || !activeRoom || !remoteStream ||
-      remoteStream.getVideoTracks().length === 0) return;
+  if (callViewDismissed || !activeRoom || !remoteVideoIsActuallyPlaying()) return;
+  if (remoteVideoTimer) { clearTimeout(remoteVideoTimer); remoteVideoTimer = null; }
   document.body.classList.add("reach-in-call");
   if (localStream && localVideo.srcObject !== localStream) localVideo.srcObject = localStream;
   localVideo.play().catch(err => console.warn("Self-view playback:",err));
@@ -813,6 +822,20 @@ window.exitCallView = () => {
 };
 
 
+
+remoteVideo.addEventListener("loadeddata", enterCallView);
+remoteVideo.addEventListener("playing", enterCallView);
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden || !activeRoom || !peerConnection) return;
+  remoteVideo.play().then(enterCallView).catch(() => {});
+  if (localStream) localVideo.play().catch(() => {});
+});
+
+window.addEventListener("pageshow", () => {
+  if (!activeRoom || !peerConnection) return;
+  remoteVideo.play().then(enterCallView).catch(() => {});
+});
 
 remoteVideo.addEventListener("click", async () => {
   // Keep the custom in-call layer: native iOS fullscreen hides self-view.
@@ -1011,8 +1034,17 @@ function createPeerConnection(code) {
     });
 
     connectionStatus.textContent =
-      "❤️ Partner video connected";
-    enterCallView();
+      "Partner media received. Starting video...";
+    remoteVideo.play().then(enterCallView).catch(() => {});
+    if (!remoteVideoTimer) {
+      remoteVideoTimer = setTimeout(async () => {
+        remoteVideoTimer = null;
+        if (!activeRoom || remoteVideoIsActuallyPlaying()) return;
+        connectionStatus.textContent = "⚠️ Partner video did not start. This REACH was closed so you can try again.";
+        if (role === "host") await window.endReach();
+        else await cleanupConnection(true);
+      }, 15000);
+    }
   };
 
 
@@ -1022,24 +1054,37 @@ function createPeerConnection(code) {
       peerConnection.connectionState;
 
     if (state === "connected") {
-      connectionStatus.textContent =
-        "❤️ Live connection established";
-      enterCallView();
+      if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
+      connectionStatus.textContent = remoteVideoIsActuallyPlaying()
+        ? "❤️ Live connection established"
+        : "Connected. Waiting for partner video...";
+      remoteVideo.play().then(enterCallView).catch(() => {});
     }
 
     if (state === "connecting") {
-      connectionStatus.textContent =
-        "Connecting to partner...";
+      connectionStatus.textContent = "Connecting to partner...";
     }
 
     if (state === "failed") {
-      connectionStatus.textContent =
-        "⚠️ Connection failed";
+      if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
+      document.body.classList.remove("reach-in-call");
+      connectionStatus.textContent = "⚠️ Connection failed. Closing this REACH so you can try again.";
+      if (role === "host") window.endReach();
+      else cleanupConnection(true);
     }
 
     if (state === "disconnected") {
-      connectionStatus.textContent =
-        "Partner connection interrupted.";
+      document.body.classList.remove("reach-in-call");
+      connectionStatus.textContent = "Partner connection interrupted. Trying to recover...";
+      if (!disconnectTimer) {
+        disconnectTimer = setTimeout(async () => {
+          disconnectTimer = null;
+          if (!peerConnection || peerConnection.connectionState !== "disconnected") return;
+          connectionStatus.textContent = "⚠️ Connection was lost. Closing this REACH so you can try again.";
+          if (role === "host") await window.endReach();
+          else await cleanupConnection(true);
+        }, 8000);
+      }
     }
   };
 
@@ -1262,6 +1307,8 @@ async function cleanupConnection(stopMedia = true) {
   document.body.classList.remove("reach-in-call","self-view-hidden");
   document.getElementById("selfViewToggle").textContent = "Hide me";
   callViewDismissed = false;
+  if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
+  if (remoteVideoTimer) { clearTimeout(remoteVideoTimer); remoteVideoTimer = null; }
   if (unsubscribeRoom) {
     unsubscribeRoom();
     unsubscribeRoom = null;
