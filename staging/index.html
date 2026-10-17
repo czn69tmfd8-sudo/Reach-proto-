@@ -1,0 +1,1820 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>REACH</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #0f172a;
+      color: white;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      display: flex;
+      justify-content: center;
+      padding: 30px 18px;
+    }
+
+    main {
+      width: 100%;
+      max-width: 520px;
+    }
+
+    h1 {
+      font-size: 48px;
+      margin: 25px 0 0;
+      letter-spacing: 3px;
+    }
+
+    .tagline {
+      color: #94a3b8;
+      font-size: 20px;
+      margin: 10px 0 45px;
+    }
+
+    .card {
+      background: #1e293b;
+      border-radius: 28px;
+      padding: 30px;
+      margin-bottom: 24px;
+    }
+
+    h2 {
+      font-size: 27px;
+      margin: 0 0 25px;
+    }
+
+    p {
+      color: #94a3b8;
+      font-size: 18px;
+      line-height: 1.5;
+    }
+
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 18px;
+      padding: 20px;
+      background: #6366f1;
+      color: white;
+      font-size: 21px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:disabled { opacity: 0.55; }
+
+    input {
+      width: 100%;
+      border: 0;
+      border-radius: 18px;
+      padding: 20px;
+      margin-bottom: 18px;
+      background: #334155;
+      color: white;
+      text-align: center;
+      font-size: 22px;
+      text-transform: uppercase;
+      letter-spacing: 5px;
+      outline: none;
+    }
+
+    input::placeholder { color: #a3a3a3; }
+
+    #mainConnectionCard { border: 1px solid #4f46e5; }
+    #mainConnectionCard #favoriteConnection button { margin-top: 12px; }
+    #mainConnectionCard #favoriteConnection button:first-of-type { background: #e11d68; }
+    #pairCard { margin-top: 6px; }
+    #pairCard #pairCode { overflow-wrap: anywhere; }
+    #manualConnections > summary { font-size: 15px; }
+    #manualConnections .card { margin-top: 12px; }
+    @media(max-width:380px){ h1 {font-size:42px;letter-spacing:2px;} }
+    #roomCode {
+      text-align: center;
+      color: #a5b4fc;
+      font-size: 40px;
+      font-weight: 800;
+      letter-spacing: 8px;
+      margin: 28px 0 5px;
+      min-height: 48px;
+    }
+
+    #status,
+    #mediaStatus,
+    #connectionStatus {
+      background: #172033;
+      border-radius: 20px;
+      padding: 20px;
+      margin-top: 10px;
+      text-align: center;
+      color: #86efac;
+      font-size: 18px;
+      line-height: 1.4;
+    }
+
+    #authStatus,
+    #pairingStatus {
+      text-align: center;
+      color: #94a3b8;
+      font-size: 14px;
+      margin-top: 20px;
+    }
+
+    .heart { color: #ef4444; }
+
+    video {
+      width: 100%;
+      border-radius: 20px;
+      background: #020617;
+      object-fit: cover;
+      aspect-ratio: 3 / 4;
+    }
+
+    #localVideo {
+      display: none;
+      margin-top: 22px;
+    }
+
+    #remoteVideo {
+      margin-top: 10px;
+      width: 100%;
+      aspect-ratio: auto;
+      height: 72vh;
+      min-height: 620px;
+      max-height: 900px;
+      object-fit: cover;
+      cursor: pointer;
+    }
+
+    #remoteVideo:fullscreen,
+    #remoteVideo:-webkit-full-screen {
+      width: 100vw;
+      height: 100vh;
+      min-height: 0;
+      max-height: none;
+      margin: 0;
+      border-radius: 0;
+      object-fit: contain;
+      background: #000;
+    }
+
+    .videoLabel {
+      color: #a5b4fc;
+      font-size: 15px;
+      margin: 20px 0 8px;
+      font-weight: 700;
+    }
+
+    #remoteCard {
+      display: none;
+    }
+
+    .cameraButton {
+      margin-top: 10px;
+    }
+
+    /* In-call layout fills the iPhone viewport without requiring
+       Safari's gesture-restricted native fullscreen API. */
+    body.reach-in-call { overflow: hidden; }
+    body.reach-in-call #remoteCard {
+      display: block !important;
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100dvh;
+      max-width: none;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      z-index: 9999;
+      background: #020617;
+      overflow: hidden;
+    }
+    body.reach-in-call #remoteCard > h2,
+    body.reach-in-call #remoteCard > .videoLabel,
+    body.reach-in-call #connectionStatus { display: none; }
+    body.reach-in-call #remoteVideo {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      max-height: none;
+      margin: 0;
+      border-radius: 0;
+      object-fit: cover;
+    }
+    body.reach-in-call #localVideo {
+      display: block !important;
+      position: fixed;
+      z-index: 10001;
+      top: calc(env(safe-area-inset-top, 0px) + 20px);
+      right: 14px;
+      width: 105px;
+      height: 148px;
+      margin: 0;
+      border: 2px solid rgba(255,255,255,.7);
+      border-radius: 16px;
+      object-fit: cover;
+      background: #020617;
+      box-shadow: 0 4px 20px #0009;
+      pointer-events: auto;
+      touch-action: none;
+      cursor: grab;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body.reach-in-call #selfViewToggle {
+      display: block;
+      position: absolute;
+      z-index: 10003;
+      top: calc(env(safe-area-inset-top, 0px) + 178px);
+      right: 14px;
+      width: auto;
+      padding: 9px 12px;
+      font-size: 12px;
+      background: #334155;
+    }
+    body.reach-in-call.self-view-hidden #localVideo { display: none !important; }
+    body.reach-in-call.self-view-hidden #selfViewToggle {
+      top: calc(env(safe-area-inset-top, 0px) + 20px);
+    }
+    body.reach-in-call #endButton {
+      display: block !important;
+      position: absolute;
+      z-index: 10002;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(75%, 280px);
+      margin: 0;
+      padding: 15px;
+    }
+    body.reach-in-call #exitCallView {
+      display: block;
+      position: absolute;
+      z-index: 10002;
+      top: calc(env(safe-area-inset-top, 0px) + 20px);
+      left: 14px;
+      width: auto;
+      padding: 12px 16px;
+      font-size: 14px;
+      background: #334155;
+    }
+
+    #endButton {
+      display: none;
+      margin-top: 18px;
+      background: #be123c;
+    }
+
+
+    /* v1.7 — contact-first presentation, without altering call signaling. */
+    #mainConnectionCard { padding:20px 16px 22px; }
+    #mainConnectionCard > h2 { font-size:14px; text-transform:uppercase; letter-spacing:2px;
+      color:#d5a9cc; margin:0 0 16px 5px; font-weight:650; }
+    .reach-contact-head { display:flex; align-items:center; gap:14px; margin-bottom:17px; min-width:0; }
+    .reach-avatar { width:82px; height:82px; flex:0 0 82px; border-radius:50%;
+      border:3px solid #ef91e2; box-shadow:0 0 0 4px rgba(235,98,181,.12),0 8px 22px #0006;
+      background:linear-gradient(170deg,#f7a367 0%,#ac5e99 34%,#443d86 54%,#172b5c 55%,#101b38 100%);
+      display:grid;place-items:center;overflow:hidden;position:relative;cursor:pointer;padding:0; }
+    .reach-avatar::after { content:""; position:absolute;inset:0;
+      background:linear-gradient(0deg,rgba(8,15,39,.5),transparent 48%);pointer-events:none; }
+    .reach-avatar img { width:100%;height:100%;object-fit:cover;position:relative;z-index:1; }
+    .reach-avatar .reach-avatar-fallback { font-size:34px;filter:drop-shadow(0 2px 3px #0005); }
+    .reach-contact-info { min-width:0;flex:1; }
+    .reach-contact-name { font-size:clamp(22px,6vw,30px);font-weight:780;letter-spacing:-.5px;
+      overflow-wrap:anywhere;line-height:1.1; }
+    .reach-contact-status { margin-top:9px;font-size:13px;color:#87e9b4; }
+    .reach-contact-menu { width:37px;flex:0 0 37px;height:37px;border-radius:50%;
+      padding:0;background:rgba(12,15,44,.65);box-shadow:none;font-size:23px; }
+    .reach-main-actions { display:grid;grid-template-columns:1fr 1fr;gap:11px; }
+    .reach-main-actions button { min-width:0;min-height:115px;padding:15px 8px;
+      font-size:clamp(13px,3.8vw,17px);line-height:1.25;display:flex;flex-direction:column;
+      justify-content:center;align-items:center;gap:8px; }
+    .reach-main-actions button .reach-action-icon { font-size:26px;line-height:1; }
+    .reach-main-actions button .reach-action-sub { font-size:11px;font-weight:450;opacity:.83; }
+    #mainConnectionCard .reach-main-actions button.reach-take { background:linear-gradient(135deg,#7d47e5,#3454ed);
+      box-shadow:0 8px 24px rgba(56,75,227,.28); }
+    #mainConnectionCard .reach-main-actions button.reach-open { background:linear-gradient(130deg,#fa478a,#d62973);
+      box-shadow:0 8px 24px rgba(239,58,119,.23); }
+    #mainConnectionCard .reach-main-actions button[hidden] { display:none !important; }
+    #mainConnectionCard .reach-main-actions:not(:has(.reach-take:not([hidden]))) .reach-open { grid-column:1/-1; }
+    #mainConnectionCard #manageConnections { margin-top:17px !important; }
+    #mainConnectionCard #manageConnections summary { font-size:13px; }
+    #pairCard { padding:20px; }
+    @media(min-width:420px) { .reach-avatar{width:96px;height:96px;flex-basis:96px;} }
+
+    /* v1.8a — keep both connection actions on screen like the design. */
+    #mainConnectionCard .reach-main-actions:not(:has(.reach-take:not([hidden]))) .reach-open { grid-column:auto; }
+    #mainConnectionCard .reach-main-actions button { margin-top:0; min-height:128px; }
+    #mainConnectionCard .reach-main-actions button:disabled { opacity:.66;filter:saturate(.72); }
+    #mainConnectionCard .reach-main-actions button .reach-action-icon { font-size:30px; }
+    #mainConnectionCard .reach-main-actions button.reach-take { background:linear-gradient(145deg,#8052f4,#2859f5); }
+    #mainConnectionCard .reach-main-actions button.reach-open { background:linear-gradient(145deg,#fa4c91,#e52d77); }
+    #mainConnectionCard > h2 { display:none; }
+    #mainConnectionCard .reach-contact-head { margin:6px 0 19px; }
+    #mainConnectionCard #manageConnections { display:block; border:0; padding:0; margin:13px 0 0 !important; }
+    #mainConnectionCard #manageConnections:not([open]) { display:none; }
+    #mainConnectionCard #manageConnections summary { display:none; }
+    #mainConnectionCard .reach-contact-menu { border:1px solid rgba(255,255,255,.08); }
+    #mainConnectionCard { border-color:rgba(155,92,231,.35); }
+    #mainConnectionCard .reach-main-actions button .reach-action-sub { font-size:11px; }
+
+    /* v1.8b — matching media tiles and refined vertical rhythm. */
+    #mediaCard { padding:21px 19px; }
+    #mediaCard h2 { font-size:21px; margin-bottom:8px; }
+    #mediaCard p { margin:0 0 15px; }
+    .reach-media-tiles { display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:16px 0 13px; }
+    .reach-media-tile { display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;
+      min-height:132px;border-radius:22px;border:1px solid rgba(151,145,230,.22);
+      background:linear-gradient(150deg,rgba(56,54,98,.8),rgba(34,38,75,.84)); }
+    .reach-media-icon { font-size:28px;line-height:1;color:white; }
+    .reach-media-tile strong { font-size:15px; }
+    .reach-media-pill { padding:5px 18px;border-radius:999px;font-size:13px;
+      background:rgba(124,130,156,.25);color:#d1d5db; }
+    .reach-media-pill.is-on { background:linear-gradient(110deg,#91f5b4,#56d997);color:#173b32;
+      box-shadow:0 0 17px rgba(86,217,151,.2);font-weight:750; }
+    #mediaCard #mediaButton { margin-top:10px; }
+    #mediaCard #mediaStatus { margin-top:12px; }
+    /* REACH v1.6 — visual layer only. Video and signaling remain untouched. */
+    :root { color-scheme: dark; --rose:#ff5d9c; --violet:#9d79ff; --muted:#b7afca; }
+    body {
+      background:
+        radial-gradient(ellipse 85% 34% at 50% -5%, rgba(170,75,181,.32), transparent 75%),
+        radial-gradient(ellipse 65% 38% at 100% 75%, rgba(83,52,153,.16), transparent 80%),
+        linear-gradient(170deg,#150e27 0%,#0d1022 54%,#0a0e1c 100%);
+      padding: max(24px,env(safe-area-inset-top,0px)) 17px 48px;
+      color:#fff8ff;
+    }
+    main { max-width: 490px; }
+    h1 { text-align:center; font-size:clamp(40px,10vw,53px); font-weight:850; letter-spacing:4px; margin:21px 0 0;
+      text-shadow:0 0 36px rgba(255,85,160,.19); }
+    .tagline { text-align:center; color:#c8b4d1; font-size:15px; letter-spacing:.3px; margin:8px 0 31px; }
+    .card { background:linear-gradient(150deg,rgba(42,29,64,.94),rgba(25,27,50,.96));
+      border:1px solid rgba(197,143,236,.14); border-radius:25px; padding:23px;
+      margin-bottom:17px; box-shadow:0 12px 32px rgba(0,0,0,.15); }
+    h2 { font-size:21px; letter-spacing:-.3px; margin-bottom:13px; }
+    p { color:var(--muted); font-size:14px; line-height:1.5; margin:10px 0 17px; }
+    button { border-radius:16px; padding:16px 14px; font-size:16px; letter-spacing:.1px;
+      background:linear-gradient(105deg,#7952df,#a45fdf); box-shadow:0 6px 20px rgba(97,58,164,.18);
+      transition:filter .18s ease, transform .18s ease; }
+    button:active:not(:disabled) { transform:scale(.985); filter:brightness(1.12); }
+    button:disabled { opacity:.5; box-shadow:none; }
+    input { border:1px solid rgba(180,145,226,.18); border-radius:14px; background:#211c38;
+      padding:16px 12px; font-size:16px; letter-spacing:2px; margin-bottom:12px; }
+    input:focus { border-color:var(--violet); box-shadow:0 0 0 3px rgba(157,121,255,.13); }
+    #mainConnectionCard { border:1px solid rgba(255,112,179,.48);
+      background:linear-gradient(145deg,rgba(74,33,79,.97),rgba(37,30,66,.98));
+      box-shadow:0 0 35px rgba(236,80,153,.09),0 15px 35px rgba(0,0,0,.17); }
+    #mainConnectionCard h2 { color:#ffd8ea; }
+    #mainConnectionCard #favoriteConnection button:first-of-type {
+      background:linear-gradient(110deg,#e94e96,#b34cbd); box-shadow:0 9px 23px rgba(234,72,143,.2); }
+    #mainConnectionCard #favoriteConnection button { margin-top:10px; }
+    #mediaStatus,#status,#connectionStatus { background:rgba(15,18,37,.62); color:#d1f9df;
+      border:1px solid rgba(154,222,187,.1); border-radius:14px; font-size:13px; padding:13px; }
+    #pairCard { border-color:rgba(168,133,215,.2); }
+    #pairCard #pairCode { color:#f5b7dc !important; font-size:22px !important; letter-spacing:2px !important; }
+    #manageConnections { border-top:1px solid rgba(255,255,255,.1); padding-top:16px; }
+    summary { color:#cbb2ff !important; font-size:14px; }
+    #manualConnections { opacity:.8; }
+    #manualConnections .card { margin-top:12px; }
+    body.reach-in-call #remoteCard { background:#020617; border:0; box-shadow:none; }
+    body.reach-in-call #localVideo { border:2px solid rgba(255,182,215,.9);
+      box-shadow:0 8px 28px #000a,0 0 0 3px rgba(245,84,163,.14); }
+    body.reach-in-call #selfViewToggle { display:block !important; background:rgba(45,33,68,.9);
+      border:1px solid rgba(255,255,255,.22); backdrop-filter:blur(8px); }
+    body.reach-in-call #endButton { background:linear-gradient(110deg,#c82b6e,#9d285c);
+      box-shadow:0 8px 28px #0008; }
+    @media(max-width:380px) { .card{padding:19px;} h1{letter-spacing:2px;} }
+
+    /* v1.9 — two people, two photos, one heart. */
+    #mainConnectionCard .reach-contact-head { position:relative; display:flex;flex-direction:column;gap:11px;align-items:center;padding-top:3px; }
+    .reach-couple-photos { display:flex;justify-content:center;align-items:center;gap:12px;width:100%; }
+    #mainConnectionCard .reach-couple-photos .reach-avatar { width:91px;height:91px;flex:0 0 91px;margin:0; }
+    #mainConnectionCard .reach-couple-photos .reach-avatar.partner { border-color:#aa8df9; }
+    .reach-couple-heart { color:#ff7ab8;font-size:29px;filter:drop-shadow(0 0 10px #e93b98aa); }
+    .reach-couple-labels { display:flex;justify-content:center;gap:42px;width:100%;font-size:12px;color:#dfc9e5; }
+    #mainConnectionCard .reach-contact-info { text-align:center;flex:none; }
+    #mainConnectionCard .reach-contact-name { font-size:24px; }
+    #mainConnectionCard .reach-contact-status { margin-top:5px; }
+    #mainConnectionCard .reach-contact-menu { position:absolute;right:0;top:4px;margin:0; }
+    @media(max-width:380px) { #mainConnectionCard .reach-couple-photos .reach-avatar{width:78px;height:78px;flex-basis:78px;} .reach-couple-photos{gap:9px;} }
+    .tagline .reach-verse-ref { display:block; margin-top:8px; font-size:14px; letter-spacing:1px; color:#d8a9ca; font-weight:500; }
+    #reachDailyCard{padding:20px;border:1.5px solid rgba(242,135,190,.72);box-shadow:0 0 0 1px rgba(242,135,190,.10),0 0 24px rgba(222,94,169,.12)}#reachDailyCard h2{font-size:19px;margin:7px 0 14px}.rd-head{display:flex;justify-content:space-between;gap:8px;align-items:start}.rd-kicker{font-size:10px;letter-spacing:2px;color:#e6a5cb;font-weight:750}.rd-toggle{font-size:12px;white-space:nowrap;display:flex;gap:6px;align-items:center}.rd-toggle input{width:20px;height:20px;margin:0;accent-color:#df6aa8}.rd-quote{padding:25px 17px;border-radius:18px;text-align:center;font-size:19px;font-style:italic;line-height:1.5;background:linear-gradient(135deg,#834e7644,#654a9b44);color:#ffe7f2}.rd-actions{display:flex;gap:9px;margin-top:12px}#reachDailyCard .rd-actions button{flex:1;width:auto;padding:13px 7px;font-size:13px;border-radius:13px;background:#824c82}#reachDailyCard #rdShare{background:linear-gradient(120deg,#d54c92,#8c58ba)}.rd-saved{margin-top:16px;font-size:13px}.rd-saved summary{cursor:pointer}.rd-saved-item{padding:10px;margin-top:8px;background:#ffffff12;border-radius:12px;line-height:1.5}#rdMessage{font-size:12px;color:#d4b9d7;margin-top:9px}
+  </style>
+</head>
+
+<body>
+<main>
+
+  <h1>REACH ❤️</h1>
+  <div class="tagline">“Let all that you do be done in love.”<span class="reach-verse-ref">1 Corinthians 16:14</span></div>
+
+  <input id="reachPhotoPicker" type="file" accept="image/*" style="display:none" aria-label="Choose a contact photo">
+  <section class="card" id="mainConnectionCard">
+    <h2>Your connection ❤️</h2>
+    <div id="favoriteConnection"></div>
+    <details id="manageConnections" style="margin-top:20px">
+      <summary style="cursor:pointer;color:#a5b4fc;font-weight:700">Manage connections</summary>
+      <p>Rename, hide, or choose your main connection. Hiding does not revoke access.</p>
+      <div id="pairedDevices"></div>
+    </details>
+  </section>
+
+  <section class="card" id="mediaCard">
+    <h2>Camera & microphone</h2>
+
+    <p>
+      Turn on your camera and microphone before starting
+      or joining a video connection.
+    </p>
+
+    <div class="reach-media-tiles" aria-label="Camera and microphone status">
+      <div class="reach-media-tile"><span class="reach-media-icon">▣</span><strong>Camera</strong><span class="reach-media-pill" id="reachCameraPill">Off</span></div>
+      <div class="reach-media-tile"><span class="reach-media-icon">♩</span><strong>Microphone</strong><span class="reach-media-pill" id="reachMicPill">Off</span></div>
+    </div>
+    <button
+      id="mediaButton"
+      class="cameraButton"
+      onclick="enableMedia()"
+    >
+      Enable camera & microphone
+    </button>
+
+    <video
+      id="localVideo"
+      autoplay
+      muted
+      playsinline
+    ></video>
+
+    <div id="mediaStatus">
+      Camera and microphone are off.
+    </div>
+  </section>
+
+  <section class="card" id="reachDailyCard"><div class="rd-head"><div><span class="rd-kicker">A LITTLE LOVE, DAILY</span><h2>Today's little reminder ❤️</h2></div><label class="rd-toggle"><input id="rdEnabled" type="checkbox"> On</label></div><div id="rdBody"><div class="rd-quote" id="rdQuote"></div><div class="rd-actions"><button id="rdSave" type="button">♡ Save</button><button id="rdShare" type="button">↗ Share a nudge</button></div><details class="rd-saved"><summary>Our little reminders <span id="rdCount"></span></summary><div id="rdList"></div></details><div id="rdMessage" role="status"></div></div></section>
+  <section class="card" id="pairCard">
+    <h2>One-time pairing ❤️</h2>
+    <p>Pair each phone once. Multiple devices can stay authorized, including a test phone.</p>
+    <button id="pairCreate" onclick="makePairCode()" disabled>Create one-time pairing code</button>
+    <div id="pairCode" style="text-align:center;color:#a5b4fc;font-size:26px;letter-spacing:2px;margin:15px 0"></div>
+    <input id="pairInput" maxlength="12" placeholder="PAIRING CODE" autocomplete="off">
+    <button id="pairClaim" onclick="claimPairCode()" disabled>Pair this phone</button>
+    <p id="pairMessage"></p>
+    <details style="margin-top:16px">
+      <summary style="cursor:pointer;color:#a5b4fc">Connection health check</summary>
+      <p style="color:#cbd5e1;font-size:14px">Read-only check. Nothing will be changed or reset.</p>
+      <button id="pairHealthButton" type="button" onclick="checkPairHealth()" disabled>Check my connection</button>
+      <pre id="pairHealthResult" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;color:#cbd5e1"></pre>
+    </details>
+
+  </section>
+
+  <details id="manualConnections" style="margin-bottom:24px">
+    <summary style="cursor:pointer;color:#a5b4fc;padding:14px 6px">Manual room connection (testing)</summary>
+  <section class="card">
+    <h2>Open your hand</h2>
+    <p>Let your partner know you are here and available to connect.</p>
+
+    <button id="createButton" onclick="createRoom()" disabled>
+      Connecting securely...
+    </button>
+
+    <div id="roomCode">------</div>
+  </section>
+
+  <section class="card">
+    <h2>Your partner is reaching for you</h2>
+
+    <input
+      id="joinCode"
+      maxlength="6"
+      placeholder="ROOM CODE"
+      autocomplete="off"
+    >
+
+    <button id="joinButton" onclick="joinRoom()" disabled>
+      Connecting securely...
+    </button>
+  </section>
+
+  </details>
+
+  <section class="card" id="remoteCard">
+    <h2>Partner</h2>
+
+    <div class="videoLabel">LIVE CONNECTION</div>
+
+    <video
+      id="remoteVideo"
+      autoplay
+      playsinline
+    ></video>
+
+    <div id="connectionStatus">
+      Waiting for partner video...
+    </div>
+
+    <button id="exitCallView" onclick="exitCallView()" style="display:none">Minimize</button>
+    <button id="selfViewToggle" onclick="toggleSelfView()" style="display:none">Hide me</button>
+
+    <button id="endButton" onclick="endReach()">
+      End REACH
+    </button>
+  </section>
+
+  <div id="status">
+    Preparing secure connection...
+  </div>
+
+  <div id="authStatus"></div>
+  <div id="pairingStatus"></div>
+
+</main>
+
+<script>
+const rdQuotes=["Love is found in the little moments we choose to share.","Being present is one of the simplest ways to say I love you.","A little kindness can travel any distance.","Gratitude makes ordinary moments feel extraordinary.","Love makes room for both closeness and breathing space.","The most meaningful gift is often your undivided attention.","Sometimes love sounds like: I'm here whenever you're ready.","The best conversations begin with genuine curiosity.","Distance changes where we are, not how deeply we can care.","A shared laugh can make the miles feel smaller.","An open hand is an invitation, never an expectation.","Kindness matters most in the moments that aren't easy.","A thoughtful pause can be an act of love.","Love is strengthened by honesty spoken with care.","Make space for joy, even on busy days.","The little things are often the big things in disguise.","Listening is love made visible.","There is tenderness in simply making time for each other.","Let appreciation be something you say, not only something you feel.","Connection is a choice we can make again and again.","Celebrate the ordinary days; they are part of your story.","Small acts of care create lasting memories.","Love grows when two people feel free to be themselves.","Choose patience when life asks you to wait.","A caring heart can turn an ordinary evening into a memory.","Be grateful for the person, not just the time you get together.","A gentle word can change the direction of a difficult day.","You don't have to share every moment to feel connected.","Sometimes the most beautiful plan is simply being together.","The way we treat each other in small moments shapes our story.","You can miss someone and still give them room to grow."];
+const rdEl=id=>document.getElementById(id);
+const rdEnabled=rdEl("rdEnabled"),rdBody=rdEl("rdBody");
+rdEnabled.checked=localStorage.getItem("reach-daily-enabled")!=="off";
+const rdIndex=()=>{const d=new Date();return Math.floor(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/86400000)%rdQuotes.length};
+function rdSaved(){try{const a=JSON.parse(localStorage.getItem("reach-daily-saved")||"[]");return Array.isArray(a)?a.filter(i=>Number.isInteger(i)&&i>=0&&i<rdQuotes.length):[]}catch{return []}}
+function rdRender(){
+rdBody.hidden=!rdEnabled.checked;if(!rdEnabled.checked)return;
+const i=rdIndex(),saved=rdSaved();rdEl("rdQuote").textContent="“"+rdQuotes[i]+"”";
+rdEl("rdSave").textContent=saved.includes(i)?"♥ Saved":"♡ Save";
+rdEl("rdCount").textContent="("+saved.length+")";
+const list=rdEl("rdList");list.replaceChildren();
+if(!saved.length){const p=document.createElement("p");p.textContent="Nothing saved yet.";list.appendChild(p)}
+saved.forEach(i=>{const item=document.createElement("div");item.className="rd-saved-item";item.textContent="“"+rdQuotes[i]+"”";list.appendChild(item)})
+}
+rdEnabled.addEventListener("change",()=>{localStorage.setItem("reach-daily-enabled",rdEnabled.checked?"on":"off");rdRender()});
+rdEl("rdSave").addEventListener("click",()=>{const i=rdIndex(),a=rdSaved(),p=a.indexOf(i);if(p<0)a.unshift(i);else a.splice(p,1);localStorage.setItem("reach-daily-saved",JSON.stringify(a));rdEl("rdMessage").textContent=p<0?"Saved on this phone.":"Removed from saved reminders.";rdRender()});
+rdEl("rdShare").addEventListener("click",async()=>{const msg="A little reminder from REACH ❤️\n\n“"+rdQuotes[rdIndex()]+"”\n\nThinking of you.";try{if(navigator.share)await navigator.share({text:msg});else if(navigator.clipboard){await navigator.clipboard.writeText(msg);rdEl("rdMessage").textContent="Copied to clipboard."}else rdEl("rdMessage").textContent="Sharing isn't available here."}catch(e){if(e.name!=="AbortError")rdEl("rdMessage").textContent="Could not share this time."}});
+rdRender();document.addEventListener("visibilitychange",()=>{if(!document.hidden)rdRender()});setInterval(()=>{if(!document.hidden)rdRender()},60000);
+</script>
+<script type="module">
+
+import { initializeApp } from
+  "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
+
+import {
+  getAuth,
+  signInAnonymously,
+  onAuthStateChanged
+} from
+  "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
+
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  onSnapshot,
+  serverTimestamp,
+  collection,
+  addDoc,
+  runTransaction
+} from
+  "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDjdTAx5MRpuntAR-upxfwdiYAfMamJAGA",
+  authDomain: "reach-staging-a4745.firebaseapp.com",
+  projectId: "reach-staging-a4745",
+  storageBucket: "reach-staging-a4745.firebasestorage.app",
+  messagingSenderId: "537916955208",
+  appId: "1:537916955208:web:7f21f2e92659aed2d4d67d",
+  measurementId: "G-6R0K0C00HZ"
+};
+
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+let currentUser = null;
+let activeRoom = null;
+let unsubscribeRoom = null;
+
+let localStream = null;
+let remoteStream = null;
+let peerConnection = null;
+
+let role = null;
+let remoteDescriptionReady = false;
+let pendingCandidates = [];
+let signalingReady = false;
+let pendingLocalCandidates = [];
+let pairedCodes = JSON.parse(localStorage.getItem("reachPairCodes") || "[]");
+let pairPrefs = JSON.parse(localStorage.getItem("reachPairPreferences") || "{}");
+let favoritePair = localStorage.getItem("reachFavoritePair") || null;
+function savePairPrefs(){localStorage.setItem("reachPairPreferences",JSON.stringify(pairPrefs));}
+function pairPrefsFor(code){return pairPrefs[code] || {name:"",hidden:false};}
+function pairName(code){return pairPrefsFor(code).name || "Connection "+code.slice(0,4);}
+function mainPairCode(){
+  const visible=pairedCodes.filter(code=>!pairPrefsFor(code).hidden && !pairPrefsFor(code).retired);
+  return visible.includes(favoritePair)?favoritePair:(visible[0]||null);
+}
+async function reconcileLockedPartnership(){
+  if(!currentUser)return;
+  try{
+    const snap=await getDoc(doc(db,"memberLocks",currentUser.uid));
+    if(!snap.exists())return;
+    const code=snap.data().pairCode;
+    if(typeof code!=="string"||!code)return;
+    if(!pairedCodes.includes(code)){pairedCodes.push(code);savePairs();}
+    favoritePair=code;
+    localStorage.setItem("reachFavoritePair",code);
+    for(const other of pairedCodes){
+      if(other===code){
+        pairPrefs[other]={...pairPrefsFor(other),hidden:false,retired:false};
+      }else{
+        pairPrefs[other]={...pairPrefsFor(other),hidden:true,retired:true};
+      }
+    }
+    savePairPrefs();
+  }catch(error){console.error("Could not reconcile partnership:",error);}
+}
+async function verifyPairLockReady(code){
+  if(!currentUser || !code) return false;
+  try{
+    const snap=await getDoc(doc(db,"memberLocks",currentUser.uid));
+    if(!snap.exists()){
+      pairMessage.textContent="Security upgrade required before this connection can go live.";
+      return false;
+    }
+    if(snap.data().pairCode!==code){
+      pairMessage.textContent="This phone is locked to a different REACH partnership.";
+      return false;
+    }
+    return true;
+  }catch(error){
+    console.error("Could not verify partnership lock:",error);
+    pairMessage.textContent="Could not verify the security upgrade.";
+    return false;
+  }
+}
+window.checkPairHealth = async function(){
+  const output=document.getElementById("pairHealthResult");
+  const button=document.getElementById("pairHealthButton");
+  if(!currentUser){output.textContent="This phone is not authenticated yet.";return;}
+  button.disabled=true;
+  output.textContent="Checking without changing anything...";
+  const lines=["Read-only REACH connection check","This phone UID: "+currentUser.uid];
+  const localCode=mainPairCode();
+  lines.push("Phone's selected pairing: "+(localCode||"none"));
+  let ready=false;
+  try{
+    const lockSnap=await getDoc(doc(db,"memberLocks",currentUser.uid));
+    const lockedCode=lockSnap.exists()?lockSnap.data().pairCode:null;
+    lines.push("Permanent lock: "+(lockedCode||"missing"));
+    if(lockedCode && localCode && lockedCode!==localCode){
+      lines.push("WARNING: phone pairing and security lock disagree");
+    }
+    const code=lockedCode||localCode;
+    if(!code){
+      lines.push("No pairing to inspect.");
+    }else{
+      try{
+        const pairSnap=await getDoc(doc(db,"pairInvites",code));
+        if(!pairSnap.exists()){
+          lines.push("Pair record: NOT FOUND");
+        }else{
+          const pair=pairSnap.data();
+          const mine=pair.hostUid===currentUser.uid||pair.partnerUid===currentUser.uid;
+          const distinct=typeof pair.hostUid==="string" && typeof pair.partnerUid==="string" && pair.hostUid!==pair.partnerUid;
+          const otherUid=pair.hostUid===currentUser.uid?pair.partnerUid:pair.hostUid;
+          const photos=pair.profilePhotos && typeof pair.profilePhotos==="object"?pair.profilePhotos:{};
+          const ownPhoto=typeof photos[currentUser.uid]==="string" && photos[currentUser.uid].startsWith("data:image/jpeg;base64,");
+          const partnerPhoto=typeof otherUid==="string" && typeof photos[otherUid]==="string" && photos[otherUid].startsWith("data:image/jpeg;base64,");
+          lines.push("Pair record: found");
+          lines.push("This phone belongs to pairing: "+(mine?"yes":"NO"));
+          lines.push("Partner recorded: "+(typeof otherUid==="string"?"yes":"no"));
+          lines.push("Pair identities distinct: "+(distinct?"yes":"NO / incomplete"));
+          lines.push("Your photo stored in pair: "+(ownPhoto?"yes":"not found"));
+          lines.push("Partner photo stored in pair: "+(partnerPhoto?"yes":"not found"));
+          lines.push("Revoked: "+(pair.revoked===true?"YES":"no"));
+          lines.push("Active call: "+(pair.activeRoom?"registered":"none"));
+          ready=Boolean(lockedCode && localCode===lockedCode && mine && distinct && pair.revoked!==true && ownPhoto && partnerPhoto);
+        }
+      }catch(error){
+        lines.push("Pair record check failed: "+(error.code||"unknown error"));
+      }
+    }
+    lines.push("Partner's lock: must be checked on partner's phone");
+  }catch(error){
+    lines.push("My lock check failed: "+(error.code||"unknown error"));
+  }finally{
+    lines.push(ready?"This phone: local checks passed; NOT a production approval.":"This phone: requires review before security rollout.");
+    lines.push("No data changed.");
+    output.textContent=lines.join("\n");
+    button.disabled=false;
+  }
+};
+let pairListeners = [];
+let pairSessionCode = null;
+let candidateUnsubscribers = [];
+const SESSION_LENGTH_MS = 8 * 60 * 60 * 1000;
+let pairedPartnerUid = localStorage.getItem("reachPairedPartnerUid");
+
+
+const createButton =
+  document.getElementById("createButton");
+
+const joinButton =
+  document.getElementById("joinButton");
+
+const status =
+  document.getElementById("status");
+
+const authStatus =
+  document.getElementById("authStatus");
+
+const pairingStatus =
+  document.getElementById("pairingStatus");
+
+const mediaStatus =
+  document.getElementById("mediaStatus");
+
+const mediaButton =
+  document.getElementById("mediaButton");
+
+const localVideo =
+  document.getElementById("localVideo");
+
+const remoteVideo =
+  document.getElementById("remoteVideo");
+
+const remoteCard =
+  document.getElementById("remoteCard");
+
+const connectionStatus =
+  document.getElementById("connectionStatus");
+
+const endButton =
+  document.getElementById("endButton");
+
+let callViewDismissed = false;
+function enterCallView() {
+  if (callViewDismissed || !activeRoom || !remoteStream ||
+      remoteStream.getVideoTracks().length === 0) return;
+  document.body.classList.add("reach-in-call");
+  if (localStream && localVideo.srcObject !== localStream) localVideo.srcObject = localStream;
+  localVideo.play().catch(err => console.warn("Self-view playback:",err));
+  remoteVideo.play().catch((error) => console.warn("Remote playback requires a tap:", error));
+}
+window.toggleSelfView = () => {
+  const hidden = document.body.classList.toggle("self-view-hidden");
+  document.getElementById("selfViewToggle").textContent = hidden ? "Show me" : "Hide me";
+  if (!hidden && localStream) {
+    localVideo.srcObject = localStream;
+    localVideo.play().catch(err => console.warn("Self-view playback:",err));
+  }
+};
+// Drag the self-view within the visible call area; never drag the media stream itself.
+let selfDrag = null;
+localVideo.addEventListener("pointerdown", (event) => {
+  if (!document.body.classList.contains("reach-in-call")) return;
+  const rect = localVideo.getBoundingClientRect();
+  selfDrag = { id: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top };
+  localVideo.setPointerCapture(event.pointerId);
+  event.preventDefault();
+});
+localVideo.addEventListener("pointermove", (event) => {
+  if (!selfDrag || event.pointerId !== selfDrag.id) return;
+  const width = localVideo.offsetWidth, height = localVideo.offsetHeight;
+  const left = Math.max(8, Math.min(window.innerWidth - width - 8, event.clientX - selfDrag.dx));
+  const top = Math.max(8, Math.min(window.innerHeight - height - 8, event.clientY - selfDrag.dy));
+  localVideo.style.left = left + "px";
+  localVideo.style.top = top + "px";
+  localVideo.style.right = "auto";
+  event.preventDefault();
+});
+function finishSelfDrag(event) {
+  if (selfDrag && event.pointerId === selfDrag.id) selfDrag = null;
+}
+localVideo.addEventListener("pointerup", finishSelfDrag);
+localVideo.addEventListener("pointercancel", finishSelfDrag);
+
+window.exitCallView = () => {
+  callViewDismissed = true;
+  document.body.classList.remove("reach-in-call");
+};
+
+
+
+remoteVideo.addEventListener("click", async () => {
+  // Keep the custom in-call layer: native iOS fullscreen hides self-view.
+  if (document.body.classList.contains("reach-in-call")) return;
+  try {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
+      return;
+    }
+
+    if (remoteVideo.requestFullscreen) {
+      await remoteVideo.requestFullscreen();
+    } else if (remoteVideo.webkitEnterFullscreen) {
+      remoteVideo.webkitEnterFullscreen();
+    } else if (remoteVideo.webkitRequestFullscreen) {
+      remoteVideo.webkitRequestFullscreen();
+    }
+  } catch (error) {
+    console.error("Fullscreen unavailable:", error);
+  }
+});
+
+
+function updatePairingStatus() {
+  pairingStatus.textContent = pairedPartnerUid
+    ? "❤️ Paired partner remembered on this device"
+    : "No partner paired on this device yet.";
+}
+
+function rememberPartner(uid) {
+  if (!uid || uid === currentUser?.uid) return;
+
+  if (!pairedPartnerUid) {
+    pairedPartnerUid = uid;
+    localStorage.setItem("reachPairedPartnerUid", uid);
+  }
+
+  updatePairingStatus();
+}
+
+function setReady() {
+  createButton.disabled = false;
+  joinButton.disabled = false;
+
+  createButton.textContent = "My hand is open to yours";
+  joinButton.textContent = "Take her hand";
+
+  status.textContent = "🔒 Secure connection ready";
+  updatePairingStatus();
+  document.getElementById("pairCreate").disabled = false;
+  document.getElementById("pairClaim").disabled = false;
+  document.getElementById("pairHealthButton").disabled = false;
+  watchPairs();
+}
+
+
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    currentUser = user;
+    await reconcileLockedPartnership();
+    setReady();
+
+    authStatus.textContent =
+      "Authenticated device • " +
+      user.uid.substring(0, 8);
+  }
+});
+
+
+signInAnonymously(auth).catch((error) => {
+  console.error(error);
+
+  status.textContent =
+    "⚠️ Could not authenticate this device.";
+});
+
+
+function makeRoomCode() {
+  const chars =
+    "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+  let code = "";
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(bytes[i] % chars.length);
+  }
+
+  return code;
+}
+
+
+window.enableMedia = async function () {
+
+  if (localStream) {
+    mediaStatus.textContent =
+      "📷 Camera ready • 🎙️ Microphone ready";
+    return;
+  }
+
+  try {
+    mediaButton.disabled = true;
+    mediaButton.textContent =
+      "Requesting permission...";
+
+    localStream =
+      await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "user"
+        },
+        audio: true
+      });
+
+    localVideo.srcObject = localStream;
+    localVideo.style.display = "block";
+
+    mediaButton.textContent =
+      "Camera & microphone enabled";
+
+    mediaStatus.textContent =
+      "📷 Camera ready • 🎙️ Microphone ready";
+
+  } catch (error) {
+
+    console.error(error);
+
+    mediaButton.disabled = false;
+    mediaButton.textContent =
+      "Enable camera & microphone";
+
+    mediaStatus.textContent =
+      "⚠️ Camera or microphone could not start.";
+  }
+};
+
+
+async function ensureMedia() {
+  if (!localStream) {
+    await window.enableMedia();
+  }
+
+  if (!localStream) {
+    throw new Error("Media unavailable");
+  }
+}
+
+
+function createPeerConnection(code) {
+
+  remoteDescriptionReady = false;
+  pendingCandidates = [];
+  signalingReady = false;
+  pendingLocalCandidates = [];
+
+  peerConnection =
+    new RTCPeerConnection({
+      iceServers: [
+        {
+          urls: [
+            "stun:stun.l.google.com:19302",
+            "stun:stun1.l.google.com:19302"
+          ]
+        }
+      ]
+    });
+
+
+  remoteStream = new MediaStream();
+
+  remoteVideo.srcObject = remoteStream;
+  remoteCard.style.display = "block";
+
+
+  localStream.getTracks().forEach((track) => {
+    peerConnection.addTrack(track, localStream);
+  });
+
+
+  peerConnection.ontrack = (event) => {
+
+    event.streams[0].getTracks().forEach((track) => {
+
+      const alreadyAdded =
+        remoteStream
+          .getTracks()
+          .some((existingTrack) =>
+            existingTrack.id === track.id
+          );
+
+      if (!alreadyAdded) {
+        remoteStream.addTrack(track);
+      }
+    });
+
+    connectionStatus.textContent =
+      "❤️ Partner video connected";
+    enterCallView();
+  };
+
+
+  peerConnection.onconnectionstatechange = () => {
+
+    const state =
+      peerConnection.connectionState;
+
+    if (state === "connected") {
+      connectionStatus.textContent =
+        "❤️ Live connection established";
+      enterCallView();
+    }
+
+    if (state === "connecting") {
+      connectionStatus.textContent =
+        "Connecting to partner...";
+    }
+
+    if (state === "failed") {
+      connectionStatus.textContent =
+        "⚠️ Connection failed";
+    }
+
+    if (state === "disconnected") {
+      connectionStatus.textContent =
+        "Partner connection interrupted.";
+    }
+  };
+
+
+  peerConnection.onicecandidate = async (event) => {
+
+    if (!event.candidate) return;
+
+    try {
+
+      const candidateData =
+        event.candidate.toJSON();
+
+      const candidateCollection =
+        role === "host"
+          ? "hostCandidates"
+          : "partnerCandidates";
+
+      if (!signalingReady) {
+        pendingLocalCandidates.push({ candidateCollection, candidateData });
+        return;
+      }
+
+      await addDoc(
+        collection(
+          db,
+          "rooms",
+          code,
+          candidateCollection
+        ),
+        candidateData
+      );
+
+    } catch (error) {
+      console.error(
+        "Could not save ICE candidate:",
+        error
+      );
+    }
+  };
+}
+
+
+async function enableSignaling(code) {
+  signalingReady = true;
+  const queued = pendingLocalCandidates;
+  pendingLocalCandidates = [];
+  for (const item of queued) {
+    try {
+      await addDoc(collection(db, "rooms", code, item.candidateCollection), item.candidateData);
+    } catch (error) {
+      console.error("Could not flush ICE candidate:", error);
+    }
+  }
+}
+
+
+async function addRemoteCandidate(data) {
+
+  const candidate =
+    new RTCIceCandidate(data);
+
+  if (remoteDescriptionReady) {
+
+    try {
+      await peerConnection.addIceCandidate(candidate);
+    } catch (error) {
+      console.error(
+        "Could not add ICE candidate:",
+        error
+      );
+    }
+
+  } else {
+    pendingCandidates.push(candidate);
+  }
+}
+
+
+async function flushPendingCandidates() {
+
+  for (const candidate of pendingCandidates) {
+
+    try {
+      await peerConnection.addIceCandidate(candidate);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  pendingCandidates = [];
+}
+
+
+function listenForCandidates(code, collectionName) {
+
+  const candidatesRef =
+    collection(
+      db,
+      "rooms",
+      code,
+      collectionName
+    );
+
+  const unsubscribeCandidates = onSnapshot(
+    candidatesRef,
+
+    (snapshot) => {
+
+      snapshot.docChanges().forEach((change) => {
+
+        if (change.type === "added") {
+          addRemoteCandidate(
+            change.doc.data()
+          );
+        }
+      });
+    },
+
+    (error) => {
+      console.error(
+        "Candidate listener error:",
+        error
+      );
+    }
+  );
+
+  candidateUnsubscribers.push(unsubscribeCandidates);
+}
+
+
+function watchRoom(code) {
+
+  if (unsubscribeRoom) {
+    unsubscribeRoom();
+  }
+
+  const roomRef =
+    doc(db, "rooms", code);
+
+  unsubscribeRoom =
+    onSnapshot(
+      roomRef,
+
+      async (snapshot) => {
+
+        if (!snapshot.exists()) return;
+
+        const room =
+          snapshot.data();
+
+        if (
+          room.active === false ||
+          (room.expiresAt && Date.now() > room.expiresAt)
+        ) {
+          connectionStatus.textContent = "This REACH session has ended.";
+          await cleanupConnection(false);
+          return;
+        }
+
+
+        if (
+          role === "host" &&
+          room.answer
+        ) {
+          rememberPartner(room.partnerUid);
+          status.innerHTML =
+            '<span class="heart">❤️</span> Partner connected to room ' +
+            code;
+        }
+
+
+        if (
+          role === "host" &&
+          room.answer &&
+          peerConnection &&
+          !peerConnection.currentRemoteDescription
+        ) {
+
+          try {
+
+            const answer =
+              new RTCSessionDescription(
+                room.answer
+              );
+
+            await peerConnection
+              .setRemoteDescription(answer);
+
+            remoteDescriptionReady = true;
+
+            await flushPendingCandidates();
+
+          } catch (error) {
+            console.error(
+              "Could not apply answer:",
+              error
+            );
+          }
+        }
+      },
+
+      (error) => {
+        console.error(error);
+      }
+    );
+}
+
+
+async function cleanupConnection(stopMedia = true) {
+  // Exit native fullscreen as well as our custom in-call layout.
+  try {
+    if (document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen();
+    else if (document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen();
+    else if (remoteVideo.webkitDisplayingFullscreen && remoteVideo.webkitExitFullscreen) remoteVideo.webkitExitFullscreen();
+  } catch (error) { console.warn("Fullscreen exit:", error); }
+  localVideo.style.left = "";
+  localVideo.style.top = "";
+  localVideo.style.right = "";
+  document.body.classList.remove("reach-in-call","self-view-hidden");
+  document.getElementById("selfViewToggle").textContent = "Hide me";
+  callViewDismissed = false;
+  if (unsubscribeRoom) {
+    unsubscribeRoom();
+    unsubscribeRoom = null;
+  }
+
+  candidateUnsubscribers.forEach((unsubscribe) => unsubscribe());
+  candidateUnsubscribers = [];
+
+  if (peerConnection) {
+    peerConnection.close();
+    peerConnection = null;
+  }
+
+  if (remoteStream) {
+    remoteStream.getTracks().forEach((track) => track.stop());
+    remoteStream = null;
+  }
+
+  remoteVideo.srcObject = null;
+  remoteCard.style.display = "none";
+  endButton.style.display = "none";
+
+  if (stopMedia && localStream) {
+    localStream.getTracks().forEach((track) => track.stop());
+    localStream = null;
+    localVideo.srcObject = null;
+    localVideo.style.display = "none";
+    mediaButton.disabled = false;
+    mediaButton.textContent = "Enable camera & microphone";
+    mediaStatus.textContent = "Camera and microphone are off.";
+  }
+
+  activeRoom = null;
+  role = null;
+  remoteDescriptionReady = false;
+  pendingCandidates = [];
+  signalingReady = false;
+  pendingLocalCandidates = [];
+}
+
+window.endReach = async function () {
+  const code = activeRoom;
+  const endingRole = role;
+
+  endButton.disabled = true;
+  endButton.textContent = "Ending REACH...";
+
+  try {
+    if (code && endingRole === "host") {
+      await updateDoc(doc(db, "rooms", code), {
+        active: false,
+        endedAt: serverTimestamp()
+      });
+    }
+  } catch (error) {
+    console.error("Could not mark room inactive:", error);
+  }
+
+  if(pairSessionCode && endingRole==="host"){
+    try{const ref=doc(db,"pairInvites",pairSessionCode),snap=await getDoc(ref);
+      if(snap.exists()&&snap.data().activeRoom===code&&snap.data().openedBy===currentUser.uid)await updateDoc(ref,{activeRoom:null,openedBy:null});
+    }catch(err){console.error("Pair cleanup",err);}
+  }
+  pairSessionCode=null;
+  await cleanupConnection(true);
+
+  document.getElementById("roomCode").textContent = "------";
+  document.getElementById("joinCode").value = "";
+  connectionStatus.textContent = "Waiting for partner video...";
+  status.textContent = "REACH ended. Your hand is yours again.";
+  endButton.disabled = false;
+  endButton.textContent = "End REACH";
+};
+
+
+const pairMessage = document.getElementById("pairMessage");
+const pairedDevices = document.getElementById("pairedDevices");
+function savePairs(){ localStorage.setItem("reachPairCodes",JSON.stringify(pairedCodes)); }
+function watchPairs(){
+  pairListeners.forEach(stop=>stop()); pairListeners=[];
+  const list=document.getElementById("pairedDevices");
+  const favorite=document.getElementById("favoriteConnection");
+  list.replaceChildren();favorite.replaceChildren();
+  const mainCode=mainPairCode();
+  if(!mainCode){
+    const note=document.createElement("p");
+    note.textContent=pairedCodes.length ? "No main connection selected. Open Manage connections to show one." : "Pair a phone once to start reaching.";
+    favorite.appendChild(note);
+  }
+  function addAction(parent,label,action){
+    const button=document.createElement("button");
+    button.textContent=label;button.style.marginTop="10px";
+    button.onclick=action;parent.appendChild(button);return button;
+  }
+  for(const code of pairedCodes){
+    const prefs=pairPrefsFor(code);
+    if(prefs.retired)continue;
+    // Only the established main partnership can initiate a private session.
+    // Legacy test connections remain visible solely for retirement.
+    const permittedMain = code===mainCode;
+    const item=document.createElement("div");
+    item.style.cssText="padding:14px 0;border-bottom:1px solid #475569";
+    const heading=document.createElement("div");
+    heading.textContent=pairName(code)+(code===mainCode?" ❤️ Main":"");
+    heading.style.cssText="font-weight:700;margin:6px 0";
+    item.appendChild(heading);
+    const open=addAction(item,"❤️ My hand is open",()=>openPairedHand(code));
+    open.id="openPair-"+code;
+    if(!permittedMain)open.disabled=true;
+    const join=addAction(item,"❤️ Take their hand",async()=>{
+      const snap=await getDoc(doc(db,"pairInvites",code));
+      const pair=snap.data();
+      if(code!==mainPairCode()){pairMessage.textContent="Only your main partnership can connect.";return;}
+      if(!pair||pair.revoked||!pair.activeRoom||pair.openedBy===currentUser.uid){
+        pairMessage.textContent="Your partner has not opened their hand yet.";return;
+      }
+      document.getElementById("joinCode").value=pair.activeRoom;
+      pairSessionCode=code;await window.joinRoom();
+    });
+    join.style.display="none";
+    if(!permittedMain)join.disabled=true;
+    const controls=document.createElement("div");
+    controls.style.cssText="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px";
+    function smallButton(label,handler){
+      const b=document.createElement("button");
+      b.textContent=label;b.style.cssText="width:auto;padding:10px 12px;font-size:14px;background:#475569";
+      b.onclick=handler;controls.appendChild(b);
+    }
+    smallButton("Rename",()=>{
+      const name=prompt("Name this connection",prefs.name||"");
+      if(name===null)return;
+      pairPrefs[code]={...pairPrefsFor(code),name:name.trim().slice(0,32)};
+      savePairPrefs();watchPairs();
+    });
+    if(code!==mainCode)smallButton("Retire connection",async()=>{
+      if(!confirm("Retire "+pairName(code)+"? This revokes its REACH access for both phones. Your main connection stays unchanged."))return;
+      try{
+        const ref=doc(db,"pairInvites",code),snap=await getDoc(ref);
+        if(!snap.exists() || !currentUser || ![snap.data().hostUid,snap.data().partnerUid].includes(currentUser.uid))throw Error("Not authorized");
+        if(code===mainPairCode())throw Error("Main connection cannot be retired here");
+        await updateDoc(ref,{revoked:true});
+        pairedCodes=pairedCodes.filter(c=>c!==code);delete pairPrefs[code];savePairs();savePairPrefs();watchPairs();
+        pairMessage.textContent="Connection retired and access revoked.";
+      }catch(err){console.error("Retirement failed",err);pairMessage.textContent="Could not revoke this connection. Nothing was removed locally.";}
+    });
+    smallButton(prefs.hidden?"Show":"Hide",()=>{
+      pairPrefs[code]={...pairPrefsFor(code),hidden:!prefs.hidden};
+      savePairPrefs();watchPairs();
+    });
+    item.appendChild(controls);
+    list.appendChild(item);
+    if(code===mainCode){
+      const hero=document.createElement("div");
+      const head=document.createElement("div");head.className="reach-contact-head";
+      const photos=document.createElement("div");photos.className="reach-couple-photos";
+      function makeCoupleAvatar(who){
+        const avatar=document.createElement("button");avatar.type="button";avatar.className="reach-avatar "+who;
+        avatar.setAttribute("aria-label",who==="self"?"Choose your photo":"Your partner's photo (chosen on their phone)");
+        const img=document.createElement("img");img.alt=who==="self"?"Your profile photo":"Your partner's profile photo";
+        const fallback=document.createElement("span");fallback.className="reach-avatar-fallback";fallback.textContent=who==="self"?"＋":"❤️";
+        const own=who==="self";
+        const localKey=own?"reachMyPhoto-"+code:"reachPhoto-"+code;
+        const local=own?localStorage.getItem(localKey):null; // Do not mistake an old local contact picture for a synced partner photo.
+        if(local){img.src=local;avatar.appendChild(img);}else avatar.appendChild(fallback);
+        if(own)avatar.onclick=()=>document.getElementById("reachPhotoPicker").click();
+        else {avatar.disabled=true;avatar.style.cursor="default";}
+        return {avatar,img,fallback,localKey};
+      }
+      const mine=makeCoupleAvatar("self"),theirs=makeCoupleAvatar("partner");
+      const heart=document.createElement("span");heart.className="reach-couple-heart";heart.textContent="♥";
+      photos.append(mine.avatar,heart,theirs.avatar);
+      const labels=document.createElement("div");labels.className="reach-couple-labels";
+      const mineLabel=document.createElement("span");mineLabel.textContent="You";
+      const theirsLabel=document.createElement("span");theirsLabel.textContent=pairName(code);
+      labels.append(mineLabel,theirsLabel);
+      const info=document.createElement("div");info.className="reach-contact-info";
+      const name=document.createElement("div");name.className="reach-contact-name";name.textContent="You & "+pairName(code)+" ❤️";
+      const state=document.createElement("div");state.className="reach-contact-status";state.textContent="● Paired & ready";
+      info.append(name,state);
+      const menu=document.createElement("button");menu.type="button";menu.className="reach-contact-menu";menu.textContent="⋮";
+      menu.setAttribute("aria-label","Manage connections");
+      menu.onclick=()=>{const d=document.getElementById("manageConnections");d.open=!d.open;};
+      head.append(photos,labels,info,menu);hero.appendChild(head);
+      const actions=document.createElement("div");actions.className="reach-main-actions";
+      const heroOpen=addAction(actions,"My hand is open",()=>openPairedHand(code));
+      heroOpen.classList.add("reach-open");
+      heroOpen.innerHTML='<span class="reach-action-icon">♡</span><span>My hand is open</span><span class="reach-action-sub">I’m ready to connect</span>';
+      const heroJoin=addAction(actions,"Take their hand",()=>join.click());
+      heroJoin.classList.add("reach-take");heroJoin.disabled=true;heroJoin.setAttribute("aria-disabled","true");
+      heroJoin.innerHTML='<span class="reach-action-icon">♡</span><span>Take their hand</span><span class="reach-action-sub">Connect to your partner</span>';
+      hero.appendChild(actions);favorite.appendChild(hero);
+      pairListeners.push(onSnapshot(doc(db,"pairInvites",code),(snap)=>{
+        if(!snap.exists()||!currentUser)return;
+        const pair=snap.data();
+        if(pair.revoked){state.textContent="● Connection retired";heroJoin.disabled=true;heroOpen.disabled=true;return;}
+        if(!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))return;
+        // Read the other person's photo from the paired record, never from a local fallback.
+        const remoteUid=pair.hostUid===currentUser.uid?pair.partnerUid:pair.hostUid;
+        const profilePhotos=pair.profilePhotos||{};
+        function showPhoto(slot,data){
+          if(typeof data!=="string"||!data.startsWith("data:image/jpeg;base64,")||data.length>140000)return;
+          if(slot.img.getAttribute("src")!==data){slot.img.src=data;slot.avatar.replaceChildren(slot.img);}
+        }
+        showPhoto(mine,profilePhotos[currentUser.uid]);
+        showPhoto(theirs,profilePhotos[remoteUid]);
+        // Acknowledged cloud state, not merely the local image preview.
+        const localPhoto=localStorage.getItem("reachMyPhoto-"+code);
+        const synced=!!localPhoto&&profilePhotos[currentUser.uid]===localPhoto;
+        if(localPhoto&&!synced){
+          state.textContent="● Paired & ready · Photo only on this phone";
+          state.title="Your picture is saved locally but has not been confirmed in the shared connection.";
+        }else{
+          state.textContent="● Paired & ready";
+          state.title=synced?"Your profile photo is synchronized.":"";
+        }
+        const ready=!!pair.activeRoom&&pair.openedBy!==currentUser.uid&&!activeRoom;
+        heroJoin.disabled=!ready;
+        heroJoin.setAttribute("aria-disabled",String(!ready));
+        heroJoin.querySelector(".reach-action-sub").textContent=ready?"Connect to your partner":"Waiting for their hand";
+        join.style.display=ready?"block":"none";
+      },err=>{console.error(err);pairMessage.textContent="Could not check paired connection."; }));
+    }else{
+      pairListeners.push(onSnapshot(doc(db,"pairInvites",code),(snap)=>{
+        if(!snap.exists()||!currentUser)return;
+        const pair=snap.data();
+        if(!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))return;
+        join.style.display=pair.activeRoom&&pair.openedBy!==currentUser.uid&&!activeRoom?"block":"none";
+      },err=>console.error("Paired connection:",err)));
+    }
+  }
+}
+// Each person chooses their own photo. Store locally first, then sync a small copy.
+document.getElementById("reachPhotoPicker").addEventListener("change",async(event)=>{
+  const file=event.target.files?.[0], code=mainPairCode();
+  if(!file||!code||!currentUser)return;
+  if(!file.type.startsWith("image/")){pairMessage.textContent="Please select a photo.";return;}
+  try {
+    const bitmap=await createImageBitmap(file);
+    const canvas=document.createElement("canvas");canvas.width=160;canvas.height=160;
+    const ctx=canvas.getContext("2d"),side=Math.min(bitmap.width,bitmap.height);
+    ctx.drawImage(bitmap,(bitmap.width-side)/2,(bitmap.height-side)/2,side,side,0,0,160,160);
+    bitmap.close();
+    const data=canvas.toDataURL("image/jpeg",.62);
+    localStorage.setItem("reachMyPhoto-"+code,data);
+    watchPairs();
+    try {
+      // Use an explicit nested field path. Merge preserves the other person's photo.
+      const photoRef=doc(db,"pairInvites",code);
+      await setDoc(photoRef,{profilePhotos:{[currentUser.uid]:data}},{merge:true});
+      const verified=await getDoc(photoRef);
+      if(verified.data()?.profilePhotos?.[currentUser.uid]!==data){
+        throw new Error("Photo was not confirmed on the server.");
+      }
+      pairMessage.textContent="❤️ Photo shared with your partner.";
+      watchPairs();
+    } catch(syncError) {
+      console.warn("Photo sync unavailable; saved locally:",syncError);
+      const permission=syncError.code==="permission-denied";
+      pairMessage.textContent=permission
+        ?"Your photo is saved on this phone, but Firebase permissions are blocking sharing. The Firestore rules need updating."
+        :"Your photo is saved on this phone, but sharing has not been confirmed. Please try selecting it again.";
+      watchPairs();
+    }
+  }catch(err){console.error("Photo selection:",err);pairMessage.textContent="Couldn't save that photo on this phone.";}
+  event.target.value="";
+});
+// Display status only: both media tracks are still controlled by the existing enable button.
+function refreshMediaTiles(){
+  const camera=!!(localStream&&localStream.getVideoTracks().some(t=>t.readyState==="live"&&t.enabled));
+  const mic=!!(localStream&&localStream.getAudioTracks().some(t=>t.readyState==="live"&&t.enabled));
+  for(const [id,on] of [["reachCameraPill",camera],["reachMicPill",mic]]){
+    const pill=document.getElementById(id);if(!pill)continue;
+    pill.textContent=on?"On":"Off";pill.classList.toggle("is-on",on);
+  }
+}
+new MutationObserver(refreshMediaTiles).observe(mediaStatus,{childList:true,characterData:true,subtree:true});
+refreshMediaTiles();
+// The memberLocks documents are enforced by the candidate rules for new pairs.
+// Existing partnerships require a one-time, explicitly reviewed migration.
+window.makePairCode=async()=>{
+  if(!currentUser)return;
+  if(mainPairCode()){pairMessage.textContent="❤️ Your existing partnership is preserved.";return;}
+  const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes=crypto.getRandomValues(new Uint8Array(12));
+  const code=Array.from(bytes,n=>chars[n%chars.length]).join("");
+  try{
+    await runTransaction(db,async(tx)=>{
+      const lockRef=doc(db,"memberLocks",currentUser.uid);
+      const lock=await tx.get(lockRef);
+      if(lock.exists())throw Error("This account already has a partnership.");
+      tx.set(doc(db,"pairInvites",code),{
+        hostUid:currentUser.uid,partnerUid:null,activeRoom:null,openedBy:null,createdAt:serverTimestamp()
+      });
+      tx.set(lockRef,{pairCode:code,createdAt:serverTimestamp()});
+    });
+    if(!pairedCodes.includes(code))pairedCodes.push(code);
+    savePairs();watchPairs();
+    document.getElementById("pairCode").textContent=code;
+    pairMessage.textContent="Share this code privately, just once.";
+  }catch(err){console.error(err);pairMessage.textContent="Unable to create a pairing. Your existing connection was not changed.";}
+};
+window.claimPairCode=async()=>{
+  if(!currentUser)return;
+  if(mainPairCode()){pairMessage.textContent="❤️ Your existing partnership is preserved.";return;}
+  const code=document.getElementById("pairInput").value.trim().toUpperCase();
+  if(code.length!==12){pairMessage.textContent="Enter the 12-character code.";return;}
+  try{
+    await runTransaction(db,async(tx)=>{
+      const lockRef=doc(db,"memberLocks",currentUser.uid);
+      const pairRef=doc(db,"pairInvites",code);
+      const lock=await tx.get(lockRef);
+      const pairSnap=await tx.get(pairRef);
+      if(lock.exists())throw Error("This account already has a partnership.");
+      if(!pairSnap.exists()||pairSnap.data().revoked||pairSnap.data().partnerUid||pairSnap.data().hostUid===currentUser.uid)throw Error("Pair unavailable.");
+      tx.update(pairRef,{partnerUid:currentUser.uid});
+      tx.set(lockRef,{pairCode:code,createdAt:serverTimestamp()});
+    });
+    if(!pairedCodes.includes(code))pairedCodes.push(code);
+    savePairs();watchPairs();
+    pairMessage.textContent="❤️ Paired. No room codes needed for this device pair.";
+  }catch(err){console.error(err);pairMessage.textContent="Pairing failed. Your existing connection was not changed.";}
+};
+window.openPairedHand=async(code)=>{
+  if(code!==mainPairCode()){pairMessage.textContent="Only your main partnership can connect.";return;}
+  if(!(await verifyPairLockReady(code))) return;
+  if(activeRoom){pairMessage.textContent="End your current REACH first.";return;}
+  try{const ref=doc(db,"pairInvites",code),snap=await getDoc(ref),pair=snap.data();
+    if(!pair||pair.revoked||!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid)){pairMessage.textContent="Wait for the other phone to pair first.";return;}
+    if(pair.activeRoom!==null || pair.openedBy!==null){pairMessage.textContent="A REACH is already open. End it before opening another.";return;}
+    await window.createRoom(code,pair);if(!activeRoom)return;
+    pairSessionCode=code;
+    try{
+      await updateDoc(ref,{activeRoom,openedBy:currentUser.uid});
+      await enableSignaling(activeRoom);
+    }
+    catch(error){await window.endReach();throw error;}
+    pairMessage.textContent="❤️ Your hand is open.";
+  }catch(err){console.error(err);pairMessage.textContent="Could not open paired session.";}
+};
+
+window.createRoom = async function (authorizedPairCode, authorizedPair) {
+  if(!authorizedPairCode || !authorizedPair || authorizedPair.revoked || !authorizedPair.partnerUid || !currentUser || ![authorizedPair.hostUid,authorizedPair.partnerUid].includes(currentUser.uid)){
+    status.textContent="Private REACH sessions require your confirmed partnership.";return;
+  }
+  const otherUid=authorizedPair.hostUid===currentUser.uid?authorizedPair.partnerUid:authorizedPair.hostUid;
+
+  if (!currentUser) {
+    status.textContent =
+      "Still authenticating. Try again in a moment.";
+    return;
+  }
+
+  try {
+
+    await ensureMedia();
+
+    role = "host";
+
+    const code = makeRoomCode();
+
+    activeRoom = code;
+
+    const roomRef =
+      doc(db, "rooms", code);
+
+    createPeerConnection(code);
+
+    const offer =
+      await peerConnection.createOffer();
+
+    await peerConnection
+      .setLocalDescription(offer);
+
+    await setDoc(roomRef, {
+      hostUid: currentUser.uid,
+      partnerUid: otherUid,
+      pairCode: authorizedPairCode,
+      createdAt: serverTimestamp(),
+      expiresAt: Date.now() + SESSION_LENGTH_MS,
+      active: true,
+
+      offer: {
+        type: offer.type,
+        sdp: offer.sdp
+      }
+    });
+
+
+    document
+      .getElementById("roomCode")
+      .textContent = code;
+
+    status.textContent =
+      "💜 My hand is open to yours. Waiting for your paired partner.";
+
+    connectionStatus.textContent =
+      "Your hand is open. Waiting for your partner...";
+    endButton.style.display = "block";
+
+    watchRoom(code);
+
+    listenForCandidates(
+      code,
+      "partnerCandidates"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    status.textContent =
+      "⚠️ Could not start video room.";
+    await cleanupConnection(true);
+  }
+};
+
+
+window.joinRoom = async function () {
+  if(!pairSessionCode || pairSessionCode!==mainPairCode()){status.textContent="Join through your confirmed partnership.";return;}
+  if(!(await verifyPairLockReady(pairSessionCode))){status.textContent="Security upgrade required before joining.";return;}
+  if(activeRoom){status.textContent="End your current REACH first.";return;}
+  let authorizedPair;
+  try{const authorizedPairSnap=await getDoc(doc(db,"pairInvites",pairSessionCode));authorizedPair=authorizedPairSnap.data();}
+  catch(error){console.error(error);status.textContent="Could not verify your partnership.";return;}
+  if(!authorizedPair || authorizedPair.revoked || !authorizedPair.partnerUid || !currentUser || ![authorizedPair.hostUid,authorizedPair.partnerUid].includes(currentUser.uid)){
+    status.textContent="This partnership is not authorized.";return;
+  }
+
+  if (!currentUser) {
+    status.textContent =
+      "Still authenticating. Try again in a moment.";
+    return;
+  }
+
+  const input =
+    document.getElementById("joinCode");
+
+  const code =
+    input.value.trim().toUpperCase();
+
+  if (code.length !== 6 || authorizedPair.activeRoom!==code || authorizedPair.openedBy===currentUser.uid) {
+    status.textContent = "No authorized open hand is available.";
+    return;
+  }
+
+  try {
+
+    await ensureMedia();
+
+    role = "partner";
+    activeRoom = code;
+
+    const roomRef =
+      doc(db, "rooms", code);
+
+    const snapshot =
+      await getDoc(roomRef);
+
+    if (!snapshot.exists()) {
+      status.textContent =
+        "This REACH session is no longer available.";
+      await cleanupConnection(true);return;
+    }
+
+    const room =
+      snapshot.data();
+
+    if(room.pairCode!==pairSessionCode || room.partnerUid!==currentUser.uid || room.hostUid!==authorizedPair.openedBy || room.hostUid===currentUser.uid){
+      status.textContent="This private room is not authorized for you.";await cleanupConnection(true);return;
+    }
+    rememberPartner(room.hostUid);
+
+    if (!room.active) {
+      status.textContent =
+        "That room is no longer active.";
+      await cleanupConnection(true);return;
+    }
+
+    if (room.expiresAt && Date.now() > room.expiresAt) {
+      status.textContent =
+        "That REACH session has expired.";
+      await cleanupConnection(true);return;
+    }
+
+    if (!room.offer) {
+      status.textContent =
+        "This room is not ready for video.";
+      await cleanupConnection(true);return;
+    }
+
+
+    createPeerConnection(code);
+
+
+    const offer =
+      new RTCSessionDescription(
+        room.offer
+      );
+
+    await peerConnection
+      .setRemoteDescription(offer);
+
+    remoteDescriptionReady = true;
+
+    await flushPendingCandidates();
+
+
+    const answer =
+      await peerConnection.createAnswer();
+
+    await peerConnection
+      .setLocalDescription(answer);
+
+
+    await updateDoc(roomRef, {
+
+      partnerJoinedAt:
+        serverTimestamp(),
+
+      answer: {
+        type: answer.type,
+        sdp: answer.sdp
+      }
+    });
+
+    await enableSignaling(code);
+
+
+    status.innerHTML =
+      '<span class="heart">❤️</span> Partner connected to room ' +
+      code;
+
+    connectionStatus.textContent =
+      "Connecting video...";
+    endButton.style.display = "block";
+
+
+    watchRoom(code);
+
+    listenForCandidates(
+      code,
+      "hostCandidates"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    status.textContent =
+      "⚠️ Could not join video room.";
+  }
+};
+
+</script>
+</body>
+</html>
