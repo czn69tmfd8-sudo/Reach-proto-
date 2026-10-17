@@ -9,8 +9,9 @@ export async function commitApprovedRecovery({db,challengeId,now=Date.now()}){
   const c=challengeSnap.data();
   if(c.status!=="approved"||c.consumedAt)throw Error("Challenge not approved or already consumed");
   if(!Number.isFinite(c.createdAtMs)||!Number.isFinite(c.expiresAtMs)||c.expiresAtMs<=now||c.createdAtMs>now||c.expiresAtMs-c.createdAtMs>900000)throw Error("Challenge expired or invalid");
+  if(typeof c.oldHostPrincipal!=="string" || !c.oldHostPrincipal || typeof c.oldPartnerPrincipal!=="string" || !c.oldPartnerPrincipal || c.oldHostPrincipal===c.oldPartnerPrincipal)throw Error("Distinct verified principals required");
   if(!c.hostApproval || !c.partnerApproval || c.hostApproval.challengeId!==challengeId || c.partnerApproval.challengeId!==challengeId || c.hostApproval.principal!==c.oldHostPrincipal || c.partnerApproval.principal!==c.oldPartnerPrincipal)throw Error("Independent approvals missing");
-  if(!c.hostApproval.verifiedAtMs||!c.partnerApproval.verifiedAtMs||Math.min(c.hostApproval.verifiedAtMs,c.partnerApproval.verifiedAtMs)<c.createdAtMs||Math.max(c.hostApproval.verifiedAtMs,c.partnerApproval.verifiedAtMs)>now)throw Error("Invalid approval time");
+  if(!Number.isFinite(c.hostApproval.verifiedAtMs)||!Number.isFinite(c.partnerApproval.verifiedAtMs)||Math.min(c.hostApproval.verifiedAtMs,c.partnerApproval.verifiedAtMs)<c.createdAtMs||Math.max(c.hostApproval.verifiedAtMs,c.partnerApproval.verifiedAtMs)>now||Math.max(c.hostApproval.verifiedAtMs,c.partnerApproval.verifiedAtMs)>c.expiresAtMs)throw Error("Invalid approval time");
   const ids=[c.oldHostUid,c.oldPartnerUid,c.newHostUid,c.newPartnerUid];
   if(ids.some(x=>typeof x!=="string"||!x)||new Set(ids).size!==4)throw Error("Distinct identities required");
   if(typeof c.pairCode!=="string"||!c.pairCode)throw Error("Pair missing");
