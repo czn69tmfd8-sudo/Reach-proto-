@@ -631,6 +631,27 @@ function mainPairCode(){
   const visible=pairedCodes.filter(code=>!pairPrefsFor(code).hidden && !pairPrefsFor(code).retired);
   return visible.includes(favoritePair)?favoritePair:(visible[0]||null);
 }
+window.reach2SharedContext=function(){return {uid:currentUser?currentUser.uid:null,pairCode:mainPairCode()};};
+window.reach2GetQuestion=async function(){
+ if(!currentUser){currentUser=auth.currentUser;if(!currentUser)throw Error("Authentication is not ready.")}
+ var code=mainPairCode();if(!code)throw Error("No active partnership is selected.");
+ var lockSnap=await getDoc(doc(db,"memberLocks",currentUser.uid));if(!lockSnap.exists())throw Error("Permanent partnership lock is missing.");
+ code=lockSnap.data().pairCode;
+ var snap=await getDoc(doc(db,"pairInvites",code));if(!snap.exists())throw Error("Partnership not found.");
+ var pair=snap.data();if(pair.revoked||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))throw Error("Partnership not authorized.");
+ var mine=currentUser.uid===pair.hostUid?"host":"partner",theirs=mine==="host"?"partner":"host",answers=pair.dailyQuestionAnswers||{};
+ return {mine:answers[mine]||null,theirs:answers[theirs]||null,partnerName:"Your partner"};
+};
+window.reach2SubmitQuestion=async function(text){
+ if(!currentUser||!text)throw Error("Question sharing is not ready.");
+ var lockSnap=await getDoc(doc(db,"memberLocks",currentUser.uid));if(!lockSnap.exists())throw Error("Permanent partnership lock is missing.");
+ var code=lockSnap.data().pairCode,ref=doc(db,"pairInvites",code),snap=await getDoc(ref);if(!snap.exists())throw Error("Partnership not found.");
+ var pair=snap.data();if(pair.revoked||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))throw Error("Partnership not authorized.");
+ var field=currentUser.uid===pair.hostUid?"host":"partner",answers=pair.dailyQuestionAnswers&&typeof pair.dailyQuestionAnswers==="object"?pair.dailyQuestionAnswers:{};
+ answers={...answers,[field]:{uid:currentUser.uid,questionId:"2026-10-17-grateful",text:String(text).slice(0,600),submittedAt:Date.now()}};
+ await setDoc(ref,{dailyQuestionAnswers:answers},{merge:true});
+ return true;
+};
 async function reconcileLockedPartnership(){
   if(!currentUser)return;
   try{
