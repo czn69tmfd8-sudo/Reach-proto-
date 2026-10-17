@@ -647,9 +647,12 @@ window.reach2SubmitQuestion=async function(text){
  var lockSnap=await getDoc(doc(db,"memberLocks",currentUser.uid));if(!lockSnap.exists())throw Error("Permanent partnership lock is missing.");
  var code=lockSnap.data().pairCode,ref=doc(db,"pairInvites",code),snap=await getDoc(ref);if(!snap.exists())throw Error("Partnership not found.");
  var pair=snap.data();if(pair.revoked||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))throw Error("Partnership not authorized.");
- var field=currentUser.uid===pair.hostUid?"host":"partner",answers=pair.dailyQuestionAnswers&&typeof pair.dailyQuestionAnswers==="object"?pair.dailyQuestionAnswers:{};
- answers={...answers,[field]:{uid:currentUser.uid,questionId:"2026-10-17-grateful",text:String(text).slice(0,600),submittedAt:Date.now()}};
- await setDoc(ref,{dailyQuestionAnswers:answers},{merge:true});
+ var field=currentUser.uid===pair.hostUid?"host":"partner";
+ var answer={uid:currentUser.uid,questionId:"2026-10-17-grateful",text:String(text).trim().slice(0,600),submittedAt:Date.now()};
+ var patch={};patch["dailyQuestionAnswers."+field]=answer;
+ await updateDoc(ref,patch);
+ var verified=await getDoc(ref);
+ if(verified.data()?.dailyQuestionAnswers?.[field]?.text!==answer.text)throw Error("Question answer was not confirmed on the server.");
  return true;
 };
 async function reconcileLockedPartnership(){
