@@ -475,6 +475,13 @@
     <button id="pairClaim" onclick="claimPairCode()" disabled>Pair this phone</button>
     <p id="pairMessage"></p>
     <button id="legacyUpgradeButton" type="button" onclick="upgradeLegacyPairLock()">Upgrade partnership security</button>
+    <details id="deviceMigration" style="margin-top:16px">
+      <summary style="cursor:pointer;color:#a5b4fc">Move an existing partnership to this phone</summary>
+      <p style="color:#cbd5e1;font-size:14px">Use this only when this is a replacement phone for a partner already in REACH. It will never create a second partnership.</p>
+      <input id="migrationPairCode" maxlength="12" placeholder="EXISTING PAIR CODE" autocomplete="off">
+      <button id="migrationRequestButton" type="button" onclick="requestDeviceMigration()">Request secure device move</button>
+      <p id="migrationMessage" style="color:#cbd5e1;font-size:14px"></p>
+    </details>
     <details style="margin-top:16px">
       <summary style="cursor:pointer;color:#a5b4fc">Connection health check</summary>
       <p style="color:#cbd5e1;font-size:14px">Read-only check. Nothing will be changed or reset.</p>
@@ -1648,6 +1655,27 @@ new MutationObserver(refreshMediaTiles).observe(mediaStatus,{childList:true,char
 refreshMediaTiles();
 // The memberLocks documents are enforced by the candidate rules for new pairs.
 // Existing partnerships require a one-time, explicitly reviewed migration.
+window.requestDeviceMigration=async()=>{
+  const out=document.getElementById("migrationMessage");
+  const code=(document.getElementById("migrationPairCode")?.value||"").trim().toUpperCase();
+  if(!currentUser){out.textContent="This phone is still authenticating.";return;}
+  if(code.length!==12){out.textContent="Enter the existing 12-character partnership code.";return;}
+  try{
+    const lock=await getDoc(doc(db,"memberLocks",currentUser.uid));
+    if(lock.exists()){out.textContent="This phone already has a permanent partnership lock. Nothing was changed.";return;}
+    await setDoc(doc(db,"deviceMigrationRequests",currentUser.uid),{
+      requestedUid:currentUser.uid,
+      pairCode:code,
+      createdAt:serverTimestamp(),
+      status:"pending"
+    });
+    out.textContent="Request created. An already-authorized partner must approve this phone before anything changes.";
+  }catch(error){
+    console.error("Device migration request failed:",error);
+    const reason=error&&error.code?String(error.code):"not-authorized";
+    out.textContent="Secure device move is not enabled yet ("+reason+"). No partnership data changed.";
+  }
+};
 window.upgradeLegacyPairLock=async()=>{
   if(!currentUser)return;
   const code=mainPairCode();
