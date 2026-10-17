@@ -469,6 +469,7 @@
     <input id="pairInput" maxlength="12" placeholder="PAIRING CODE" autocomplete="off">
     <button id="pairClaim" onclick="claimPairCode()" disabled>Pair this phone</button>
     <p id="pairMessage"></p>
+    <button id="legacyUpgradeButton" type="button" onclick="upgradeLegacyPairLock()">Upgrade partnership security</button>
     <details style="margin-top:16px">
       <summary style="cursor:pointer;color:#a5b4fc">Connection health check</summary>
       <p style="color:#cbd5e1;font-size:14px">Read-only check. Nothing will be changed or reset.</p>
@@ -1540,6 +1541,29 @@ new MutationObserver(refreshMediaTiles).observe(mediaStatus,{childList:true,char
 refreshMediaTiles();
 // The memberLocks documents are enforced by the candidate rules for new pairs.
 // Existing partnerships require a one-time, explicitly reviewed migration.
+window.upgradeLegacyPairLock=async()=>{
+  if(!currentUser)return;
+  const code=mainPairCode();
+  if(code!=="VR5VUZFHPWMQ"){pairMessage.textContent="No legacy security upgrade is available for this connection.";return;}
+  try{
+    const ref=doc(db,"memberLocks",currentUser.uid);
+    const existing=await getDoc(ref);
+    if(existing.exists()){
+      pairMessage.textContent=existing.data().pairCode===code?"Permanent partnership lock is already ready.":"This phone is locked to a different REACH partnership.";
+      return;
+    }
+    const pairSnap=await getDoc(doc(db,"pairInvites",code));
+    const pair=pairSnap.exists()?pairSnap.data():null;
+    if(!pair || pair.revoked===true || !pair.partnerUid || ![pair.hostUid,pair.partnerUid].includes(currentUser.uid)){
+      pairMessage.textContent="This phone is not authorized for the legacy partnership.";return;
+    }
+    await setDoc(ref,{pairCode:code,createdAt:serverTimestamp()});
+    const verified=await getDoc(ref);
+    if(!verified.exists() || verified.data().pairCode!==code)throw Error("Lock not confirmed");
+    await reconcileLockedPartnership();
+    pairMessage.textContent="Security upgrade complete. Permanent partnership lock confirmed.";
+  }catch(err){console.error(err);pairMessage.textContent="Security upgrade failed. Your existing partnership was not changed.";}
+};
 window.makePairCode=async()=>{
   if(!currentUser)return;
   if(mainPairCode()){pairMessage.textContent="❤️ Your existing partnership is preserved.";return;}
