@@ -785,6 +785,7 @@ function mainPairCode(){
   return visible.includes(favoritePair)?favoritePair:(visible[0]||null);
 }
 window.reach2SharedContext=function(){return {uid:currentUser?currentUser.uid:null,pairCode:mainPairCode()};};
+window.reach2SubmitQuestion=async function(text){var code=mainPairCode();if(!currentUser||!code||!text)throw Error("Question sharing is not ready.");if(!(await verifyPairLockReady(code)))throw Error("Partnership lock not ready.");var pairSnap=await getDoc(doc(db,"pairInvites",code));if(!pairSnap.exists())throw Error("Partnership not found.");var pair=pairSnap.data();if(pair.revoked||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))throw Error("Partnership not authorized.");var ref=doc(db,"pairInvites",code,"dailyQuestions","2026-10-17");await setDoc(ref,{question:"What is something you’re grateful for about each other right now?",answers:{[currentUser.uid]:{text:text,submittedAt:Date.now()}},updatedAt:serverTimestamp()},{merge:true});return true;};
 async function reconcileLockedPartnership(){
   if(!currentUser)return;
   try{
