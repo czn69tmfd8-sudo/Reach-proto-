@@ -481,9 +481,16 @@
       <input id="migrationPairCode" maxlength="12" placeholder="EXISTING PAIR CODE" autocomplete="off">
       <button id="migrationRequestButton" type="button" onclick="requestDeviceMigration()">Request secure device move</button>
       <p id="migrationMessage" style="color:#cbd5e1;font-size:14px"></p>
-      <div id="migrationApproval" style="display:none;margin-top:14px">
+      <div id="migrationTokenBox" style="display:none;margin-top:12px">
+        <div style="font-size:13px;color:#cbd5e1">Migration token</div>
+        <div id="migrationToken" style="font-size:26px;letter-spacing:3px;color:#a5b4fc;font-weight:700"></div>
+      </div>
+      <div id="migrationApproval" style="margin-top:14px">
+        <p style="color:#cbd5e1;font-size:14px">Already-authorized phone: enter the migration token shown on the replacement phone.</p>
+        <input id="migrationApprovalToken" maxlength="8" placeholder="MIGRATION TOKEN" autocomplete="off">
+        <button id="migrationFindButton" type="button" onclick="checkDeviceMigrationRequest()">Verify migration request</button>
         <p id="migrationApprovalText" style="color:#cbd5e1;font-size:14px"></p>
-        <button id="migrationApproveButton" type="button">Approve replacement phone</button>
+        <button id="migrationApproveButton" type="button" style="display:none">Approve replacement phone</button>
       </div>
     </details>
     <details style="margin-top:16px">
@@ -949,7 +956,6 @@ onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
     await reconcileLockedPartnership();
-    window.checkDeviceMigrationRequest?.();
     setReady();
 
     authStatus.textContent =
@@ -1660,41 +1666,54 @@ new MutationObserver(refreshMediaTiles).observe(mediaStatus,{childList:true,char
 refreshMediaTiles();
 // The memberLocks documents are enforced by the candidate rules for new pairs.
 // Existing partnerships require a one-time, explicitly reviewed migration.
+function makeMigrationToken(){const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789",bytes=crypto.getRandomValues(new Uint8Array(8));return Array.from(bytes,n=>chars[n%chars.length]).join("")}
 window.requestDeviceMigration=async()=>{
-  const out=document.getElementById("migrationMessage");
+  const out=document.getElementById("migrationMessage"),tokenBox=document.getElementById("migrationTokenBox"),tokenEl=document.getElementById("migrationToken");
   const code=(document.getElementById("migrationPairCode")?.value||"").trim().toUpperCase();
   if(!currentUser){out.textContent="This phone is still authenticating.";return;}
   if(code.length!==12){out.textContent="Enter the existing 12-character partnership code.";return;}
   try{
     const lock=await getDoc(doc(db,"memberLocks",currentUser.uid));
     if(lock.exists()){out.textContent="This phone already has a permanent partnership lock. Nothing was changed.";return;}
-    await setDoc(doc(db,"deviceMigrationRequests",currentUser.uid),{
-      requestedUid:currentUser.uid,pairCode:code,createdAt:serverTimestamp(),status:"pending"
-    });
-    out.textContent="Request created. Leave this page open until an authorized partner approves this phone.";
+    const token=makeMigrationToken();
+    await setDoc(doc(db,"deviceMigrationRequests",token),{requestedUid:currentUser.uid,pairCode:code,createdAt:serverTimestamp(),status:"pending"});
+    sessionStorage.setItem("reachMigrationToken",token);
+    tokenEl.textContent=token;tokenBox.style.display="block";
+    out.textContent="Request created. Give this token only to the already-authorized partner phone.";
   }catch(error){console.error("Device migration request failed:",error);out.textContent="Secure device move is not enabled yet ("+(error?.code||"not-authorized")+"). No partnership data changed.";}
 };
 window.checkDeviceMigrationRequest=async()=>{
-  const code=mainPairCode(),box=document.getElementById("migrationApproval"),txt=document.getElementById("migrationApprovalText"),btn=document.getElementById("migrationApproveButton");
-  if(!currentUser||!code||!box)return;
-  box.style.display="none";
+  const code=mainPairCode(),txt=document.getElementById("migrationApprovalText"),btn=document.getElementById("migrationApproveButton");
+  const token=(document.getElementById("migrationApprovalToken")?.value||"").trim().toUpperCase();
+  btn.style.display="none";
+  if(!currentUser||!code){txt.textContent="This phone is not an authorized partnership phone.";return;}
+  if(token.length!==8){txt.textContent="Enter the 8-character migration token.";return;}
   try{
-    const pairSnap=await getDoc(doc(db,"pairInvites",code)); if(!pairSnap.exists())return;
-    const pair=pairSnap.data(); if(![pair.hostUid,pair.partnerUid].includes(currentUser.uid))return;
-    const targetUid=pair.hostUid===currentUser.uid?pair.partnerUid:pair.hostUid;
-    const reqSnap=await getDoc(doc(db,"deviceMigrationRequests",targetUid));
-    if(!reqSnap.exists()||reqSnap.data().status!=="pending"||reqSnap.data().pairCode!==code)return;
-    box.style.display="block";txt.textContent="A replacement phone is requesting this partnership. Approve only while you are together and can verify the other phone.";
-    btn.onclick=()=>approveDeviceMigration(targetUid,code);
-  }catch(error){console.error("Migration approval check failed:",error);}
+    const pairSnap=await getDoc(doc(db,"pairInvites",code));if(!pairSnap.exists())throw Error("Pair missing");
+    const pair=pairSnap.data();if(![pair.hostUid,pair.partnerUid].includes(currentUser.uid))throw Error("Not a member");
+    const reqSnap=await getDoc(doc(db,"deviceMigrationRequests",token));
+    if(!reqSnap.exists()){txt.textContent="Migration request not found.";return;}
+    const req=reqSnap.data();
+    if(req.status!=="pending"||req.pairCode!==code||req.requestedUid===currentUser.uid){txt.textContent="This request does not match your locked partnership.";return;}
+    txt.textContent="Verified replacement phone request. Approve only while you can verify the other phone.";
+    btn.style.display="block";btn.disabled=false;btn.onclick=()=>approveDeviceMigration(token,req.requestedUid,code);
+  }catch(error){console.error("Migration approval check failed:",error);txt.textContent="Could not verify this migration request. Nothing changed.";}
 };
-window.approveDeviceMigration=async(targetUid,code)=>{
-  const txt=document.getElementById("migrationApprovalText"),btn=document.getElementById("migrationApproveButton");
-  btn.disabled=true;
+window.approveDeviceMigration=async(token,targetUid,code)=>{
+  const txt=document.getElementById("migrationApprovalText"),btn=document.getElementById("migrationApproveButton");btn.disabled=true;
   try{
-    await updateDoc(doc(db,"deviceMigrationRequests",targetUid),{status:"approved",approvedBy:currentUser.uid,approvedAt:serverTimestamp()});
-    txt.textContent="Approved. Finish the move on the replacement phone."; 
+    await updateDoc(doc(db,"deviceMigrationRequests",token),{status:"approved",approvedBy:currentUser.uid,approvedAt:serverTimestamp()});
+    txt.textContent="Approved. The replacement phone can now finish the secure move.";btn.style.display="none";
   }catch(error){console.error("Migration approval failed:",error);txt.textContent="Approval failed. Nothing changed.";btn.disabled=false;}
+};
+window.finishDeviceMigration=async()=>{
+  const out=document.getElementById("migrationMessage"),token=sessionStorage.getItem("reachMigrationToken");
+  if(!currentUser||!token){out.textContent="No migration request is open on this phone.";return;}
+  try{
+    const reqSnap=await getDoc(doc(db,"deviceMigrationRequests",token));
+    if(!reqSnap.exists()||reqSnap.data().requestedUid!==currentUser.uid||reqSnap.data().status!=="approved"){out.textContent="Waiting for approval from the authorized partner phone.";return;}
+    out.textContent="Approval confirmed. Final identity transfer is not enabled until the migration transaction rules are published.";
+  }catch(error){console.error(error);out.textContent="Could not confirm migration approval.";}
 };
 window.upgradeLegacyPairLock=async()=>{
   if(!currentUser)return;
