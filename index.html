@@ -88,6 +88,11 @@
     #mainConnectionCard { border: 1px solid #4f46e5; }
     #mainConnectionCard #favoriteConnection button { margin-top: 12px; }
     #mainConnectionCard #favoriteConnection button:first-of-type { background: #e11d68; }
+    .reach-live-state { margin-top:10px; padding:10px 12px; border-radius:14px; background:rgba(15,23,42,.42); color:#cbd5e1; font-size:14px; font-weight:700; text-align:center; }
+    .reach-live-state[data-state="open"] { color:#f9a8d4; }
+    .reach-live-state[data-state="connecting"], .reach-live-state[data-state="recovering"] { color:#fde68a; }
+    .reach-live-state[data-state="live"] { color:#86efac; }
+    .reach-live-state[data-state="lost"] { color:#fdba74; }
     #pairCard { margin-top: 6px; }
     #pairCard #pairCode { overflow-wrap: anywhere; }
     #manualConnections > summary { font-size: 15px; }
@@ -768,6 +773,13 @@ const endButton =
 let callViewDismissed = false;
 let disconnectTimer = null;
 let remoteVideoTimer = null;
+let mainReachIndicator = null;
+function setReachIndicator(state, text) {
+  if (!mainReachIndicator || !mainReachIndicator.isConnected) mainReachIndicator=document.getElementById("reachLiveState");
+  if (!mainReachIndicator) return;
+  mainReachIndicator.dataset.state=state;
+  mainReachIndicator.textContent=text;
+}
 
 function remoteVideoIsActuallyPlaying() {
   const track = remoteStream && remoteStream.getVideoTracks().find(t => t.readyState === "live");
@@ -778,6 +790,7 @@ function remoteVideoIsActuallyPlaying() {
 function enterCallView() {
   if (callViewDismissed || !activeRoom || !remoteVideoIsActuallyPlaying()) return;
   if (remoteVideoTimer) { clearTimeout(remoteVideoTimer); remoteVideoTimer = null; }
+  setReachIndicator("live","● Connected · partner video live");
   document.body.classList.add("reach-in-call");
   if (localStream && localVideo.srcObject !== localStream) localVideo.srcObject = localStream;
   localVideo.play().catch(err => console.warn("Self-view playback:",err));
@@ -1058,17 +1071,20 @@ function createPeerConnection(code) {
       connectionStatus.textContent = remoteVideoIsActuallyPlaying()
         ? "❤️ Live connection established"
         : "Connected. Waiting for partner video...";
+      setReachIndicator(remoteVideoIsActuallyPlaying()?"live":"connecting",remoteVideoIsActuallyPlaying()?"● Connected · partner video live":"● Connected · waiting for partner video");
       remoteVideo.play().then(enterCallView).catch(() => {});
     }
 
     if (state === "connecting") {
       connectionStatus.textContent = "Connecting to partner...";
+      setReachIndicator("connecting","● Connecting…");
     }
 
     if (state === "failed") {
       if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
       document.body.classList.remove("reach-in-call");
       connectionStatus.textContent = "⚠️ Connection failed. Closing this REACH so you can try again.";
+      setReachIndicator("lost","● Connection lost · cleaning up…");
       if (role === "host") window.endReach();
       else cleanupConnection(true);
     }
@@ -1076,6 +1092,7 @@ function createPeerConnection(code) {
     if (state === "disconnected") {
       document.body.classList.remove("reach-in-call");
       connectionStatus.textContent = "Partner connection interrupted. Trying to recover...";
+      setReachIndicator("recovering","● Reconnecting…");
       if (!disconnectTimer) {
         disconnectTimer = setTimeout(async () => {
           disconnectTimer = null;
@@ -1342,6 +1359,7 @@ async function cleanupConnection(stopMedia = true) {
   }
 
   activeRoom = null;
+  setReachIndicator("ready","● Ready");
   role = null;
   remoteDescriptionReady = false;
   pendingCandidates = [];
@@ -1367,9 +1385,11 @@ window.endReach = async function () {
     console.error("Could not mark room inactive:", error);
   }
 
-  if(pairSessionCode && endingRole==="host"){
+  // Either member ending a REACH should release the shared registration.
+  // The host still marks the room inactive above; the partner can now clear the pair pointer too.
+  if(pairSessionCode && code){
     try{const ref=doc(db,"pairInvites",pairSessionCode),snap=await getDoc(ref);
-      if(snap.exists()&&snap.data().activeRoom===code&&snap.data().openedBy===currentUser.uid)await updateDoc(ref,{activeRoom:null,openedBy:null});
+      if(snap.exists()&&snap.data().activeRoom===code)await updateDoc(ref,{activeRoom:null,openedBy:null});
     }catch(err){console.error("Pair cleanup",err);}
   }
   pairSessionCode=null;
@@ -1499,7 +1519,8 @@ function watchPairs(){
       const heroJoin=addAction(actions,"Take their hand",()=>join.click());
       heroJoin.classList.add("reach-take");heroJoin.disabled=true;heroJoin.setAttribute("aria-disabled","true");
       heroJoin.innerHTML='<span class="reach-action-icon">♡</span><span>Take their hand</span><span class="reach-action-sub">Connect to your partner</span>';
-      hero.appendChild(actions);favorite.appendChild(hero);
+      const liveState=document.createElement("div");liveState.id="reachLiveState";liveState.className="reach-live-state";liveState.dataset.state="ready";liveState.textContent="● Ready";
+      hero.appendChild(actions);hero.appendChild(liveState);favorite.appendChild(hero);mainReachIndicator=liveState;
       pairListeners.push(onSnapshot(doc(db,"pairInvites",code),(snap)=>{
         if(!snap.exists()||!currentUser)return;
         const pair=snap.data();
@@ -1524,7 +1545,19 @@ function watchPairs(){
           state.textContent="● Paired & ready";
           state.title=synced?"Your profile photo is synchronized.":"";
         }
-        const ready=!!pair.activeRoom&&pair.openedBy!==currentUser.uid&&!activeRoom;
+        const roomRegistered=typeof pair.activeRoom==="string"&&!!pair.activeRoom;
+        const ready=roomRegistered&&pair.openedBy!==currentUser.uid&&!activeRoom;
+        if(activeRoom){
+          if(remoteVideoIsActuallyPlaying())setReachIndicator("live","● Connected · partner video live");
+          else if(peerConnection&&peerConnection.connectionState==="disconnected")setReachIndicator("recovering","● Reconnecting…");
+          else setReachIndicator("connecting","● Connecting…");
+        }else if(roomRegistered&&pair.openedBy===currentUser.uid){
+          setReachIndicator("open","● Your hand is open · waiting for partner");
+        }else if(ready){
+          setReachIndicator("open","● Partner’s hand is open");
+        }else{
+          setReachIndicator("ready","● Ready");
+        }
         heroJoin.disabled=!ready;
         heroJoin.setAttribute("aria-disabled",String(!ready));
         heroJoin.querySelector(".reach-action-sub").textContent=ready?"Connect to your partner":"Waiting for their hand";
@@ -1692,6 +1725,7 @@ window.openPairedHand=async(code)=>{
     }
     catch(error){await window.endReach();throw error;}
     pairMessage.textContent="❤️ Your hand is open.";
+    setReachIndicator("open","● Your hand is open · waiting for partner");
   }catch(err){console.error(err);pairMessage.textContent="Could not open paired session.";}
 };
 
