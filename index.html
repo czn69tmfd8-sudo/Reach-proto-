@@ -1910,10 +1910,6 @@ window.joinRoom = async function () {
 
     joinStage = "answer-write";
     await updateDoc(roomRef, {
-
-      partnerJoinedAt:
-        serverTimestamp(),
-
       answer: {
         type: answer.type,
         sdp: answer.sdp
