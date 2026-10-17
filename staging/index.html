@@ -439,7 +439,7 @@ main>.tagline{text-align:center;color:#fff;font:clamp(18px,4.8vw,26px) Georgia,s
 #mainConnectionCard .reach-avatar{box-shadow:0 0 18px #ff64ba55}
 #mainConnectionCard #favoriteConnection button:not(.reach-avatar){border-radius:18px}
 .reach-scenic-bridge{height:clamp(220px,34vh,390px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
-.reach-scenic-heart{font:90px Georgia,serif;color:#ff8cdb;text-shadow:0 0 18px #ff4bbb,0 0 35px #ff57c7;line-height:1}
+.reach-scenic-heart{width:130px;max-width:32vw;line-height:0;filter:drop-shadow(0 0 14px rgba(255,77,192,.4))}.reach-scenic-heart svg{display:block;width:100%;height:auto;overflow:visible}
 .reach-scenic-title{margin-top:auto;font-size:clamp(13px,3.3vw,18px);font-weight:800;letter-spacing:clamp(2px,.8vw,5px);color:#ffb0e1;text-shadow:0 2px 10px #110728}
 .reach-scenic-sub{font-size:11px;letter-spacing:3px;margin:8px 0 20px;color:#fff;text-shadow:0 2px 8px #10092e}
 #mediaControls,#connectionSettings{background:rgba(28,18,52,.88);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
@@ -529,7 +529,7 @@ body:not(.reach-in-call) .reach-scenic-sub{margin-bottom:20px}
     </details>
   </section>
 
-  <div class="reach-scenic-bridge" aria-label="Reach for each other"><div class="reach-scenic-heart" aria-hidden="true">♡</div><div class="reach-scenic-title">REACH FOR EACH OTHER</div><div class="reach-scenic-sub">SAME MOMENT. ANY DISTANCE.</div><div id="reachDockActions" class="reach-dock-actions" aria-label="Connection actions"></div></div>
+  <div class="reach-scenic-bridge" aria-label="Reach for each other"><div class="reach-scenic-heart" aria-hidden="true"><svg viewBox="0 0 180 160" role="presentation" focusable="false"><defs><linearGradient id="reachHeartGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ff8be9"/><stop offset="48%" stop-color="#ff49b9"/><stop offset="100%" stop-color="#ffbbef"/></linearGradient><filter id="reachHeartGlow" x="-70%" y="-70%" width="240%" height="240%"><feGaussianBlur stdDeviation="7"/></filter></defs><path d="M90 145 C72 125 16 87 16 48 C16 15 56 7 90 45 C124 7 164 15 164 48 C164 87 108 125 90 145Z" fill="none" stroke="#ff50c9" stroke-width="10" filter="url(#reachHeartGlow)" opacity=".8"/><path d="M90 145 C72 125 16 87 16 48 C16 15 56 7 90 45 C124 7 164 15 164 48 C164 87 108 125 90 145Z" fill="none" stroke="url(#reachHeartGradient)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M37 35 C52 20 69 30 79 41" fill="none" stroke="#ffe0f8" stroke-width="2.5" stroke-linecap="round" opacity=".85"/></svg></div><div class="reach-scenic-title">REACH FOR EACH OTHER</div><div class="reach-scenic-sub">SAME MOMENT. ANY DISTANCE.</div><div id="reachDockActions" class="reach-dock-actions" aria-label="Connection actions"></div></div>
 
   <details class="reach-fold" id="mediaControls"><summary>📷 Camera &amp; microphone <span class="reach-fold-right">Manage ▾</span></summary>
   <section class="card" id="mediaCard">
