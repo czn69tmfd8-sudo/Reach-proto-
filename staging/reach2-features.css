@@ -1,2 +1,28 @@
 /* REACH 2.0 feature sheets */
 .r2-modal{position:fixed;z-index:9000;inset:0;display:none;align-items:flex-end;justify-content:center;background:#09061699;backdrop-filter:blur(8px)}.r2-modal.open{display:flex}.r2-modal-card{position:relative;width:min(100%,520px);max-height:88dvh;overflow:auto;border-radius:30px 30px 0 0;padding:28px 24px calc(28px + env(safe-area-inset-bottom,0px));background:linear-gradient(160deg,rgba(61,34,88,.98),rgba(24,18,52,.99));border:1px solid #ff9dce55;box-shadow:0 -20px 50px #0008}.r2-modal-card h2{margin:0 40px 20px 0;font-size:27px}.r2-close{position:absolute;right:18px;top:16px;width:42px;height:42px;padding:0;border-radius:50%;background:#ffffff12;font-size:28px}.r2-prompt{font-size:20px;line-height:1.45}.r2-answer{width:100%;min-height:150px;resize:vertical;border:1px solid #ff9dce55;border-radius:18px;padding:15px;background:#ffffff10;color:#fff;font:inherit;box-sizing:border-box}.r2-count{text-align:right;font-size:12px;color:#cdbbd3;margin:6px}.r2-primary{width:100%;padding:15px;margin-top:10px;background:linear-gradient(110deg,#ff65a9,#c954dc)}.r2-primary:disabled{opacity:.45}.r2-note{font-size:12px;color:#bcaec5;line-height:1.45;margin-top:14px}.r2-profile-heart,.r2-empty>span,.r2-sleep>span{display:block;font-size:48px;text-align:center}.r2-modal-card h3{text-align:center;font-size:22px}.r2-info,.r2-toggle{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:15px 0;border-bottom:1px solid #ffffff18}.r2-info span{color:#80efae}.r2-toggle span{display:flex;flex-direction:column}.r2-toggle small{color:#bcaec5;margin-top:4px}.r2-toggle input{width:24px;height:24px;accent-color:#ec62b3}.r2-sleep p,.r2-empty p{text-align:center;line-height:1.55;color:#d9c8dd}.r2-safety{margin:20px 0;padding:16px;border:1px solid #ff9dce44;border-radius:17px;background:#ffffff0b}.r2-safety p{margin:7px 0 0;color:#cdbbd3;font-size:13px}.reach2-tile[role=button],.reach2-row[role=button]{cursor:pointer}
+
+/* Profile form controls: override legacy global input styling on every viewport. */
+.r2-modal .r2-field{display:block!important;width:100%!important;margin:0 0 17px!important}
+.r2-modal .r2-field>span{display:block!important;margin:0 0 7px!important;font-size:14px!important;font-weight:700!important}
+.r2-modal .r2-field input,
+.r2-modal .r2-field textarea,
+.r2-modal .r2-add-milestone input{
+ box-sizing:border-box!important;display:block!important;width:100%!important;max-width:100%!important;
+ margin:0!important;padding:14px 15px!important;border:1px solid #ff9dce55!important;border-radius:14px!important;
+ background:#ffffff10!important;color:#fff!important;text-align:left!important;text-transform:none!important;
+ letter-spacing:0!important;font-size:16px!important;font-family:inherit!important
+}
+.r2-modal .r2-field textarea{min-height:120px!important;line-height:1.45!important;resize:vertical!important}
+.r2-modal .r2-field input[type=date],
+.r2-modal .r2-add-milestone input[type=date]{min-height:52px!important}
+.r2-modal .r2-profile-section{display:block!important;margin-top:24px!important}
+.r2-modal .r2-profile-section>h3{text-align:left!important;margin:0 0 16px!important}
+.r2-modal .r2-section-head{display:block!important;margin-bottom:13px!important}
+.r2-modal .r2-section-head h3{text-align:left!important;margin:0 0 4px!important}
+.r2-modal .r2-section-head>span{display:block!important;font-size:12px!important;color:#cdbbd3!important}
+.r2-modal .r2-add-milestone{display:grid!important;grid-template-columns:1fr!important;gap:10px!important}
+.r2-modal .r2-milestone{display:flex!important;align-items:center!important;gap:10px!important;padding:12px!important;border:1px solid #ffffff18!important;border-radius:14px!important;background:#ffffff0b!important}
+.r2-modal .r2-milestone>div{flex:1!important;min-width:0!important}
+.r2-modal .r2-milestone b,.r2-modal .r2-milestone small{display:block!important}
+.r2-modal .r2-milestone small{margin-top:4px!important;color:#cdbbd3!important;font-size:12px!important}
+.r2-modal .r2-mini-danger{width:38px!important;min-width:38px!important;height:38px!important;margin:0!important;padding:0!important;border-radius:50%!important;background:#a9336555!important;box-shadow:none!important}
