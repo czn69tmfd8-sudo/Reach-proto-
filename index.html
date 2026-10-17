@@ -1375,7 +1375,9 @@ window.endReach = async function () {
   endButton.textContent = "Ending REACH...";
 
   try {
-    if (code && endingRole === "host") {
+    // Either authenticated room member may end the session. Firestore
+    // still verifies membership and keeps room identity/offer immutable.
+    if (code && (endingRole === "host" || endingRole === "partner")) {
       await updateDoc(doc(db, "rooms", code), {
         active: false,
         endedAt: serverTimestamp()
