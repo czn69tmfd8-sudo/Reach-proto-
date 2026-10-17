@@ -528,7 +528,8 @@ body:not(.reach-in-call) .reach-scenic-sub{margin-bottom:20px}
 #reachDailyCard .rd-saved {margin-top:13px;}
 @media (prefers-reduced-motion:reduce){.reach-scenic-heart svg{animation:none!important;}}
 
-</style>
+html[data-r2-features="loaded"] [data-view="us"] .reach2-title::after{content:" · features loaded";font-size:10px;color:#8df0b3;letter-spacing:.5px}
+  </style>
   <link rel="stylesheet" href="./reach2-shell.css?v=2">
   <link rel="stylesheet" href="./reach2-features.css?v=2">
 </head>
@@ -1950,6 +1951,6 @@ window.joinRoom = async function () {
 
 </script>
   <script src="./reach2-shell.js?v=3"></script>
-  <script src="./reach2-features.js?v=5"></script>
+  <script src="./reach2-features.js?v=6"></script>
 </body>
 </html>
