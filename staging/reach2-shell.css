@@ -17,3 +17,10 @@ body.reach-in-call .reach2-tabs{display:none}
 .reach2-active .reach2-view[data-view="reach"]{padding-bottom:18px}
 .reach2-active .reach2-view[data-view="reach"]>.reach-home-actions,
 .reach2-active #reachDockActions{position:static!important;transform:none!important}
+
+/* v2.1 — feature organization */
+.reach2-existing-daily{margin:14px 0}.reach2-existing-daily #reachDailyCard{margin:0}
+.reach2-legacy-settings{margin-top:16px;border:1px solid rgba(255,157,211,.22);border-radius:20px;background:rgba(29,20,58,.76);overflow:hidden}
+.reach2-legacy-settings>summary{padding:17px 19px;cursor:pointer;color:#efd9ee;font-weight:700;list-style:none}.reach2-legacy-settings>summary::-webkit-details-marker{display:none}
+.reach2-legacy-slot{padding:0 12px 12px}.reach2-legacy-slot>.card,.reach2-legacy-slot>.reach-fold{margin:10px 0}
+.reach2-view[data-view="reach"] #reachDailyCard{display:none}
