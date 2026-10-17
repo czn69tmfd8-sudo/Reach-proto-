@@ -11,6 +11,7 @@ function sleep(){modal("Sleep Connection 🌙",'<div class="r2-sleep"><span>🌙
 function history(){modal("Our History 💗",'<div class="r2-empty"><span>💗</span><h3>Your story will live here.</h3><p>Saved reminders, shared answers, milestones and memories will form a private timeline for the two of you.</p></div>')}
 function coming(title,icon,copy){modal(title, '<div class="r2-empty"><span>'+icon+'</span><h3>'+title+' is next.</h3><p>'+copy+'</p><span class="reach2-badge">Staging preview</span></div>')}
 function bind(){
+ document.documentElement.setAttribute("data-r2-features","loaded");
  var answerButton=document.querySelector('[data-r2-action="answer"]');
  if(answerButton)answerButton.onclick=function(e){e.preventDefault();question()};
  var us=document.querySelectorAll('[data-view="us"] .reach2-row');
