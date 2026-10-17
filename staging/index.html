@@ -409,22 +409,39 @@
     .tagline .reach-verse-ref { display:block; margin-top:8px; font-size:14px; letter-spacing:1px; color:#d8a9ca; font-weight:500; }
     #reachDailyCard{padding:20px;border:1.5px solid rgba(242,135,190,.72);box-shadow:0 0 0 1px rgba(242,135,190,.10),0 0 24px rgba(222,94,169,.12)}#reachDailyCard h2{font-size:19px;margin:7px 0 14px}.rd-head{display:flex;justify-content:space-between;gap:8px;align-items:start}.rd-kicker{font-size:10px;letter-spacing:2px;color:#e6a5cb;font-weight:750}.rd-toggle{font-size:12px;white-space:nowrap;display:flex;gap:6px;align-items:center}.rd-toggle input{width:20px;height:20px;margin:0;accent-color:#df6aa8}.rd-quote{padding:25px 17px;border-radius:18px;text-align:center;font-size:19px;font-style:italic;line-height:1.5;background:linear-gradient(135deg,#834e7644,#654a9b44);color:#ffe7f2}.rd-actions{display:flex;gap:9px;margin-top:12px}#reachDailyCard .rd-actions button{flex:1;width:auto;padding:13px 7px;font-size:13px;border-radius:13px;background:#824c82}#reachDailyCard #rdShare{background:linear-gradient(120deg,#d54c92,#8c58ba)}.rd-saved{margin-top:16px;font-size:13px}.rd-saved summary{cursor:pointer}.rd-saved-item{padding:10px;margin-top:8px;background:#ffffff12;border-radius:12px;line-height:1.5}#rdMessage{font-size:12px;color:#d4b9d7;margin-top:9px}
   
-    /* v1.9 staging — signature REACH hands */
-    .reach-hands-stage{grid-column:1/-1;position:relative;height:154px;margin:0 0 3px;border-radius:26px;overflow:hidden;
-      border:1px solid rgba(190,157,255,.18);background:radial-gradient(circle at 50% 55%,rgba(165,88,255,.14),transparent 39%),linear-gradient(155deg,rgba(18,23,55,.98),rgba(11,16,40,.98));}
-    .reach-hands-stage::before{content:"";position:absolute;left:50%;top:50%;width:56px;height:56px;transform:translate(-50%,-50%);
-      border-radius:50%;background:rgba(178,106,255,.12);filter:blur(13px);transition:.45s ease;}
-    .reach-hand{position:absolute;top:27px;width:142px;height:102px;filter:drop-shadow(0 0 9px currentColor);transition:transform .72s cubic-bezier(.2,.85,.2,1),filter .4s ease;}
-    .reach-hand svg{width:100%;height:100%;overflow:visible}.reach-hand path{fill:none;stroke:currentColor;stroke-width:4.5;stroke-linecap:round;stroke-linejoin:round;}
-    .reach-hand.mine{left:-39px;color:#ff5eb8;transform:rotate(5deg)} .reach-hand.theirs{right:-39px;color:#796cff;transform:scaleX(-1) rotate(5deg)}
-    .reach-hands-copy{position:absolute;left:50%;bottom:9px;transform:translateX(-50%);font-size:10px;letter-spacing:1.7px;text-transform:uppercase;color:#a8afca;white-space:nowrap}
-    .reach-hands-stage.is-open .reach-hand.mine{transform:translateX(38px) rotate(-2deg)}
-    .reach-hands-stage.is-ready .reach-hand.mine{transform:translateX(47px) rotate(-3deg)}
-    .reach-hands-stage.is-ready .reach-hand.theirs{transform:translateX(-47px) scaleX(-1) rotate(-3deg)}
-    .reach-hands-stage.is-ready::before{width:94px;height:94px;background:rgba(218,99,255,.3);filter:blur(19px)}
-    .reach-hands-stage.is-ready .reach-hand{animation:reachPulse 1.8s ease-in-out infinite}
-    @keyframes reachPulse{50%{filter:drop-shadow(0 0 17px currentColor)}}
-    @media(max-width:380px){.reach-hand{width:126px}.reach-hand.mine{left:-36px}.reach-hand.theirs{right:-36px}}
+    /* v2.0 staging — cinematic signature REACH hands */
+    .reach-hands-stage{grid-column:1/-1;position:relative;height:230px;margin:0 0 5px;border-radius:30px;overflow:hidden;isolation:isolate;
+      border:1px solid rgba(205,177,255,.24);background:
+      radial-gradient(ellipse at 50% 55%,rgba(184,87,255,.22) 0,rgba(105,59,190,.10) 27%,transparent 57%),
+      radial-gradient(circle at 17% 42%,rgba(255,67,167,.13),transparent 34%),
+      radial-gradient(circle at 83% 42%,rgba(96,79,255,.15),transparent 34%),
+      linear-gradient(160deg,#15162f 0%,#0a1025 55%,#080d20 100%);box-shadow:inset 0 0 70px rgba(0,0,0,.35)}
+    .reach-hands-stage::after{content:"";position:absolute;inset:0;z-index:-1;opacity:.32;background-image:
+      radial-gradient(circle at 13% 24%,#fff 0 1px,transparent 1.6px),radial-gradient(circle at 76% 18%,#fff 0 1px,transparent 1.5px),
+      radial-gradient(circle at 62% 72%,#fff 0 1px,transparent 1.5px),radial-gradient(circle at 31% 78%,#fff 0 1px,transparent 1.4px);
+      background-size:91px 83px,117px 101px,137px 119px,157px 139px}
+    .reach-energy{position:absolute;left:50%;top:48%;width:76px;height:76px;transform:translate(-50%,-50%) scale(.65);border-radius:50%;opacity:.38;
+      background:radial-gradient(circle,#fff 0 3%,#f4c9ff 5%,rgba(222,105,255,.68) 15%,rgba(142,80,255,.25) 39%,transparent 68%);
+      filter:blur(2px);transition:transform .72s ease,opacity .5s ease}
+    .reach-hand{position:absolute;top:31px;width:208px;height:155px;transition:transform .9s cubic-bezier(.16,.86,.22,1),filter .45s ease;will-change:transform}
+    .reach-hand svg{width:100%;height:100%;overflow:visible}.reach-hand .skin{stroke:currentColor;stroke-width:10;stroke-linecap:round;stroke-linejoin:round;fill:none;opacity:.13}
+    .reach-hand .edge{stroke:#fff;stroke-width:2.15;stroke-linecap:round;stroke-linejoin:round;fill:none;opacity:.88}
+    .reach-hand .core{stroke:currentColor;stroke-width:5.4;stroke-linecap:round;stroke-linejoin:round;fill:none}
+    .reach-hand .detail{stroke:currentColor;stroke-width:2.5;stroke-linecap:round;fill:none;opacity:.7}
+    .reach-hand.mine{left:-92px;color:#ff54ae;transform:translateX(0) rotate(8deg);filter:drop-shadow(0 0 7px #ff4fac) drop-shadow(0 0 19px rgba(255,58,164,.62))}
+    .reach-hand.theirs{right:-92px;color:#8a6cff;transform:scaleX(-1) rotate(8deg);filter:drop-shadow(0 0 7px #886cff) drop-shadow(0 0 19px rgba(111,76,255,.65))}
+    .reach-hands-copy{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);font-size:10px;font-weight:700;letter-spacing:2.8px;text-transform:uppercase;color:#b8bdd3;white-space:nowrap;text-shadow:0 1px 8px #000}
+    .reach-hands-stage.is-open .reach-hand.mine{transform:translateX(58px) rotate(-1deg)}
+    .reach-hands-stage.is-open .reach-energy{transform:translate(-50%,-50%) scale(.9);opacity:.58}
+    .reach-hands-stage.is-ready .reach-hand.mine{transform:translateX(79px) translateY(3px) rotate(-7deg)}
+    .reach-hands-stage.is-ready .reach-hand.theirs{transform:translateX(-79px) translateY(3px) scaleX(-1) rotate(-7deg)}
+    .reach-hands-stage.is-ready .reach-energy{transform:translate(-50%,-50%) scale(1.5);opacity:.95;animation:reachEnergy 1.45s ease-in-out infinite}
+    .reach-hands-stage.is-ready .reach-hand{animation:reachBreathe 1.45s ease-in-out infinite}
+    .reach-hands-stage.is-ready .reach-hands-copy{color:#f2d9ff}
+    @keyframes reachBreathe{50%{filter:drop-shadow(0 0 10px currentColor) drop-shadow(0 0 29px currentColor)}}
+    @keyframes reachEnergy{50%{transform:translate(-50%,-50%) scale(1.82);opacity:.72}}
+    @media(max-width:380px){.reach-hands-stage{height:210px}.reach-hand{width:188px;top:29px}.reach-hand.mine{left:-87px}.reach-hand.theirs{right:-87px}}
+    @media(prefers-reduced-motion:reduce){.reach-hand,.reach-energy{transition:none!important;animation:none!important}}
 
   </style>
 </head>
@@ -860,9 +877,13 @@ remoteVideo.addEventListener("click", async () => {
 
 
 function reachHandMarkup(){
-  return '<div class="reach-hand mine" aria-hidden="true"><svg viewBox="0 0 180 120"><path d="M4 91 C28 83 42 72 55 58 C68 44 72 20 80 18 C87 17 87 28 83 42 L80 52 C90 39 96 12 104 12 C112 12 108 31 102 49 C111 38 119 17 126 20 C133 23 124 43 116 56 C127 47 139 36 144 42 C149 48 132 65 120 74 C108 84 101 94 95 106"/></svg></div>'+
-    '<div class="reach-hand theirs" aria-hidden="true"><svg viewBox="0 0 180 120"><path d="M4 91 C28 83 42 72 55 58 C68 44 72 20 80 18 C87 17 87 28 83 42 L80 52 C90 39 96 12 104 12 C112 12 108 31 102 49 C111 38 119 17 126 20 C133 23 124 43 116 56 C127 47 139 36 144 42 C149 48 132 65 120 74 C108 84 101 94 95 106"/></svg></div>'+
-    '<div class="reach-hands-copy">reach for each other</div>';
+  const hand='<svg viewBox="0 0 240 170" role="img" aria-label="An open hand reaching toward another hand">'+
+    '<path class="skin" d="M2 124 C29 116 51 101 70 81 C82 68 90 52 97 34 C101 23 107 11 115 13 C123 16 119 34 113 52 L109 63 C119 49 129 22 139 24 C149 27 140 51 132 68 C144 53 155 32 164 36 C174 41 159 64 149 77 C161 67 177 49 184 56 C192 65 171 84 156 95 C143 105 134 116 128 133 C122 148 111 158 97 165"/>'+
+    '<path class="core" d="M2 124 C29 116 51 101 70 81 C82 68 90 52 97 34 C101 23 107 11 115 13 C123 16 119 34 113 52 L109 63 C119 49 129 22 139 24 C149 27 140 51 132 68 C144 53 155 32 164 36 C174 41 159 64 149 77 C161 67 177 49 184 56 C192 65 171 84 156 95 C143 105 134 116 128 133 C122 148 111 158 97 165"/>'+
+    '<path class="edge" d="M3 122 C31 114 52 98 69 80 M96 35 C101 21 108 9 116 13 M109 62 C119 47 130 20 140 25 M132 68 C144 52 156 31 165 37 M149 77 C162 66 177 48 185 56"/>'+
+    '<path class="detail" d="M87 93 C102 89 117 91 129 100 M82 108 C97 104 109 107 119 114 M103 73 C113 72 121 75 127 80"/>'+
+    '</svg>';
+  return '<div class="reach-energy" aria-hidden="true"></div><div class="reach-hand mine">'+hand+'</div><div class="reach-hand theirs">'+hand+'</div><div class="reach-hands-copy">reach for each other</div>';
 }
 
 function updatePairingStatus() {
