@@ -571,6 +571,28 @@
     .reach-session-pill{display:none;position:absolute;z-index:8;left:18px;right:18px;bottom:18px;padding:13px 16px;border:1px solid rgba(255,104,199,.45);border-radius:18px;background:rgba(25,9,38,.88);backdrop-filter:blur(14px);box-shadow:0 10px 28px #0009}
     .reach-hands-stage.is-clasped .reach-session-pill{display:flex;align-items:center;gap:11px}.reach-session-pill .orb{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#e83a9b;box-shadow:0 0 18px #ff55bd}.reach-session-pill b{display:block;color:white;font-size:14px}.reach-session-pill small{color:#d7c7de;font-size:10px}
 
+    /* v8 — hero never disappears while auth/pair state hydrates */
+    #mainConnectionCard>h2{display:none!important}
+    #favoriteConnection{min-height:720px}
+    .reach-visual-fallback{display:block}
+    #favoriteConnection.has-live-pair .reach-visual-fallback{display:none}
+    .reach-visual-fallback .reach-contact-head{position:relative;display:flex!important;flex-direction:column;align-items:center;gap:9px;padding-top:3px}
+    .reach-visual-fallback .reach-couple-photos{display:flex!important;justify-content:center;align-items:center;gap:18px}
+    .reach-visual-fallback .reach-avatar{width:88px!important;height:88px!important;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#5d234f,#20204f);font-size:35px}
+    .reach-visual-fallback .reach-avatar.self{border:3px solid #ff58b0;box-shadow:0 0 18px #ff3d9b88}.reach-visual-fallback .reach-avatar.partner{border:3px solid #5e9cff;box-shadow:0 0 18px #4d6fff88}
+    .reach-visual-fallback .reach-couple-labels{display:flex!important;width:220px!important;justify-content:space-between!important;font-size:12px;color:#dfc9e5}
+    .reach-visual-fallback .reach-contact-info{text-align:center}.reach-visual-fallback .reach-contact-name{font-size:27px;font-weight:800}.reach-visual-fallback .reach-contact-status{color:#7ce7b3;margin-top:5px}
+    .reach-visual-fallback .reach-main-actions{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-top:16px}
+    .reach-visual-fallback .reach-hands-stage{grid-column:1/-1}
+    .reach-visual-fallback button{min-height:142px;border-radius:23px}.reach-visual-fallback .reach-open{background:linear-gradient(145deg,#ff397f,#cf3fd2)}.reach-visual-fallback .reach-take{background:linear-gradient(145deg,#7855ec,#175ce7)}
+    .reach-mountain-ridge{position:absolute;z-index:1;left:0;right:0;bottom:146px;height:185px;pointer-events:none;filter:drop-shadow(0 -5px 12px rgba(20,7,34,.35))}
+    .reach-mountain-ridge:before,.reach-mountain-ridge:after{content:"";position:absolute;inset:0;background:#0a1328}
+    .reach-mountain-ridge:before{clip-path:polygon(0 82%,7% 55%,13% 67%,22% 35%,29% 58%,39% 20%,48% 61%,57% 39%,65% 64%,75% 28%,83% 57%,92% 38%,100% 66%,100% 100%,0 100%)}
+    .reach-mountain-ridge:after{opacity:.7;background:#172445;transform:translateY(23px);clip-path:polygon(0 77%,9% 61%,17% 71%,27% 50%,37% 70%,48% 45%,58% 69%,68% 52%,78% 72%,89% 50%,100% 69%,100% 100%,0 100%)}
+    .reach-lake{position:absolute;z-index:1;left:0;right:0;bottom:0;height:178px;background:linear-gradient(180deg,rgba(19,31,62,.42),rgba(3,10,28,.92)),repeating-linear-gradient(176deg,transparent 0 10px,rgba(255,103,160,.11) 11px,transparent 13px);pointer-events:none}
+    .reach-lake:after{content:"";position:absolute;left:36%;right:36%;top:3px;height:120px;background:linear-gradient(180deg,rgba(255,143,118,.38),rgba(255,68,158,.06),transparent);filter:blur(10px);clip-path:polygon(45% 0,55% 0,83% 100%,17% 100%)}
+    .reach-hands-stage .reach-hand,.reach-hands-stage .reach-aura,.reach-hands-stage .reach-energy,.reach-hands-stage .reach-heart-spark,.reach-hands-stage .reach-hands-copy,.reach-hands-stage .reach-hands-status,.reach-hands-stage .reach-session-pill{z-index:4}
+
   </style>
 </head>
 
@@ -583,7 +605,7 @@
   <input id="reachPhotoPicker" type="file" accept="image/*" style="display:none" aria-label="Choose a contact photo">
   <section class="card" id="mainConnectionCard">
     <h2>Your connection ❤️</h2>
-    <div id="favoriteConnection"></div>
+    <div id="favoriteConnection"><div class="reach-visual-fallback" aria-label="REACH visual loading"><div class="reach-contact-head"><div class="reach-couple-photos"><div class="reach-avatar self">♡</div><span class="reach-couple-heart">♡</span><div class="reach-avatar partner">♡</div></div><div class="reach-couple-labels"><span>You</span><span>Your person</span></div><div class="reach-contact-info"><div class="reach-contact-name">You & your person ❤️</div><div class="reach-contact-status">● Preparing your connection</div></div></div><div class="reach-main-actions"><div class="reach-hands-stage"><div class="reach-mountain-ridge"></div><div class="reach-lake"></div><div class="reach-aura mine"></div><div class="reach-aura theirs"></div><div class="reach-energy"></div><div class="reach-heart-spark">♥</div><div class="reach-hand mine"></div><div class="reach-hand theirs"></div><div class="reach-hands-copy">reach for each other</div></div><button class="reach-open" disabled><span class="reach-action-icon">⌁</span><span>My hand is open</span><span class="reach-action-sub">I’m ready to connect</span></button><button class="reach-take" disabled><span class="reach-action-icon">⌁</span><span>Take their hand</span><span class="reach-action-sub">Waiting for their hand</span></button></div></div></div>
     <details id="manageConnections" style="margin-top:20px">
       <summary style="cursor:pointer;color:#a5b4fc;font-weight:700">Manage connections</summary>
       <p>Rename, hide, or choose your main connection. Hiding does not revoke access.</p>
@@ -1519,7 +1541,7 @@ function watchPairs(){
   pairListeners.forEach(stop=>stop()); pairListeners=[];
   const list=document.getElementById("pairedDevices");
   const favorite=document.getElementById("favoriteConnection");
-  list.replaceChildren();favorite.replaceChildren();
+  list.replaceChildren();favorite.classList.remove("has-live-pair");
   const mainCode=mainPairCode();
   if(!mainCode){
     const note=document.createElement("p");
@@ -1589,6 +1611,8 @@ function watchPairs(){
     item.appendChild(controls);
     list.appendChild(item);
     if(code===mainCode){
+      favorite.classList.add("has-live-pair");
+      favorite.querySelectorAll(":scope > :not(.reach-visual-fallback)").forEach(el=>el.remove());
       const hero=document.createElement("div");
       const head=document.createElement("div");head.className="reach-contact-head";
       const photos=document.createElement("div");photos.className="reach-couple-photos";
@@ -1621,7 +1645,7 @@ function watchPairs(){
       menu.onclick=()=>{const d=document.getElementById("manageConnections");d.open=!d.open;};
       head.append(photos,labels,info,menu);hero.appendChild(head);
       const actions=document.createElement("div");actions.className="reach-main-actions";
-      const handsStage=document.createElement("div");handsStage.className="reach-hands-stage";handsStage.innerHTML=reachHandMarkup();actions.appendChild(handsStage);
+      const handsStage=document.createElement("div");handsStage.className="reach-hands-stage";handsStage.innerHTML='<div class="reach-mountain-ridge"></div><div class="reach-lake"></div>'+reachHandMarkup();actions.appendChild(handsStage);
       const heroOpen=addAction(actions,"My hand is open",()=>openPairedHand(code));
       heroOpen.classList.add("reach-open");
       heroOpen.innerHTML='<span class="reach-action-icon">⌁</span><span>My hand is open</span><span class="reach-action-sub">I’m ready to connect</span>'; heroOpen.addEventListener("click",()=>handsStage.classList.add("is-open"));
