@@ -1756,7 +1756,6 @@ window.createRoom = async function (authorizedPairCode, authorizedPair) {
     const roomRef =
       doc(db, "rooms", code);
 
-    joinStage = "webrtc-offer";
     createPeerConnection(code);
 
     const offer =
