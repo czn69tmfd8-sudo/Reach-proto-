@@ -590,6 +590,19 @@
     .reach-lake{display:none!important}
     .reach-hands-stage .reach-hand,.reach-hands-stage .reach-aura,.reach-hands-stage .reach-energy,.reach-hands-stage .reach-heart-spark,.reach-hands-stage .reach-hands-copy,.reach-hands-stage .reach-hands-status,.reach-hands-stage .reach-session-pill{z-index:4}
 
+    /* v9 — photo-backed REACH hero */
+    .reach-hands-stage{background-image:
+      linear-gradient(180deg,rgba(18,4,34,.20) 0%,rgba(29,7,46,.18) 38%,rgba(8,7,28,.72) 100%),
+      url("https://raw.githubusercontent.com/czn69tmfd8-sudo/Reach-proto-/main/staging/reach-mountains-web.jpg")!important;
+      background-size:cover!important;background-position:center center!important}
+    .reach-mountain-ridge,.reach-lake{display:none!important}
+    .reach-hands-stage:before{content:"";position:absolute!important;inset:0!important;z-index:1!important;clip-path:none!important;background:
+      radial-gradient(circle at 15% 57%,rgba(255,48,162,.30),transparent 25%),
+      radial-gradient(circle at 85% 58%,rgba(52,93,255,.30),transparent 25%),
+      linear-gradient(180deg,rgba(16,4,31,.06),rgba(8,6,28,.52))!important;pointer-events:none}
+    .reach-hands-stage:after{z-index:2!important}
+    .reach-hand{z-index:5!important}.reach-aura,.reach-energy,.reach-heart-spark{z-index:4!important}.reach-hands-copy,.reach-hands-status,.reach-session-pill{z-index:6!important}
+
   </style>
 </head>
 
