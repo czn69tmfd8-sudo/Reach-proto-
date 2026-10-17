@@ -36,3 +36,13 @@
 .r2-modal .r2-add-milestone input[type="date"]::-webkit-date-and-time-value{
  text-align:left!important;
 }
+
+/* Our Profile v1 final containment: prevent iOS date control from escaping the card. */
+.r2-modal .r2-field input[type="date"]{
+ -webkit-appearance:none!important;appearance:none!important;
+ inline-size:100%!important;min-inline-size:0!important;max-inline-size:100%!important;
+ box-sizing:border-box!important;overflow:hidden!important;
+}
+.r2-modal .r2-field input[type="date"]::-webkit-date-and-time-value{
+ min-width:0!important;text-align:left!important;
+}
