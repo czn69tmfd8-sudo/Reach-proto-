@@ -601,7 +601,7 @@ body:not(.reach-in-call) .reach-scenic-sub{margin-bottom:20px}
       <summary style="cursor:pointer;color:#a5b4fc">Connection health check</summary>
       <p style="color:#cbd5e1;font-size:14px">Read-only check. Nothing will be changed or reset.</p>
       <button id="pairHealthButton" type="button" onclick="checkPairHealth()" disabled>Check my connection</button>
-      <pre id="pairHealthResult" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;color:#cbd5e1"></pre>
+      <pre id="pairHealthResult" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;color:#cbd5e1"></pre><button id="clearStalePairButton" type="button" onclick="clearStaleLocalPair()" style="display:none;background:#475569">Forget stale test pairing on this phone</button><p id="clearStalePairNote" style="display:none;color:#cbd5e1;font-size:13px">Local staging cleanup only. No Firebase pairing will be deleted or changed.</p>
     </details>
 
   </section>
@@ -838,7 +838,7 @@ window.checkPairHealth = async function(){
           ready=Boolean(lockedCode && localCode===lockedCode && mine && distinct && pair.revoked!==true && ownPhoto && partnerPhoto);
         }
       }catch(error){
-        lines.push("Pair record check failed: "+(error.code||"unknown error"));
+        lines.push("Pair record check failed: "+(error.code||"unknown error"));if(!lockedCode&&localCode&&error.code==="permission-denied"){const b=document.getElementById("clearStalePairButton"),note=document.getElementById("clearStalePairNote");if(b)b.style.display="";if(note)note.style.display="";lines.push("Safe local cleanup available below.");}
       }
     }
     lines.push("Partner's lock: must be checked on partner's phone");
@@ -1673,6 +1673,7 @@ new MutationObserver(refreshMediaTiles).observe(mediaStatus,{childList:true,char
 refreshMediaTiles();
 // The memberLocks documents are enforced by the candidate rules for new pairs.
 // Existing partnerships require a one-time, explicitly reviewed migration.
+window.clearStaleLocalPair=async()=>{if(!currentUser)return;const code=mainPairCode();if(!code){pairMessage.textContent="No local staging pairing to forget.";return;}try{const lockSnap=await getDoc(doc(db,"memberLocks",currentUser.uid));if(lockSnap.exists()){pairMessage.textContent="This phone has a permanent partnership lock. Nothing was changed.";return;}pairedCodes=pairedCodes.filter(c=>c!==code);delete pairPrefs[code];if(favoritePair===code){favoritePair=null;localStorage.removeItem("reachFavoritePair");}savePairs();savePairPrefs();watchPairs();document.getElementById("clearStalePairButton").style.display="none";document.getElementById("clearStalePairNote").style.display="none";pairMessage.textContent="Stale staging selection forgotten on this phone. Firebase was not changed.";await checkPairHealth();}catch(error){console.error("Could not verify local cleanup safety:",error);pairMessage.textContent="Could not verify that local cleanup is safe. Nothing was changed.";}};
 window.makePairCode=async()=>{
   if(!currentUser)return;
   if(mainPairCode()){pairMessage.textContent="❤️ Your existing partnership is preserved.";return;}
