@@ -1934,7 +1934,11 @@ window.joinRoom = async function () {
 
 
     joinStage = "answer-write";
+    // Firestore's confirmed-partner answer rule requires these two fields
+    // in the same atomic update. Keeping partnerJoinedAt here also gives us
+    // an authoritative server timestamp for the successful hand-off.
     await updateDoc(roomRef, {
+      partnerJoinedAt: serverTimestamp(),
       answer: {
         type: answer.type,
         sdp: answer.sdp
