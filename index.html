@@ -1613,7 +1613,30 @@ window.openPairedHand=async(code)=>{
   if(activeRoom){pairMessage.textContent="End your current REACH first.";return;}
   try{const ref=doc(db,"pairInvites",code),snap=await getDoc(ref),pair=snap.data();
     if(!pair||pair.revoked||!pair.partnerUid||![pair.hostUid,pair.partnerUid].includes(currentUser.uid)){pairMessage.textContent="Wait for the other phone to pair first.";return;}
-    if(pair.activeRoom!==null || pair.openedBy!==null){pairMessage.textContent="A REACH is already open. End it before opening another.";return;}
+    if(pair.activeRoom!==null || pair.openedBy!==null){
+      const staleRoomId=pair.activeRoom;
+      let stale=false;
+      if(typeof staleRoomId!=="string" || !staleRoomId){stale=true;}
+      else{
+        try{
+          const roomSnap=await getDoc(doc(db,"rooms",staleRoomId));
+          if(!roomSnap.exists())stale=true;
+          else{
+            const room=roomSnap.data();
+            stale=room.active!==true || !Number.isInteger(room.expiresAt) || room.expiresAt<=Date.now() || room.pairCode!==code;
+          }
+        }catch(error){console.error("Could not inspect registered REACH:",error);pairMessage.textContent="Could not verify the existing REACH session.";return;}
+      }
+      if(stale){
+        try{
+          await updateDoc(ref,{activeRoom:null,openedBy:null});
+          pair.activeRoom=null;pair.openedBy=null;
+          pairMessage.textContent="Old REACH session cleared safely.";
+        }catch(error){console.error("Could not clear stale REACH:",error);pairMessage.textContent="An expired REACH is still registered. Security cleanup is required.";return;}
+      }else{
+        pairMessage.textContent="A REACH is already open. End it before opening another.";return;
+      }
+    }
     await window.createRoom(code,pair);if(!activeRoom)return;
     pairSessionCode=code;
     try{
