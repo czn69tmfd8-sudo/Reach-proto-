@@ -10,3 +10,10 @@ body:not(.reach-in-call){padding-bottom:calc(96px + env(safe-area-inset-bottom,0
 .reach2-coming{opacity:.78}.reach2-badge{display:inline-block;padding:5px 9px;border-radius:999px;background:#ffffff15;color:#ffc2df;font-size:10px;margin-top:8px}
 body.reach-in-call .reach2-tabs{display:none}
 @media(max-width:370px){.reach2-grid{grid-template-columns:1fr}.reach2-title{font-size:29px}}
+
+/* v2.0.1 iPhone viewport correction */
+.reach2-active body:not(.reach-in-call){overflow-x:hidden}
+.reach2-active .reach2-tabs{bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+.reach2-active .reach2-view[data-view="reach"]{padding-bottom:18px}
+.reach2-active .reach2-view[data-view="reach"]>.reach-home-actions,
+.reach2-active #reachDockActions{position:static!important;transform:none!important}
