@@ -558,6 +558,19 @@
     .reach-hands-stage.is-clasped .reach-hand.mine{transform:translateX(160px) translateY(6px) rotate(-15deg)!important}.reach-hands-stage.is-clasped .reach-hand.theirs{transform:translateX(-160px) translateY(6px) scaleX(-1) rotate(-15deg)!important}
     .reach-main-actions button{font-weight:750!important}.reach-main-actions button small{font-weight:400!important;opacity:.82!important}
 
+    /* v7 — safe cinematic staging interaction */
+    .reach-hands-stage{perspective:900px}
+    .reach-hand{animation:reachIdle 3.6s ease-in-out infinite alternate}
+    .reach-hand.theirs{animation-delay:-1.8s}
+    @keyframes reachIdle{from{margin-top:-3px}to{margin-top:4px}}
+    .reach-hands-stage.is-open .reach-hand.mine,.reach-hands-stage.is-ready .reach-hand,.reach-hands-stage.is-clasped .reach-hand{animation:none}
+    .reach-hands-stage.is-open:after,.reach-hands-stage.is-ready:after,.reach-hands-stage.is-clasped:after{animation:starsAlive 2.2s ease-in-out infinite alternate}
+    @keyframes starsAlive{from{filter:brightness(.9)}to{filter:brightness(1.45)}}
+    .reach-hands-stage.is-clasped{animation:connectionBloom .9s ease-out both}
+    @keyframes connectionBloom{0%{box-shadow:inset 0 -45px 70px rgba(3,4,17,.58),0 12px 35px #0007}50%{box-shadow:inset 0 0 120px rgba(255,81,184,.38),0 0 50px rgba(90,94,255,.34)}100%{box-shadow:inset 0 -45px 70px rgba(3,4,17,.58),0 12px 35px #0007}}
+    .reach-session-pill{display:none;position:absolute;z-index:8;left:18px;right:18px;bottom:18px;padding:13px 16px;border:1px solid rgba(255,104,199,.45);border-radius:18px;background:rgba(25,9,38,.88);backdrop-filter:blur(14px);box-shadow:0 10px 28px #0009}
+    .reach-hands-stage.is-clasped .reach-session-pill{display:flex;align-items:center;gap:11px}.reach-session-pill .orb{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#e83a9b;box-shadow:0 0 18px #ff55bd}.reach-session-pill b{display:block;color:white;font-size:14px}.reach-session-pill small{color:#d7c7de;font-size:10px}
+
   </style>
 </head>
 
@@ -999,7 +1012,7 @@ function reachHandMarkup(){
     '<path class="light" d="M4 140 C34 132 57 118 76 102 M108 62 C116 45 119 24 128 22 M131 69 C143 50 152 24 162 27 M155 75 C168 57 181 37 191 43 M173 88 C189 76 206 61 214 70"/>'+
     '<path class="crease" d="M91 112 C108 105 127 107 141 116 M87 128 C104 121 119 124 131 133 M112 91 C124 87 137 90 146 98 M119 149 C128 145 137 145 144 148"/>'+
     '</svg>';
-  return '<div class="reach-aura mine" aria-hidden="true"></div><div class="reach-aura theirs" aria-hidden="true"></div><div class="reach-energy" aria-hidden="true"></div><div class="reach-heart-spark" aria-hidden="true">♥</div><div class="reach-hand mine">'+hand+'</div><div class="reach-hand theirs">'+hand+'</div><div class="reach-hands-status"><strong></strong><small></small></div><div class="reach-hands-copy">reach for each other</div>';
+  return '<div class="reach-aura mine" aria-hidden="true"></div><div class="reach-aura theirs" aria-hidden="true"></div><div class="reach-energy" aria-hidden="true"></div><div class="reach-heart-spark" aria-hidden="true">♥</div><div class="reach-hand mine">'+hand+'</div><div class="reach-hand theirs">'+hand+'</div><div class="reach-hands-status"><strong></strong><small></small></div><div class="reach-session-pill"><div class="orb">♥</div><div><b>Connected</b><small>You're in your REACH session</small></div></div><div class="reach-hands-copy">reach for each other</div>';
 }
 
 function updatePairingStatus() {
