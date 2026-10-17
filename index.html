@@ -1890,10 +1890,9 @@ window.joinRoom = async function () {
     if (room.answer) {
       joinStage = "stale-room-cleanup";
       try {
-        await updateDoc(roomRef, {
-          active: false,
-          endedAt: serverTimestamp()
-        });
+        // The partner is not allowed to rewrite the host-owned room lifecycle.
+        // Release only the shared pair pointer. The original host can retire
+        // the room; clearing the pointer is enough to permit a fresh REACH.
         const pairRef = doc(db, "pairInvites", pairSessionCode);
         const latestPair = await getDoc(pairRef);
         if (latestPair.exists() && latestPair.data().activeRoom === code) {
@@ -1901,10 +1900,12 @@ window.joinRoom = async function () {
         }
         status.textContent = "That open hand was from an older REACH. It was cleared — have your partner open their hand again.";
       } catch (staleError) {
-        console.error("Could not retire stale answered REACH:", staleError);
+        console.error("Could not release stale answered REACH:", staleError);
         status.textContent = "That hand belongs to an older REACH. Have your partner close it and open their hand again.";
       }
-      await cleanupConnection(true);
+      // This is stale-session housekeeping, not a failed live call. Keep the
+      // user's already-approved camera/microphone ready for the fresh attempt.
+      await cleanupConnection(false);
       pairSessionCode = null;
       return;
     }
