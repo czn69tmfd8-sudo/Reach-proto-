@@ -506,13 +506,37 @@
     .reach-bottom-nav button span{font-size:23px;line-height:1}.reach-bottom-nav button.active{color:#ff69ba!important}
     #mediaCard,#reachDailyCard,#pairCard,#manualConnections,#status,#authStatus,#pairingStatus{opacity:.94}
 
+    /* v5 — screenshot-locked REACH staging */
+    .reach-brand-sub{font-size:11px;letter-spacing:4.2px;text-transform:uppercase;color:#ead9ef;margin:0 0 22px;text-align:center}
+    .reach-hands-stage{height:470px!important;margin-left:-16px!important;margin-right:-16px!important;border-radius:0!important;border-left:0!important;border-right:0!important;
+      background:
+      radial-gradient(circle at 50% 62%,#ffb068 0 1px,#d9528e 2%,rgba(99,53,130,.42) 8%,transparent 19%),
+      linear-gradient(180deg,#32164a 0%,#722a69 28%,#f06b73 43%,#372354 47%,#0b1630 65%,#071126 100%)!important}
+    .reach-hands-stage:before{height:62%!important;bottom:0!important;opacity:1!important;background:
+      linear-gradient(90deg,transparent 0 7%,rgba(255,87,168,.12) 7% 8%,transparent 8% 92%,rgba(83,112,255,.12) 92% 93%,transparent 93%),
+      linear-gradient(180deg,transparent 0 44%,rgba(7,17,35,.45) 45%,rgba(4,12,27,.88) 100%)!important;
+      clip-path:polygon(0 43%,5% 35%,10% 46%,16% 29%,22% 43%,29% 20%,36% 43%,43% 31%,50% 44%,58% 25%,65% 45%,73% 30%,81% 45%,89% 27%,95% 41%,100% 34%,100% 100%,0 100%)!important}
+    .reach-hands-stage:after{opacity:.72!important;background-image:
+      radial-gradient(circle at 12% 22%,#ff7dcc 0 2px,transparent 3px),radial-gradient(circle at 28% 43%,#ff8bd3 0 2px,transparent 3px),
+      radial-gradient(circle at 78% 36%,#ff91d6 0 2px,transparent 3px),radial-gradient(circle at 91% 22%,#87a7ff 0 2px,transparent 3px),
+      radial-gradient(circle at 55% 65%,#fff 0 1px,transparent 2px)!important;background-size:127px 117px,173px 151px,193px 181px,211px 197px,97px 89px!important}
+    .reach-hand{top:180px!important;width:310px!important;height:215px!important}.reach-hand.mine{left:-150px!important}.reach-hand.theirs{right:-150px!important}
+    .reach-hand .body{opacity:.34!important;stroke-width:15!important}.reach-hand .glow{stroke-width:9!important}.reach-hand .light{stroke-width:3!important}
+    .reach-hands-copy{bottom:35px!important;font-size:15px!important;letter-spacing:4.5px!important;color:#ffb1e2!important}
+    .reach-hands-copy:after{content:"SAME MOMENT. ANY DISTANCE.";display:block;margin-top:9px;font-size:9px;letter-spacing:3.2px;color:#f0dcec}
+    #mainConnectionCard{overflow:hidden!important;padding-bottom:18px!important}
+    .reach-main-actions{padding:0 0!important;margin-top:17px!important}
+    .reach-main-actions button{min-height:160px!important}
+    .reach-bottom-nav{height:86px!important}
+    @media(max-width:380px){.reach-hands-stage{height:430px!important}.reach-hand{top:168px!important;width:285px!important}.reach-hand.mine{left:-145px!important}.reach-hand.theirs{right:-145px!important}}
+
   </style>
 </head>
 
 <body>
 <main>
 
-  <h1>REACH <span class="testing-badge">TESTING</span></h1>
+  <h1>REACH <span class="testing-badge">TESTING</span></h1><div class="reach-brand-sub">Be closer, no matter the distance</div>
   <div class="tagline">“Let all that you do be done in love.”<span class="reach-verse-ref">1 Corinthians 16:14</span></div>
 
   <input id="reachPhotoPicker" type="file" accept="image/*" style="display:none" aria-label="Choose a contact photo">
