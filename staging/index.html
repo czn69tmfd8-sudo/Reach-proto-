@@ -408,6 +408,24 @@
     @media(max-width:380px) { #mainConnectionCard .reach-couple-photos .reach-avatar{width:78px;height:78px;flex-basis:78px;} .reach-couple-photos{gap:9px;} }
     .tagline .reach-verse-ref { display:block; margin-top:8px; font-size:14px; letter-spacing:1px; color:#d8a9ca; font-weight:500; }
     #reachDailyCard{padding:20px;border:1.5px solid rgba(242,135,190,.72);box-shadow:0 0 0 1px rgba(242,135,190,.10),0 0 24px rgba(222,94,169,.12)}#reachDailyCard h2{font-size:19px;margin:7px 0 14px}.rd-head{display:flex;justify-content:space-between;gap:8px;align-items:start}.rd-kicker{font-size:10px;letter-spacing:2px;color:#e6a5cb;font-weight:750}.rd-toggle{font-size:12px;white-space:nowrap;display:flex;gap:6px;align-items:center}.rd-toggle input{width:20px;height:20px;margin:0;accent-color:#df6aa8}.rd-quote{padding:25px 17px;border-radius:18px;text-align:center;font-size:19px;font-style:italic;line-height:1.5;background:linear-gradient(135deg,#834e7644,#654a9b44);color:#ffe7f2}.rd-actions{display:flex;gap:9px;margin-top:12px}#reachDailyCard .rd-actions button{flex:1;width:auto;padding:13px 7px;font-size:13px;border-radius:13px;background:#824c82}#reachDailyCard #rdShare{background:linear-gradient(120deg,#d54c92,#8c58ba)}.rd-saved{margin-top:16px;font-size:13px}.rd-saved summary{cursor:pointer}.rd-saved-item{padding:10px;margin-top:8px;background:#ffffff12;border-radius:12px;line-height:1.5}#rdMessage{font-size:12px;color:#d4b9d7;margin-top:9px}
+  
+    /* v1.9 staging — signature REACH hands */
+    .reach-hands-stage{grid-column:1/-1;position:relative;height:154px;margin:0 0 3px;border-radius:26px;overflow:hidden;
+      border:1px solid rgba(190,157,255,.18);background:radial-gradient(circle at 50% 55%,rgba(165,88,255,.14),transparent 39%),linear-gradient(155deg,rgba(18,23,55,.98),rgba(11,16,40,.98));}
+    .reach-hands-stage::before{content:"";position:absolute;left:50%;top:50%;width:56px;height:56px;transform:translate(-50%,-50%);
+      border-radius:50%;background:rgba(178,106,255,.12);filter:blur(13px);transition:.45s ease;}
+    .reach-hand{position:absolute;top:27px;width:142px;height:102px;filter:drop-shadow(0 0 9px currentColor);transition:transform .72s cubic-bezier(.2,.85,.2,1),filter .4s ease;}
+    .reach-hand svg{width:100%;height:100%;overflow:visible}.reach-hand path{fill:none;stroke:currentColor;stroke-width:4.5;stroke-linecap:round;stroke-linejoin:round;}
+    .reach-hand.mine{left:-39px;color:#ff5eb8;transform:rotate(5deg)} .reach-hand.theirs{right:-39px;color:#796cff;transform:scaleX(-1) rotate(5deg)}
+    .reach-hands-copy{position:absolute;left:50%;bottom:9px;transform:translateX(-50%);font-size:10px;letter-spacing:1.7px;text-transform:uppercase;color:#a8afca;white-space:nowrap}
+    .reach-hands-stage.is-open .reach-hand.mine{transform:translateX(38px) rotate(-2deg)}
+    .reach-hands-stage.is-ready .reach-hand.mine{transform:translateX(47px) rotate(-3deg)}
+    .reach-hands-stage.is-ready .reach-hand.theirs{transform:translateX(-47px) scaleX(-1) rotate(-3deg)}
+    .reach-hands-stage.is-ready::before{width:94px;height:94px;background:rgba(218,99,255,.3);filter:blur(19px)}
+    .reach-hands-stage.is-ready .reach-hand{animation:reachPulse 1.8s ease-in-out infinite}
+    @keyframes reachPulse{50%{filter:drop-shadow(0 0 17px currentColor)}}
+    @media(max-width:380px){.reach-hand{width:126px}.reach-hand.mine{left:-36px}.reach-hand.theirs{right:-36px}}
+
   </style>
 </head>
 
@@ -839,6 +857,13 @@ remoteVideo.addEventListener("click", async () => {
   }
 });
 
+
+
+function reachHandMarkup(){
+  return '<div class="reach-hand mine" aria-hidden="true"><svg viewBox="0 0 180 120"><path d="M4 91 C28 83 42 72 55 58 C68 44 72 20 80 18 C87 17 87 28 83 42 L80 52 C90 39 96 12 104 12 C112 12 108 31 102 49 C111 38 119 17 126 20 C133 23 124 43 116 56 C127 47 139 36 144 42 C149 48 132 65 120 74 C108 84 101 94 95 106"/></svg></div>'+
+    '<div class="reach-hand theirs" aria-hidden="true"><svg viewBox="0 0 180 120"><path d="M4 91 C28 83 42 72 55 58 C68 44 72 20 80 18 C87 17 87 28 83 42 L80 52 C90 39 96 12 104 12 C112 12 108 31 102 49 C111 38 119 17 126 20 C133 23 124 43 116 56 C127 47 139 36 144 42 C149 48 132 65 120 74 C108 84 101 94 95 106"/></svg></div>'+
+    '<div class="reach-hands-copy">reach for each other</div>';
+}
 
 function updatePairingStatus() {
   pairingStatus.textContent = pairedPartnerUid
@@ -1446,12 +1471,13 @@ function watchPairs(){
       menu.onclick=()=>{const d=document.getElementById("manageConnections");d.open=!d.open;};
       head.append(photos,labels,info,menu);hero.appendChild(head);
       const actions=document.createElement("div");actions.className="reach-main-actions";
+      const handsStage=document.createElement("div");handsStage.className="reach-hands-stage";handsStage.innerHTML=reachHandMarkup();actions.appendChild(handsStage);
       const heroOpen=addAction(actions,"My hand is open",()=>openPairedHand(code));
       heroOpen.classList.add("reach-open");
-      heroOpen.innerHTML='<span class="reach-action-icon">♡</span><span>My hand is open</span><span class="reach-action-sub">I’m ready to connect</span>';
+      heroOpen.innerHTML='<span class="reach-action-icon">⌁</span><span>My hand is open</span><span class="reach-action-sub">I’m ready to connect</span>'; heroOpen.addEventListener("click",()=>handsStage.classList.add("is-open"));
       const heroJoin=addAction(actions,"Take their hand",()=>join.click());
       heroJoin.classList.add("reach-take");heroJoin.disabled=true;heroJoin.setAttribute("aria-disabled","true");
-      heroJoin.innerHTML='<span class="reach-action-icon">♡</span><span>Take their hand</span><span class="reach-action-sub">Connect to your partner</span>';
+      heroJoin.innerHTML='<span class="reach-action-icon">⌁</span><span>Take their hand</span><span class="reach-action-sub">Connect to your partner</span>';
       hero.appendChild(actions);favorite.appendChild(hero);
       pairListeners.push(onSnapshot(doc(db,"pairInvites",code),(snap)=>{
         if(!snap.exists()||!currentUser)return;
@@ -1478,6 +1504,8 @@ function watchPairs(){
           state.title=synced?"Your profile photo is synchronized.":"";
         }
         const ready=!!pair.activeRoom&&pair.openedBy!==currentUser.uid&&!activeRoom;
+        handsStage.classList.toggle("is-ready",ready);
+        handsStage.classList.toggle("is-open",!!pair.activeRoom&&pair.openedBy===currentUser.uid);
         heroJoin.disabled=!ready;
         heroJoin.setAttribute("aria-disabled",String(!ready));
         heroJoin.querySelector(".reach-action-sub").textContent=ready?"Connect to your partner":"Waiting for their hand";
