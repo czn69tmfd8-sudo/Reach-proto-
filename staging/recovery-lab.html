@@ -16,7 +16,7 @@ import {validateRecovery,simulateMigration,runSelfTests} from './recovery-core.j
 const fixture={
  pairCode:"SYNTHETIC123",pair:{hostUid:"old-host",partnerUid:"old-partner",activeRoom:null,openedBy:null,profilePhotos:{"old-host":"photo-host","old-partner":"photo-partner"},revoked:false},
  newHostUid:"new-host",newPartnerUid:"new-partner",
- approval:{hostVerified:true,partnerVerified:true,expiresAt:4102444800000,now:1760000000000},
+ approval:{hostVerified:true,partnerVerified:true,expiresAt:1760000600000,now:1760000000000},
  existingLocks:{},verifiedByTrustedBackend:true
 };
 document.querySelector("#fixture").value=JSON.stringify(fixture,null,2);
