@@ -508,6 +508,26 @@ body:not(.reach-in-call) .reach-scenic-sub{margin-bottom:20px}
 #reachDailyCard .rd-head,
 #reachDailyCard .rd-saved { text-shadow: 0 1px 5px rgba(8, 4, 24, .65); }
 
+
+/* REACH staging visual checkpoint — 2026-10-17. Styling only. */
+@media (max-width:600px) {
+  #mainConnectionCard {padding:19px 18px 21px;}
+  #mainConnectionCard .reach-contact-head {gap:9px;padding-top:1px;}
+  #mainConnectionCard .reach-couple-photos {gap:13px;}
+  #mainConnectionCard .reach-couple-photos .reach-avatar {width:86px;height:86px;flex-basis:86px;}
+  #mainConnectionCard .reach-couple-labels {gap:44px;}
+  #mainConnectionCard .reach-contact-name {font-size:23px;letter-spacing:-.35px;}
+  #mainConnectionCard .reach-contact-status {margin-top:4px;}
+}
+#mainConnectionCard {background:linear-gradient(145deg,rgba(35,24,73,.43),rgba(67,29,75,.38));border-color:rgba(255,150,218,.82);box-shadow:0 10px 32px rgba(14,8,45,.2);}
+.reach-scenic-heart {width:138px;max-width:34vw;filter:drop-shadow(0 0 10px rgba(255,78,192,.42));}
+#reachDailyCard {padding:19px 18px 20px;background:linear-gradient(155deg,rgba(35,20,64,.31),rgba(30,18,53,.4));border-color:rgba(255,163,218,.78);box-shadow:0 7px 24px rgba(16,7,40,.14);}
+#reachDailyCard h2 {margin:6px 0 12px;line-height:1.2;}
+#reachDailyCard .rd-quote {padding:20px 15px;background:rgba(55,33,86,.42);line-height:1.43;}
+#reachDailyCard .rd-actions {margin-top:12px;gap:10px;}
+#reachDailyCard .rd-saved {margin-top:13px;}
+@media (prefers-reduced-motion:reduce){.reach-scenic-heart svg{animation:none!important;}}
+
 </style>
 </head>
 
@@ -529,7 +549,7 @@ body:not(.reach-in-call) .reach-scenic-sub{margin-bottom:20px}
     </details>
   </section>
 
-  <div class="reach-scenic-bridge" aria-label="Reach for each other"><div class="reach-scenic-heart" aria-hidden="true"><svg viewBox="0 0 180 160" role="presentation" focusable="false"><defs><linearGradient id="reachHeartGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ff8be9"/><stop offset="48%" stop-color="#ff49b9"/><stop offset="100%" stop-color="#ffbbef"/></linearGradient><filter id="reachHeartGlow" x="-70%" y="-70%" width="240%" height="240%"><feGaussianBlur stdDeviation="7"/></filter></defs><path d="M90 145 C72 125 16 87 16 48 C16 15 56 7 90 45 C124 7 164 15 164 48 C164 87 108 125 90 145Z" fill="none" stroke="#ff50c9" stroke-width="10" filter="url(#reachHeartGlow)" opacity=".8"/><path d="M90 145 C72 125 16 87 16 48 C16 15 56 7 90 45 C124 7 164 15 164 48 C164 87 108 125 90 145Z" fill="none" stroke="url(#reachHeartGradient)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M37 35 C52 20 69 30 79 41" fill="none" stroke="#ffe0f8" stroke-width="2.5" stroke-linecap="round" opacity=".85"/></svg></div><div class="reach-scenic-title">REACH FOR EACH OTHER</div><div class="reach-scenic-sub">SAME MOMENT. ANY DISTANCE.</div><div id="reachDockActions" class="reach-dock-actions" aria-label="Connection actions"></div></div>
+  <div class="reach-scenic-bridge" aria-label="Reach for each other"><div class="reach-scenic-heart" aria-hidden="true"><svg viewBox="0 0 180 160" role="presentation" focusable="false"><defs><linearGradient id="reachHeartGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffc6f1"/><stop offset="42%" stop-color="#ff69c8"/><stop offset="100%" stop-color="#e36cff"/></linearGradient><filter id="reachHeartGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5"/></filter></defs><path d="M90 143 C67 121 19 86 19 49 C19 19 56 10 90 45 C124 10 161 19 161 49 C161 86 113 121 90 143Z" fill="none" stroke="#ff62ca" stroke-width="9" opacity=".36" filter="url(#reachHeartGlow)"/><path d="M90 143 C67 121 19 86 19 49 C19 19 56 10 90 45 C124 10 161 19 161 49 C161 86 113 121 90 143Z" fill="none" stroke="url(#reachHeartGradient)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M35 44 C42 25 61 23 78 39" fill="none" stroke="#ffe6f9" stroke-width="2.5" stroke-linecap="round" opacity=".82"/></svg></div><div class="reach-scenic-title">REACH FOR EACH OTHER</div><div class="reach-scenic-sub">SAME MOMENT. ANY DISTANCE.</div><div id="reachDockActions" class="reach-dock-actions" aria-label="Connection actions"></div></div>
 
   <details class="reach-fold" id="mediaControls"><summary>📷 Camera &amp; microphone <span class="reach-fold-right">Manage ▾</span></summary>
   <section class="card" id="mediaCard">
