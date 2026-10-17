@@ -447,6 +447,31 @@ main>.tagline{text-align:center;color:#fff;font:clamp(18px,4.8vw,26px) Georgia,s
 #status{background:rgba(14,13,40,.85)}
 body.reach-in-call{background:#000}
 
+
+/* Staging layout checkpoint: connection summary above, live action buttons on dock. */
+body:not(.reach-in-call) .reach-scenic-bridge{
+  height:auto;min-height:clamp(330px,48vh,510px);
+  justify-content:flex-start;padding:10px 0 14px;gap:0;
+}
+body:not(.reach-in-call) .reach-scenic-heart{margin:0 auto clamp(65px,13vh,135px)}
+body:not(.reach-in-call) .reach-scenic-title{margin-top:0}
+body:not(.reach-in-call) .reach-scenic-sub{margin-bottom:20px}
+.reach-dock-actions{width:100%;min-height:0}
+.reach-dock-actions .reach-main-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;width:100%}
+.reach-dock-actions .reach-main-actions button{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;
+  width:100%;min-width:0;min-height:126px;margin:0;padding:15px 7px;
+  border:1px solid rgba(255,255,255,.58);border-radius:19px;
+  color:white;font-size:clamp(14px,3.6vw,18px);font-weight:750;line-height:1.2;
+}
+.reach-dock-actions .reach-main-actions .reach-open{background:linear-gradient(135deg,#fa3998,#bc2bd1)}
+.reach-dock-actions .reach-main-actions .reach-take{background:linear-gradient(135deg,#6256e9,#1468ed)}
+.reach-dock-actions .reach-action-icon{font-size:31px;line-height:1}
+.reach-dock-actions .reach-action-sub{font-size:clamp(10px,2.7vw,13px);font-weight:450;opacity:.92}
+.reach-dock-actions .reach-main-actions button:disabled{opacity:.66}
+.reach-dock-actions .reach-main-actions button[hidden]{display:none!important}
+@media(max-width:365px){.reach-dock-actions .reach-main-actions{gap:9px}.reach-dock-actions .reach-main-actions button{padding:12px 4px;font-size:13px}}
+
 </style>
 </head>
 
@@ -468,7 +493,7 @@ body.reach-in-call{background:#000}
     </details>
   </section>
 
-  <div class="reach-scenic-bridge" aria-label="Reach for each other"><div class="reach-scenic-heart" aria-hidden="true">♡</div><div class="reach-scenic-title">REACH FOR EACH OTHER</div><div class="reach-scenic-sub">SAME MOMENT. ANY DISTANCE.</div></div>
+  <div class="reach-scenic-bridge" aria-label="Reach for each other"><div class="reach-scenic-heart" aria-hidden="true">♡</div><div class="reach-scenic-title">REACH FOR EACH OTHER</div><div class="reach-scenic-sub">SAME MOMENT. ANY DISTANCE.</div><div id="reachDockActions" class="reach-dock-actions" aria-label="Connection actions"></div></div>
 
   <details class="reach-fold" id="mediaControls"><summary>📷 Camera &amp; microphone <span class="reach-fold-right">Manage ▾</span></summary>
   <section class="card" id="mediaCard">
@@ -1499,6 +1524,9 @@ function watchPairs(){
       heroJoin.classList.add("reach-take");heroJoin.disabled=true;heroJoin.setAttribute("aria-disabled","true");
       heroJoin.innerHTML='<span class="reach-action-icon">♡</span><span>Take their hand</span><span class="reach-action-sub">Connect to your partner</span>';
       hero.appendChild(actions);favorite.appendChild(hero);
+      // Stage-only visual placement: keep original buttons and event handlers intact.
+      const dock=document.getElementById("reachDockActions");
+      if(dock)dock.replaceChildren(actions);
       pairListeners.push(onSnapshot(doc(db,"pairInvites",code),(snap)=>{
         if(!snap.exists()||!currentUser)return;
         const pair=snap.data();
