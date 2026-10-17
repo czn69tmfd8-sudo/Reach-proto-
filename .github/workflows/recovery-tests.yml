@@ -1,0 +1,27 @@
+name: REACH recovery staging tests
+on:
+  push:
+    paths:
+      - 'staging/recovery-transaction.mjs'
+      - 'staging/recovery-transaction.test.mjs'
+      - 'staging/recovery-core.js'
+      - '.github/workflows/recovery-tests.yml'
+  pull_request:
+    paths:
+      - 'staging/recovery-transaction.mjs'
+      - 'staging/recovery-transaction.test.mjs'
+      - 'staging/recovery-core.js'
+      - '.github/workflows/recovery-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run isolated recovery transaction tests
+        run: node --test staging/recovery-transaction.test.mjs
