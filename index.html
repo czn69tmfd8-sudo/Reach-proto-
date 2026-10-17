@@ -1884,6 +1884,32 @@ window.joinRoom = async function () {
       await cleanupConnection(true);return;
     }
 
+    // A room can only be answered once. If Safari/the host left an already-
+    // answered room registered as an open hand, do not try to answer it again.
+    // Retire that stale room and release the shared pointer so the opener can
+    // create a clean REACH immediately.
+    if (room.answer) {
+      joinStage = "stale-room-cleanup";
+      try {
+        await updateDoc(roomRef, {
+          active: false,
+          endedAt: serverTimestamp()
+        });
+        const pairRef = doc(db, "pairInvites", pairSessionCode);
+        const latestPair = await getDoc(pairRef);
+        if (latestPair.exists() && latestPair.data().activeRoom === code) {
+          await updateDoc(pairRef, {activeRoom:null, openedBy:null});
+        }
+        status.textContent = "That open hand was from an older REACH. It was cleared — have your partner open their hand again.";
+      } catch (staleError) {
+        console.error("Could not retire stale answered REACH:", staleError);
+        status.textContent = "That hand belongs to an older REACH. Have your partner close it and open their hand again.";
+      }
+      await cleanupConnection(true);
+      pairSessionCode = null;
+      return;
+    }
+
 
     createPeerConnection(code);
 
