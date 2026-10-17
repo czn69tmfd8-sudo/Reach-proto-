@@ -493,6 +493,21 @@ body:not(.reach-in-call) .reach-scenic-sub{margin-bottom:20px}
   }
 }
 
+
+/* Staging: translucent daily reminder glass panel over landscape. */
+#reachDailyCard {
+  background: rgba(28, 18, 51, .49);
+  -webkit-backdrop-filter: blur(5px) saturate(1.1);
+  backdrop-filter: blur(5px) saturate(1.1);
+  border-color: rgba(249, 146, 205, .76);
+}
+#reachDailyCard .rd-quote {
+  background: rgba(62, 36, 91, .52);
+  text-shadow: 0 1px 6px rgba(10, 5, 27, .65);
+}
+#reachDailyCard .rd-head,
+#reachDailyCard .rd-saved { text-shadow: 0 1px 5px rgba(8, 4, 24, .65); }
+
 </style>
 </head>
 
