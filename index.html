@@ -1756,6 +1756,7 @@ window.createRoom = async function (authorizedPairCode, authorizedPair) {
     const roomRef =
       doc(db, "rooms", code);
 
+    joinStage = "webrtc-offer";
     createPeerConnection(code);
 
     const offer =
@@ -1836,6 +1837,7 @@ window.joinRoom = async function () {
     return;
   }
 
+  let joinStage = "media";
   try {
 
     await ensureMedia();
@@ -1846,6 +1848,7 @@ window.joinRoom = async function () {
     const roomRef =
       doc(db, "rooms", code);
 
+    joinStage = "room-read";
     const snapshot =
       await getDoc(roomRef);
 
@@ -1905,6 +1908,7 @@ window.joinRoom = async function () {
       .setLocalDescription(answer);
 
 
+    joinStage = "answer-write";
     await updateDoc(roomRef, {
 
       partnerJoinedAt:
@@ -1916,7 +1920,9 @@ window.joinRoom = async function () {
       }
     });
 
+    joinStage = "ice-write";
     await enableSignaling(code);
+    joinStage = "listeners";
 
 
     status.innerHTML =
@@ -1939,7 +1945,7 @@ window.joinRoom = async function () {
 
     console.error("Join REACH failed:", error);
     const reason = error && (error.code || error.name) ? String(error.code || error.name) : "unknown";
-    status.textContent = "⚠️ Could not join video room · " + reason;
+    status.textContent = "⚠️ Could not join video room · " + reason + " · " + joinStage;
     connectionStatus.textContent = "Join failed. This REACH was released so you can try again.";
     setReachIndicator("lost","● Join failed · ready to retry");
     // Never leave this phone believing it is still in a call after a failed join.
