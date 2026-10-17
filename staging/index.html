@@ -784,6 +784,7 @@ function mainPairCode(){
   const visible=pairedCodes.filter(code=>!pairPrefsFor(code).hidden && !pairPrefsFor(code).retired);
   return visible.includes(favoritePair)?favoritePair:(visible[0]||null);
 }
+window.reach2SharedContext=function(){return {uid:currentUser?currentUser.uid:null,pairCode:mainPairCode()};};
 async function reconcileLockedPartnership(){
   if(!currentUser)return;
   try{
