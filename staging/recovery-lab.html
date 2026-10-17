@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>REACH — Recovery dry-run lab</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,sans-serif}body{margin:0;background:#111827;color:#f9fafb;padding:24px 16px}main{max-width:820px;margin:auto}h1{font-size:2rem;margin-bottom:0}.sub{color:#aab4c6}section{background:#202a3e;border:1px solid #48546b;border-radius:18px;padding:20px;margin:20px 0}label{display:block;margin:12px 0 5px}textarea{width:100%;min-height:190px;box-sizing:border-box;background:#111827;color:#fff;border:1px solid #6b7280;border-radius:10px;padding:12px;font:12px/1.5 ui-monospace,monospace}button{background:#e9a6b7;color:#172033;border:0;border-radius:10px;padding:13px 18px;font-weight:700;cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#111827;padding:16px;border-radius:12px;font-size:13px}.warn{color:#fcd34d}.good{color:#6ee7b7}small{color:#aab4c6}</style></head>
+<body><main><h1>reach<span style="color:#e9a6b7">.</span> recovery lab</h1>
+<p class="sub">Synthetic-data migration preview — isolated, read-only, and offline.</p>
+<section><strong class="warn">NO FIREBASE CONNECTION</strong><p>This page does not access accounts, databases, live pairing records, or camera. It cannot repair production. It tests migration constraints before any authorized backend recovery is built.</p></section>
+<section><h2>1. Synthetic example</h2><label for="fixture">Edit the simulated pairing (never paste real user IDs or private data here)</label>
+<textarea id="fixture" spellcheck="false"></textarea><p><button id="run">Validate simulated recovery</button></p></section>
+<section><h2>2. Results</h2><pre id="result" role="status" aria-live="polite">Ready.</pre></section>
+<section><h2>3. Automatic negative tests</h2><pre id="tests" role="status">Running tests...</pre></section>
+<p><small>Recovery approval must be verified by a trusted backend; a checkbox or a pair code is not identity proof. Production remains unchanged.</small></p>
+<script type="module">
+import {validateRecovery,simulateMigration,runSelfTests} from './recovery-core.js';
+const fixture={
+ pairCode:"SYNTHETIC123",pair:{hostUid:"old-host",partnerUid:"old-partner",activeRoom:null,openedBy:null,profilePhotos:{"old-host":"photo-host","old-partner":"photo-partner"},revoked:false},
+ newHostUid:"new-host",newPartnerUid:"new-partner",
+ approval:{hostVerified:true,partnerVerified:true,expiresAt:4102444800000,now:1760000000000},
+ existingLocks:{},verifiedByTrustedBackend:true
+};
+document.querySelector("#fixture").value=JSON.stringify(fixture,null,2);
+document.querySelector("#run").addEventListener("click",()=>{
+ try{const data=JSON.parse(document.querySelector("#fixture").value);const errors=validateRecovery(data);
+ document.querySelector("#result").textContent=errors.length?"BLOCKED: \n- "+errors.join("\n- "):"SIMULATION ONLY — eligible for authorized backend migration.\n\n"+JSON.stringify(simulateMigration(data),null,2);
+ }catch(e){document.querySelector("#result").textContent="BLOCKED: "+e.message;}
+});
+const results=runSelfTests();document.querySelector("#tests").textContent=results.map(x=>(x.pass?"PASS":"FAIL")+" — "+x.name).join("\n")+"\n\n"+results.filter(x=>x.pass).length+"/"+results.length+" passing";
+</script></main></body></html>
