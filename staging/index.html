@@ -528,7 +528,35 @@ body:not(.reach-in-call) .reach-scenic-sub{margin-bottom:20px}
 #reachDailyCard .rd-saved {margin-top:13px;}
 @media (prefers-reduced-motion:reduce){.reach-scenic-heart svg{animation:none!important;}}
 
-html[data-r2-features="loaded"] [data-view="us"] .reach2-title::after{content:" · features loaded";font-size:10px;color:#8df0b3;letter-spacing:.5px}
+
+/* Our Profile mobile polish — staging visual only. */
+.r2-modal{padding:calc(env(safe-area-inset-top,0px) + 14px) 12px calc(env(safe-area-inset-bottom,0px) + 24px);overflow-y:auto;align-items:flex-start}
+.r2-modal-card{width:min(100%,470px);margin:auto;padding:24px 18px 28px;border-radius:26px;max-height:none;overflow:visible}
+.r2-modal-card>h2{padding-right:50px;margin-bottom:18px}
+.r2-close{top:14px;right:14px}
+.r2-profile-heart{text-align:center;font-size:46px;margin:4px 0 14px}
+.r2-profile-section{margin-top:24px}
+.r2-profile-section>h3,.r2-section-head h3{text-align:left;margin:0 0 15px}
+.r2-section-head{display:flex;align-items:end;justify-content:space-between;gap:10px;margin-bottom:12px}
+.r2-section-head>span{font-size:11px;color:#d7b9e5;text-align:right}
+.r2-field{display:block;width:100%;margin:0 0 16px}
+.r2-field>span{display:block;margin:0 0 7px;font-size:13px;font-weight:700;color:#f7e9f7}
+.r2-field>span small{font-weight:500;color:#cbb9d2}
+.r2-field input,.r2-field textarea,.r2-add-milestone input{display:block;width:100%;max-width:none;margin:0;text-align:left;text-transform:none;letter-spacing:0;font-size:16px;padding:14px 15px;border-radius:14px}
+.r2-field textarea{min-height:118px;resize:vertical;line-height:1.45;background:#211c38;color:white;border:1px solid rgba(180,145,226,.18)}
+.r2-field input[type="date"],.r2-add-milestone input[type="date"]{min-height:52px;color-scheme:dark}
+.r2-milestones{display:grid;gap:9px;margin-bottom:14px}
+.r2-milestone{display:flex;align-items:center;gap:10px;padding:13px 12px;border:1px solid rgba(222,161,235,.18);border-radius:14px;background:rgba(255,255,255,.06)}
+.r2-milestone>div{min-width:0;flex:1}
+.r2-milestone b,.r2-milestone small{display:block}
+.r2-milestone small{margin-top:4px;color:#cdbdd4;font-size:12px;line-height:1.35}
+.r2-mini-danger{width:38px;min-width:38px;height:38px;padding:0;margin:0;border-radius:50%;font-size:20px;background:rgba(180,49,104,.34);box-shadow:none}
+.r2-empty-line{margin:0 0 12px}
+.r2-add-milestone{display:grid;gap:10px}
+.r2-add-milestone .r2-secondary{margin:2px 0 8px}
+.r2-modal [data-save-profile]{margin-top:16px}
+@media(max-width:380px){.r2-modal{padding-left:8px;padding-right:8px}.r2-modal-card{padding:21px 14px 25px}.r2-section-head{display:block}.r2-section-head>span{display:block;text-align:left;margin-top:-8px;margin-bottom:12px}}
+
   </style>
   <link rel="stylesheet" href="./reach2-shell.css?v=2">
   <link rel="stylesheet" href="./reach2-features.css?v=2">
