@@ -424,7 +424,30 @@
     .reach-fold>.card{margin:0;border:0;border-top:1px solid rgba(237,142,215,.25);border-radius:0;background:transparent;box-shadow:none}
     .reach-fold>#manualConnections{padding:0 14px 14px;margin-bottom:0!important}
     @media(max-width:370px){.reach-fold>summary{font-size:13px;padding:14px 12px}}
-  </style>
+  
+/* REACH scenic staging migration v1 — presentation only; no connection handlers changed */
+html{background:#100f2c}
+body:not(.reach-in-call){display:block;padding:0 16px 40px;min-height:100svh;background:linear-gradient(180deg,rgba(7,10,42,.46),rgba(12,8,39,.10) 48%,rgba(10,7,32,.44)),url("Reach%20back.png") center top / cover fixed no-repeat;color:#fff}
+body:not(.reach-in-call) main{max-width:570px;margin:0 auto}
+main>h1{text-align:center;margin:22px 0 4px!important;font-size:clamp(42px,11vw,70px)!important;letter-spacing:2px!important;font-weight:900;background:linear-gradient(90deg,#ff399c 10%,#f06bd8 48%,#239dff 90%);background-clip:text;-webkit-background-clip:text;color:transparent}
+.staging-marker{font-size:clamp(10px,2.7vw,14px)!important;vertical-align:middle;color:#ffaddf!important;background:#44205099!important;border-color:#ffaddf!important}
+.staging-notice{font-size:10px;letter-spacing:3px;color:#ffe4f4;margin:5px 0 18px}
+main>.tagline{text-align:center;color:#fff;font:clamp(18px,4.8vw,26px) Georgia,serif;margin:0 0 26px;text-shadow:0 2px 10px #10092f}
+.tagline .reach-verse-ref{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:16px;color:#f6a5e4}
+#mainConnectionCard{background:rgba(51,22,76,.48);border:1.5px solid #f08cce;border-radius:28px;backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);box-shadow:0 12px 32px #130a3266;padding:20px 18px}
+#mainConnectionCard>h2{text-align:center;font-size:22px;margin:0 0 15px}
+#mainConnectionCard .reach-avatar{box-shadow:0 0 18px #ff64ba55}
+#mainConnectionCard #favoriteConnection button:not(.reach-avatar){border-radius:18px}
+.reach-scenic-bridge{height:clamp(220px,34vh,390px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.reach-scenic-heart{font:90px Georgia,serif;color:#ff8cdb;text-shadow:0 0 18px #ff4bbb,0 0 35px #ff57c7;line-height:1}
+.reach-scenic-title{margin-top:auto;font-size:clamp(13px,3.3vw,18px);font-weight:800;letter-spacing:clamp(2px,.8vw,5px);color:#ffb0e1;text-shadow:0 2px 10px #110728}
+.reach-scenic-sub{font-size:11px;letter-spacing:3px;margin:8px 0 20px;color:#fff;text-shadow:0 2px 8px #10092e}
+#mediaControls,#connectionSettings{background:rgba(28,18,52,.88);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#reachDailyCard{background:rgba(31,19,53,.87);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#status{background:rgba(14,13,40,.85)}
+body.reach-in-call{background:#000}
+
+</style>
 </head>
 
 <body>
@@ -444,6 +467,8 @@
       <div id="pairedDevices"></div>
     </details>
   </section>
+
+  <div class="reach-scenic-bridge" aria-label="Reach for each other"><div class="reach-scenic-heart" aria-hidden="true">♡</div><div class="reach-scenic-title">REACH FOR EACH OTHER</div><div class="reach-scenic-sub">SAME MOMENT. ANY DISTANCE.</div></div>
 
   <details class="reach-fold" id="mediaControls"><summary>📷 Camera &amp; microphone <span class="reach-fold-right">Manage ▾</span></summary>
   <section class="card" id="mediaCard">
