@@ -447,6 +447,18 @@
     @keyframes reachBreathe{50%{filter:drop-shadow(0 0 12px currentColor) drop-shadow(0 0 35px currentColor)}}
     @keyframes reachEnergy{50%{opacity:.6;filter:blur(4px)}}
     @media(max-width:380px){.reach-hands-stage{height:230px}.reach-hand{width:215px;top:29px}.reach-hand.mine{left:-112px}.reach-hand.theirs{right:-112px}}
+
+    .reach-hands-status{position:absolute;z-index:5;left:50%;bottom:34px;transform:translateX(-50%);width:88%;text-align:center;pointer-events:none}
+    .reach-hands-status strong{display:block;font-size:14px;color:#fff;opacity:0;transform:translateY(4px);transition:.35s ease}
+    .reach-hands-status small{display:block;margin-top:3px;font-size:10px;color:#d7c9e0;opacity:0;transition:.35s ease}
+    .reach-hands-stage.is-open .reach-hands-status strong,.reach-hands-stage.is-open .reach-hands-status small,
+    .reach-hands-stage.is-ready .reach-hands-status strong,.reach-hands-stage.is-ready .reach-hands-status small,
+    .reach-hands-stage.is-clasped .reach-hands-status strong,.reach-hands-stage.is-clasped .reach-hands-status small{opacity:1;transform:none}
+    .reach-hands-stage.is-open .reach-hands-copy,.reach-hands-stage.is-ready .reach-hands-copy,.reach-hands-stage.is-clasped .reach-hands-copy{opacity:0}
+    .reach-heart-spark{position:absolute;z-index:6;left:50%;top:46%;transform:translate(-50%,-50%) scale(.3);font-size:25px;opacity:0;filter:drop-shadow(0 0 10px #ff7dcc);transition:.45s ease}
+    .reach-hands-stage.is-clasped .reach-heart-spark{opacity:1;transform:translate(-50%,-50%) scale(1);animation:heartLift 1.25s ease-in-out infinite}
+    @keyframes heartLift{50%{transform:translate(-50%,-58%) scale(1.13)}}
+
     @media(prefers-reduced-motion:reduce){.reach-hand,.reach-energy,.reach-aura{transition:none!important;animation:none!important}}
 
   </style>
@@ -889,7 +901,7 @@ function reachHandMarkup(){
     '<path class="light" d="M4 140 C34 132 57 118 76 102 M108 62 C116 45 119 24 128 22 M131 69 C143 50 152 24 162 27 M155 75 C168 57 181 37 191 43 M173 88 C189 76 206 61 214 70"/>'+
     '<path class="crease" d="M91 112 C108 105 127 107 141 116 M87 128 C104 121 119 124 131 133 M112 91 C124 87 137 90 146 98 M119 149 C128 145 137 145 144 148"/>'+
     '</svg>';
-  return '<div class="reach-aura mine" aria-hidden="true"></div><div class="reach-aura theirs" aria-hidden="true"></div><div class="reach-energy" aria-hidden="true"></div><div class="reach-hand mine">'+hand+'</div><div class="reach-hand theirs">'+hand+'</div><div class="reach-hands-copy">reach for each other</div>';
+  return '<div class="reach-aura mine" aria-hidden="true"></div><div class="reach-aura theirs" aria-hidden="true"></div><div class="reach-energy" aria-hidden="true"></div><div class="reach-heart-spark" aria-hidden="true">♥</div><div class="reach-hand mine">'+hand+'</div><div class="reach-hand theirs">'+hand+'</div><div class="reach-hands-status"><strong></strong><small></small></div><div class="reach-hands-copy">reach for each other</div>';
 }
 
 function updatePairingStatus() {
@@ -1534,6 +1546,11 @@ function watchPairs(){
         handsStage.classList.toggle("is-ready",ready);
         handsStage.classList.toggle("is-open",!!pair.activeRoom&&pair.openedBy===currentUser.uid);
         handsStage.classList.toggle("is-clasped",!!pair.activeRoom&&!!activeRoom);
+        const handTitle=handsStage.querySelector(".reach-hands-status strong"), handSub=handsStage.querySelector(".reach-hands-status small");
+        if(handsStage.classList.contains("is-clasped")){handTitle.textContent="Connected ❤️";handSub.textContent="Starting your REACH…";}
+        else if(ready){handTitle.textContent=pairName(code)+" reached for you";handSub.textContent="Take their hand";}
+        else if(pair.activeRoom&&pair.openedBy===currentUser.uid){handTitle.textContent="Your hand is open";handSub.textContent="Waiting for "+pairName(code)+"…";}
+        else {handTitle.textContent="";handSub.textContent="";}
         heroJoin.disabled=!ready;
         heroJoin.setAttribute("aria-disabled",String(!ready));
         heroJoin.querySelector(".reach-action-sub").textContent=ready?"Connect to your partner":"Waiting for their hand";
