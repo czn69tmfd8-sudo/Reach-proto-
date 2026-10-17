@@ -46,3 +46,16 @@
 .r2-modal .r2-field input[type="date"]::-webkit-date-and-time-value{
  min-width:0!important;text-align:left!important;
 }
+
+/* Date Ideas — compact discovery */
+.r2-date-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0 14px}
+.r2-date-chip{border:1px solid rgba(255,255,255,.24);background:rgba(255,255,255,.09);color:inherit;border-radius:14px;padding:10px 8px;font:inherit;font-weight:700}
+.r2-date-chip.active{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.48)}
+.r2-date-results{display:grid;gap:10px;margin-top:14px}
+.r2-date-card{margin:0}
+.r2-date-card p{margin:7px 0}
+.r2-date-card small{opacity:.78}
+.r2-date-actions{display:flex;gap:8px;margin-top:12px}
+.r2-mini{flex:1;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:inherit;border-radius:12px;padding:9px 6px;font:inherit;font-size:.82rem}
+.r2-mini:disabled{opacity:.55}
+.r2-date-featured h3{margin:6px 0}
