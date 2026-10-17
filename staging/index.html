@@ -472,6 +472,27 @@ body:not(.reach-in-call) .reach-scenic-sub{margin-bottom:20px}
 .reach-dock-actions .reach-main-actions button[hidden]{display:none!important}
 @media(max-width:365px){.reach-dock-actions .reach-main-actions{gap:9px}.reach-dock-actions .reach-main-actions button{padding:12px 4px;font-size:13px}}
 
+
+/* Staging mobile spacing pass — visual only; no pairing or media logic changed. */
+@media (max-width: 600px) {
+  body:not(.reach-in-call) .reach-scenic-bridge {
+    min-height: 0;
+    height: auto;
+    padding: 4px 0 12px;
+  }
+  body:not(.reach-in-call) .reach-scenic-heart {
+    margin: 0 auto clamp(34px, 7vh, 68px);
+    font-size: clamp(72px, 18vw, 90px);
+  }
+  body:not(.reach-in-call) .reach-scenic-title { margin: 0 0 6px; }
+  body:not(.reach-in-call) .reach-scenic-sub { margin: 0 0 16px; }
+  .reach-dock-actions .reach-main-actions button {
+    min-height: 116px;
+    padding: 13px 7px;
+    gap: 7px;
+  }
+}
+
 </style>
 </head>
 
