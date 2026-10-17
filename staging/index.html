@@ -696,7 +696,28 @@ body{padding:18px 10px 110px!important;background:#07061a!important}main{max-wid
 /* v13d actions + mobile */
 .reach-main-actions{display:grid!important;grid-template-columns:1fr 1fr!important;gap:12px!important}.reach-main-actions button{min-height:142px!important;border-radius:23px!important;font-size:17px!important}.reach-main-actions button:first-of-type{background:linear-gradient(135deg,#ff479c,#c72ed5)!important}.reach-main-actions button:nth-of-type(2){background:linear-gradient(135deg,#4d7dff,#0756e8)!important}@media(max-width:430px){body{padding-left:8px!important;padding-right:8px!important}h1{font-size:44px!important;letter-spacing:.10em!important;white-space:nowrap!important}.reach-brand-sub{font-size:9px!important;letter-spacing:.18em!important}.tagline{font-size:18px!important;line-height:1.35!important}#mainConnectionCard{min-height:720px!important;padding:10px 8px 16px!important}.reach-avatar{width:86px!important;height:86px!important;flex-basis:86px!important}.reach-couple-photos{gap:20px!important}.reach-hands-stage{height:430px!important}.reach-main-actions{gap:9px!important}.reach-main-actions button{min-height:132px!important;padding:14px 5px!important;font-size:15px!important}}
 
-  </style>
+  
+/* v14 approved-reference home layout — preserves connection controls */
+body:not(.reach-in-call){background:linear-gradient(180deg,rgba(7,6,26,.16),rgba(7,6,26,.25)),#09071e!important;padding:14px 8px 110px!important}
+body:not(.reach-in-call) main{max-width:600px!important}
+body:not(.reach-in-call) main>h1{font-size:clamp(42px,10vw,64px)!important;letter-spacing:.14em!important;margin:12px 0 0!important;background:linear-gradient(90deg,#ff379f 12%,#ff59d3 48%,#178dff 89%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 12px #fb319b75)}
+body:not(.reach-in-call) h1 .testing-badge{display:inline-block!important;-webkit-text-fill-color:#ff80cf!important;font-size:clamp(10px,2.7vw,16px)!important;letter-spacing:.16em!important;vertical-align:middle!important;filter:none!important}
+body:not(.reach-in-call) .reach-brand-sub{font-size:clamp(9px,2.3vw,13px)!important;letter-spacing:.26em!important;color:#fff!important;margin:10px 0!important}
+body:not(.reach-in-call) main>.tagline{font-family:Georgia,serif!important;color:#ffe2f6!important;font-size:clamp(18px,4.4vw,27px)!important;text-align:center!important;margin:12px 0 16px!important}
+body:not(.reach-in-call) .reach-verse-ref{font-family:-apple-system,BlinkMacSystemFont,sans-serif!important;color:#f58bdd!important;font-size:clamp(13px,3.1vw,17px)!important;margin-top:6px!important}
+body:not(.reach-in-call) #mainConnectionCard{border:1px solid #ff8ac6!important;background:linear-gradient(180deg,#36173a88,#170c2960)!important;box-shadow:0 0 22px #ff319a40!important;padding:12px 10px 18px!important;min-height:0!important}
+body:not(.reach-in-call) #favoriteConnection,body:not(.reach-in-call) .reach-visual-fallback{min-height:0!important}
+body:not(.reach-in-call) .reach-contact-head{background:#2a153c73!important;border:1px solid #ff9bd355!important;padding:14px 8px!important;border-radius:26px!important}
+body:not(.reach-in-call) .reach-couple-photos{gap:clamp(35px,12vw,80px)!important}
+body:not(.reach-in-call) .reach-couple-photos:after{font-size:38px!important}
+body:not(.reach-in-call) .reach-contact-name{font-size:clamp(23px,6vw,31px)!important}
+body:not(.reach-in-call) .reach-hands-stage{height:clamp(340px,73vw,490px)!important;margin:12px -8px 0!important;background-size:cover!important;background-position:center!important}
+body:not(.reach-in-call) .reach-hands-copy{bottom:24px!important}
+body:not(.reach-in-call) .reach-main-actions{grid-template-columns:1fr 1fr!important;gap:10px!important;margin-top:10px!important}
+body:not(.reach-in-call) .reach-main-actions button{min-height:126px!important;padding:12px 6px!important;font-size:clamp(13px,3.7vw,18px)!important;border-radius:22px!important}
+body:not(.reach-in-call) .reach-bottom-nav{position:fixed!important;bottom:0!important;left:0!important;right:0!important;z-index:100!important;height:calc(84px + env(safe-area-inset-bottom,0px))!important;padding-bottom:env(safe-area-inset-bottom,0px)!important;background:#120b25ef!important;border-top:1px solid #e27bb750!important;backdrop-filter:blur(18px)!important}
+
+</style>
 </head>
 
 <body>
