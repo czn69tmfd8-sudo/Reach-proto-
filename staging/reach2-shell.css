@@ -24,3 +24,24 @@ body.reach-in-call .reach2-tabs{display:none}
 .reach2-legacy-settings>summary{padding:17px 19px;cursor:pointer;color:#efd9ee;font-weight:700;list-style:none}.reach2-legacy-settings>summary::-webkit-details-marker{display:none}
 .reach2-legacy-slot{padding:0 12px 12px}.reach2-legacy-slot>.card,.reach2-legacy-slot>.reach-fold{margin:10px 0}
 .reach2-view[data-view="reach"] #reachDailyCard{display:none}
+
+/* Production cleanup pass: compact controls + Safari-safe navigation */
+.reach2-active .reach-fold{border:1px solid rgba(255,159,211,.28);border-radius:17px;background:rgba(23,14,48,.76);overflow:hidden;margin:10px 0}
+.reach2-active .reach-fold>summary{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:7px;min-height:52px;padding:12px 14px;list-style:none;cursor:pointer;color:#f6eaf7;font-size:14px;font-weight:700;line-height:1.25}
+.reach2-active .reach-fold>summary::-webkit-details-marker{display:none}
+.reach2-active .reach-fold>summary::before{content:"›";grid-column:1;font-size:20px;color:#efb8e1;transform:rotate(0);transition:transform .18s ease}
+.reach2-active .reach-fold[open]>summary::before{transform:rotate(90deg)}
+.reach2-active .reach-fold>summary>.reach-fold-right{grid-column:3;font-size:12px;font-weight:600;color:#d9bedc;white-space:nowrap}
+.reach2-active .reach-fold>summary>.reach-fold-status{display:none}
+.reach2-active .reach-fold>.card{margin:0;border:0;border-top:1px solid rgba(255,159,211,.18);border-radius:0;background:rgba(23,14,48,.9)}
+.reach2-badge-ready{background:rgba(255,255,255,.12);color:#f8d8ec}
+.reach2-legacy-settings>summary{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.reach2-legacy-settings>summary>span{font-size:11px;font-weight:500;color:#cdb8d4;text-align:right}
+.reach2-tabs{bottom:max(8px,env(safe-area-inset-bottom,0px))}
+.reach2-view{padding-bottom:110px}
+@media(max-width:390px){
+ .reach2-active .reach-fold>summary{font-size:13px;padding:11px 12px}
+ .reach2-active .reach-fold>summary>.reach-fold-right{font-size:11px}
+ .reach2-legacy-settings>summary{display:block}
+ .reach2-legacy-settings>summary>span{display:block;text-align:left;margin-top:4px}
+}
