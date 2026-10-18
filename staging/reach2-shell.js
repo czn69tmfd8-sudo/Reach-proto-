@@ -9,10 +9,13 @@
  const us=document.createElement("section");us.className="reach2-view";us.dataset.view="us";us.hidden=true;
  us.innerHTML='<h2 class="reach2-title">Us 💗</h2><p class="reach2-sub">Our space. Our story.</p><div class="reach2-list"><div class="reach2-row"><span class="reach2-icon">👩‍❤️‍👨</span><div><b>Our Profile</b><small>Photos, names and details</small></div><span class="reach2-chevron">›</span></div><div class="reach2-row"><span class="reach2-icon">🔐</span><div><b>Connection Settings</b><small>Permissions and access</small></div><span class="reach2-chevron">›</span></div><div class="reach2-row"><span class="reach2-icon">🔔</span><div><b>Notifications</b><small>Stay connected, your way</small></div><span class="reach2-chevron">›</span></div><div class="reach2-row reach2-coming"><span class="reach2-icon">🌙</span><div><b>Sleep Connection</b><small>Intentional overnight connection</small><span class="reach2-badge">Designing safely</span></div><span class="reach2-chevron">›</span></div><div class="reach2-row"><span class="reach2-icon">💗</span><div><b>Our History</b><small>Notes, milestones, memories</small></div><span class="reach2-chevron">›</span></div><div class="reach2-row"><span class="reach2-icon">⚙️</span><div><b>App Settings</b><small>Camera, microphone, privacy</small></div><span class="reach2-chevron">›</span></div></div>';main.append(together,us);
  const usLegacy=document.createElement("details");usLegacy.className="reach2-legacy-settings";usLegacy.innerHTML='<summary>Advanced connection controls <span>Pairing, device health & manual tools</span></summary><div class="reach2-legacy-slot"></div>';us.appendChild(usLegacy);const legacySlot=usLegacy.querySelector(".reach2-legacy-slot");
- // Advanced tools belong under Us. Keep the initialized controls intact and move their
- // existing parent details node as a unit so IDs, handlers and Firebase behavior do not change.
+ // Advanced tools belong under Us. Move the already-initialized contents out of the
+ // redundant inner accordion while preserving every original control node, ID and handler.
  const advanced=document.getElementById("connectionSettings");
- if(advanced&&legacySlot)legacySlot.appendChild(advanced);
+ if(advanced&&legacySlot){
+   while(advanced.firstChild)legacySlot.appendChild(advanced.firstChild);
+   advanced.remove();
+ }
  
  const nav=document.createElement("nav");nav.className="reach2-tabs";nav.setAttribute("aria-label","REACH sections");nav.innerHTML='<button class="reach2-tab active" data-target="reach"><span>♥</span>Reach</button><button class="reach2-tab" data-target="together"><span>✨</span>Together</button><button class="reach2-tab" data-target="us"><span>♧</span>Us</button>';document.body.appendChild(nav);document.documentElement.classList.add("reach2-active");
  nav.onclick=e=>{const b=e.target.closest(".reach2-tab");if(!b)return;document.querySelectorAll(".reach2-view").forEach(v=>v.hidden=v.dataset.view!==b.dataset.target);document.querySelectorAll(".reach2-tab").forEach(x=>x.classList.toggle("active",x===b));window.scrollTo({top:0,behavior:"smooth"})};
