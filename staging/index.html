@@ -557,7 +557,38 @@ body:not(.reach-in-call) .reach-scenic-sub{margin-bottom:20px}
 .r2-modal [data-save-profile]{margin-top:16px}
 @media(max-width:380px){.r2-modal{padding-left:8px;padding-right:8px}.r2-modal-card{padding:21px 14px 25px}.r2-section-head{display:block}.r2-section-head>span{display:block;text-align:left;margin-top:-8px;margin-bottom:12px}}
 
-  </style>
+  
+/* REACH landing concept — staging-only visual experiment, 2026-10-18 */
+body:not(.reach-in-call) .reach2-view[data-view="reach"] #mainConnectionCard,
+body:not(.reach-in-call) #mainConnectionCard{background:transparent!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;padding:4px 0 0!important}
+#mainConnectionCard>h2{display:none!important}
+.reach-landing-motto{text-align:center;letter-spacing:clamp(2px,.85vw,4px);font-size:clamp(12px,3.2vw,17px);font-weight:800;color:#ffc5e8;margin:0 0 10px;text-shadow:0 2px 10px #160b32}
+body:not(.reach-in-call) main>h1{margin-bottom:2px!important}
+body:not(.reach-in-call) .tagline{margin-bottom:15px!important}
+#mainConnectionCard .reach-contact-head{position:relative;padding:0 0 5px}
+#mainConnectionCard .reach-couple-photos{display:flex;align-items:center;justify-content:space-evenly;gap:8px}
+#mainConnectionCard .reach-couple-photos .reach-avatar{width:clamp(105px,31vw,160px)!important;height:clamp(105px,31vw,160px)!important;flex:0 0 clamp(105px,31vw,160px)!important;border:4px solid #ff8bdd;box-shadow:0 0 18px #ff59c9aa!important;border-radius:50%}
+#mainConnectionCard .reach-couple-photos .reach-avatar.partner{border-color:#af8aff;box-shadow:0 0 18px #a878ff99!important;opacity:1!important}
+#mainConnectionCard .reach-couple-heart{display:flex;align-items:center;justify-content:center;flex:0 0 48px;color:#ffb2e7;font-size:0;filter:drop-shadow(0 0 6px #f94ac2)}
+#mainConnectionCard .reach-couple-heart svg{width:100%;height:auto}
+#mainConnectionCard .reach-couple-labels{display:flex;justify-content:space-around;gap:0!important;margin-top:8px;font-size:clamp(17px,4.4vw,23px);font-weight:750;color:#fff}
+#mainConnectionCard .reach-contact-info{display:none!important}
+#mainConnectionCard .reach-contact-menu{top:4px;right:0;transform:scale(.82);opacity:.88}
+#mainConnectionCard #manageConnections{margin-top:0!important}
+#mainConnectionCard #manageConnections:not([open])>summary{font-size:0!important;position:absolute;left:-9999px}
+body:not(.reach-in-call) .reach-scenic-bridge{min-height:0!important;padding:2px 0 8px!important}
+body:not(.reach-in-call) .reach-scenic-heart{width:clamp(112px,29vw,145px);margin:2px auto 13px!important}
+body:not(.reach-in-call) .reach-scenic-title,body:not(.reach-in-call) .reach-scenic-sub{display:none!important}
+.reach-dock-actions .reach-main-actions{gap:10px}
+.reach-dock-actions .reach-main-actions button{min-height:125px!important;padding:14px 5px!important;gap:7px!important}
+.reach-dock-actions .reach-action-icon{display:block;height:38px;line-height:0}
+.reach-dock-actions .reach-action-icon svg{height:38px;width:55px;max-width:100%}
+.reach-landing-status-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 4px}
+.reach-landing-status-row span{display:flex;align-items:center;justify-content:center;min-height:39px;padding:6px 5px;border-radius:18px;background:rgba(28,17,51,.78);font-size:clamp(11px,3vw,14px);font-weight:650;white-space:normal;text-align:center}
+.reach-landing-pair-status{color:#83e9b4}.reach-landing-ready-status{color:#d7dcf5}
+@media(max-width:370px){#mainConnectionCard .reach-couple-photos .reach-avatar{width:98px!important;height:98px!important;flex-basis:98px!important}#mainConnectionCard .reach-couple-heart{flex-basis:35px}.reach-dock-actions .reach-main-actions button{font-size:13px!important}}
+
+</style>
   <link rel="stylesheet" href="./reach2-shell.css?v=2">
   <link rel="stylesheet" href="./reach2-features.css?v=5">
 </head>
@@ -565,7 +596,7 @@ body:not(.reach-in-call) .reach-scenic-sub{margin-bottom:20px}
 <body>
 <main>
 
-  <h1>REACH <span class="staging-marker">TESTING</span></h1>
+  <h1>REACH <span class="staging-marker">TESTING</span></h1><div class="reach-landing-motto">REACH FOR EACH OTHER</div>
   <div class="staging-notice">TEST ZONE · NOT PRODUCTION</div>
   <div class="tagline">“Let all that you do be done in love.”<span class="reach-verse-ref">1 Corinthians 16:14</span></div>
 
@@ -1592,7 +1623,7 @@ function watchPairs(){
         return {avatar,img,fallback,localKey};
       }
       const mine=makeCoupleAvatar("self"),theirs=makeCoupleAvatar("partner");
-      const heart=document.createElement("span");heart.className="reach-couple-heart";heart.textContent="♥";
+      const heart=document.createElement("span");heart.className="reach-couple-heart";heart.innerHTML='<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path d="M8 34l12-12 11 9 6-5 19 10-12 14-13-5-8 5-15-16z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M23 30l10 8m-5-13l13 11m-8-3l12 9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>';
       photos.append(mine.avatar,heart,theirs.avatar);
       const labels=document.createElement("div");labels.className="reach-couple-labels";
       const mineLabel=document.createElement("span");mineLabel.textContent="You";
@@ -1609,14 +1640,14 @@ function watchPairs(){
       const actions=document.createElement("div");actions.className="reach-main-actions";
       const heroOpen=addAction(actions,"My hand is open",()=>openPairedHand(code));
       heroOpen.classList.add("reach-open");
-      heroOpen.innerHTML='<span class="reach-action-icon">♡</span><span>My hand is open</span><span class="reach-action-sub">I’m ready to connect</span>';
+      heroOpen.innerHTML='<span class="reach-action-icon"><svg viewBox="0 0 64 48" aria-hidden="true"><path d="M5 31c9-2 15-6 22-12l11-10c5-4 10 2 6 7l-7 9 14-5c7-2 10 5 4 9L35 41c-7 4-16 1-30-2" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>My hand is open</span><span class="reach-action-sub">I’m ready to connect</span>';
       const heroJoin=addAction(actions,"Take their hand",()=>join.click());
       heroJoin.classList.add("reach-take");heroJoin.disabled=true;heroJoin.setAttribute("aria-disabled","true");
-      heroJoin.innerHTML='<span class="reach-action-icon">♡</span><span>Take their hand</span><span class="reach-action-sub">Connect to your partner</span>';
+      heroJoin.innerHTML='<span class="reach-action-icon"><svg viewBox="0 0 64 48" aria-hidden="true"><path d="M5 31c9-2 15-6 22-12l11-10c5-4 10 2 6 7l-7 9 14-5c7-2 10 5 4 9L35 41c-7 4-16 1-30-2" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Take their hand</span><span class="reach-action-sub">Connect to your partner</span>';
       hero.appendChild(actions);favorite.appendChild(hero);
       // Stage-only visual placement: keep original buttons and event handlers intact.
       const dock=document.getElementById("reachDockActions");
-      if(dock)dock.replaceChildren(actions);
+      if(dock){dock.replaceChildren(actions);const statusRow=document.createElement("div");statusRow.className="reach-landing-status-row";const pairing=document.createElement("span");pairing.className="reach-landing-pair-status";pairing.textContent="● Paired & ready";const readiness=document.createElement("span");readiness.className="reach-landing-ready-status";readiness.textContent="● Ready";statusRow.append(pairing,readiness);dock.appendChild(statusRow);const syncStatus=()=>{pairing.textContent=state.textContent;readiness.textContent=heroJoin.disabled?"● Ready":"● Hand is open";};const observer=new MutationObserver(syncStatus);observer.observe(state,{childList:true,characterData:true,subtree:true});observer.observe(heroJoin,{attributes:true,attributeFilter:["disabled"]});syncStatus();}
       pairListeners.push(onSnapshot(doc(db,"pairInvites",code),(snap)=>{
         if(!snap.exists()||!currentUser)return;
         const pair=snap.data();
