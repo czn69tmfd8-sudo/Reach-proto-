@@ -558,6 +558,24 @@ body:not(.reach-in-call) .reach-scenic-sub{margin-bottom:20px}
 @media(max-width:380px){.r2-modal{padding-left:8px;padding-right:8px}.r2-modal-card{padding:21px 14px 25px}.r2-section-head{display:block}.r2-section-head>span{display:block;text-align:left;margin-top:-8px;margin-bottom:12px}}
 
   
+/* REACH landing refinement v2: one heart, compact grouping, calmer colors. */
+body:not(.reach-in-call) main>.tagline{margin-bottom:9px!important}
+body:not(.reach-in-call) #mainConnectionCard{padding-top:0!important}
+#mainConnectionCard .reach-contact-head{padding-bottom:0!important}
+#mainConnectionCard .reach-couple-photos{gap:4px!important;justify-content:center!important}
+#mainConnectionCard .reach-couple-photos .reach-avatar{width:clamp(102px,30vw,150px)!important;height:clamp(102px,30vw,150px)!important;flex:0 0 clamp(102px,30vw,150px)!important}
+#mainConnectionCard .reach-couple-heart{flex:0 0 clamp(40px,12vw,56px)!important;color:#ff9cdb;filter:drop-shadow(0 0 8px rgba(255,75,193,.7))}
+#mainConnectionCard .reach-couple-labels{margin-top:4px!important}
+body:not(.reach-in-call) .reach-scenic-bridge{padding:0 0 6px!important}
+body:not(.reach-in-call) .reach-scenic-heart{display:none!important}
+body:not(.reach-in-call) .reach-dock-actions{margin-top:10px}
+.reach-dock-actions .reach-main-actions button{min-height:119px!important}
+.reach-dock-actions .reach-main-actions .reach-open{background:linear-gradient(135deg,#e63e9e,#b737c0)}
+.reach-dock-actions .reach-main-actions .reach-take{background:linear-gradient(135deg,#6354ce,#285cbb)}
+.reach-dock-actions .reach-main-actions button:disabled{opacity:.79}
+.reach-landing-status-row{margin-top:9px}
+@media(max-width:370px){#mainConnectionCard .reach-couple-photos .reach-avatar{width:94px!important;height:94px!important;flex-basis:94px!important}}
+
 /* REACH landing concept — staging-only visual experiment, 2026-10-18 */
 body:not(.reach-in-call) .reach2-view[data-view="reach"] #mainConnectionCard,
 body:not(.reach-in-call) #mainConnectionCard{background:transparent!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;padding:4px 0 0!important}
@@ -1623,7 +1641,7 @@ function watchPairs(){
         return {avatar,img,fallback,localKey};
       }
       const mine=makeCoupleAvatar("self"),theirs=makeCoupleAvatar("partner");
-      const heart=document.createElement("span");heart.className="reach-couple-heart";heart.innerHTML='<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path d="M8 34l12-12 11 9 6-5 19 10-12 14-13-5-8 5-15-16z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M23 30l10 8m-5-13l13 11m-8-3l12 9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>';
+      const heart=document.createElement("span");heart.className="reach-couple-heart";heart.innerHTML='<svg viewBox="0 0 64 60" aria-hidden="true" focusable="false"><path d="M32 53 C23 45 5 31 5 18 C5 5 22 1 32 15 C42 1 59 5 59 18 C59 31 41 45 32 53Z" fill="none" stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'; 
       photos.append(mine.avatar,heart,theirs.avatar);
       const labels=document.createElement("div");labels.className="reach-couple-labels";
       const mineLabel=document.createElement("span");mineLabel.textContent="You";
