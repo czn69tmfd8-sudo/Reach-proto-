@@ -13,6 +13,8 @@
  // redundant inner accordion while preserving every original control node, ID and handler.
  const advanced=document.getElementById("connectionSettings");
  if(advanced&&legacySlot){
+   const redundantSummary=advanced.querySelector(":scope > summary");
+   if(redundantSummary)redundantSummary.remove();
    while(advanced.firstChild)legacySlot.appendChild(advanced.firstChild);
    advanced.remove();
  }
