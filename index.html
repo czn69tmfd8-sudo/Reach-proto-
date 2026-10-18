@@ -1727,7 +1727,7 @@ window.finishDeviceMigration=async()=>{
       const replacing=pair.hostUid===approver?"partnerUid":"hostUid",oldUid=pair[replacing];
       if(!oldUid||oldUid===approver||currentUser.uid===approver||approval.replacedUid!==oldUid)throw Error("Migration target changed.");
       tx.update(pairRef,{[replacing]:currentUser.uid});
-      tx.set(lockRef,{pairCode:req.pairCode,createdAt:serverTimestamp()});
+      tx.set(lockRef,{pairCode:req.pairCode,createdAt:serverTimestamp(),migrationToken:token});
       tx.update(reqRef,{status:"completed",completedAt:serverTimestamp()});
     });
     if(!pairedCodes.includes(req.pairCode))pairedCodes.push(req.pairCode);savePairs();await reconcileLockedPartnership();watchPairs();sessionStorage.removeItem("reachMigrationToken");
