@@ -808,12 +808,32 @@ window.reach2GetQuestion=async function(){
  return {mine:answers[mine]||null,theirs:answers[theirs]||null,partnerName:"Your partner"};
 };
 window.reach2SubmitQuestion=async function(text){
- if(!currentUser||!text)throw Error("Question sharing is not ready.");
- var lockSnap=await getDoc(doc(db,"memberLocks",currentUser.uid));if(!lockSnap.exists())throw Error("Permanent partnership lock is missing.");
- var code=lockSnap.data().pairCode,ref=doc(db,"pairInvites",code),snap=await getDoc(ref);if(!snap.exists())throw Error("Partnership not found.");
- var pair=snap.data();if(pair.revoked||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))throw Error("Partnership not authorized.");
+ if(!currentUser){
+   try{
+     currentUser=auth.currentUser||await new Promise(function(resolve,reject){
+       var stop=onAuthStateChanged(auth,function(u){stop();resolve(u)},reject);
+     });
+   }catch(e){throw Error("Authentication is not ready.");}
+ }
+ if(!currentUser)throw Error("Authentication is not ready.");
+ var answerText=String(text||"").trim().slice(0,600);
+ if(!answerText)throw Error("Write an answer before submitting.");
+ var lockSnap=await getDoc(doc(db,"memberLocks",currentUser.uid));
+ if(!lockSnap.exists())throw Error("Permanent partnership lock is missing.");
+ var code=lockSnap.data().pairCode;
+ if(!code)throw Error("Permanent partnership lock has no pairing code.");
+ var selected=mainPairCode();
+ if(selected!==code){
+   if(!pairedCodes.includes(code)){pairedCodes.push(code);savePairs();}
+   favoritePair=code;
+   localStorage.setItem("reachFavoritePair",code);
+ }
+ var ref=doc(db,"pairInvites",code),snap=await getDoc(ref);
+ if(!snap.exists())throw Error("Partnership not found.");
+ var pair=snap.data();
+ if(pair.revoked||![pair.hostUid,pair.partnerUid].includes(currentUser.uid))throw Error("Partnership not authorized.");
  var field=currentUser.uid===pair.hostUid?"host":"partner";
- var answer={uid:currentUser.uid,questionId:"2026-10-17-grateful",text:String(text).trim().slice(0,600),submittedAt:Date.now()};
+ var answer={uid:currentUser.uid,questionId:"2026-10-17-grateful",text:answerText,submittedAt:Date.now()};
  var existing=pair.dailyQuestionAnswers&&typeof pair.dailyQuestionAnswers==="object"?pair.dailyQuestionAnswers:{};
  var nextAnswers={...existing,[field]:answer};
  await updateDoc(ref,{dailyQuestionAnswers:nextAnswers});
