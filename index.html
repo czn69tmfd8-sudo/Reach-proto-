@@ -413,8 +413,143 @@
     @media(max-width:380px) { #mainConnectionCard .reach-couple-photos .reach-avatar{width:78px;height:78px;flex-basis:78px;} .reach-couple-photos{gap:9px;} }
     .tagline .reach-verse-ref { display:block; margin-top:8px; font-size:14px; letter-spacing:1px; color:#d8a9ca; font-weight:500; }
     #reachDailyCard{padding:20px;border:1.5px solid rgba(242,135,190,.72);box-shadow:0 0 0 1px rgba(242,135,190,.10),0 0 24px rgba(222,94,169,.12)}#reachDailyCard h2{font-size:19px;margin:7px 0 14px}.rd-head{display:flex;justify-content:space-between;gap:8px;align-items:start}.rd-kicker{font-size:10px;letter-spacing:2px;color:#e6a5cb;font-weight:750}.rd-toggle{font-size:12px;white-space:nowrap;display:flex;gap:6px;align-items:center}.rd-toggle input{width:20px;height:20px;margin:0;accent-color:#df6aa8}.rd-quote{padding:25px 17px;border-radius:18px;text-align:center;font-size:19px;font-style:italic;line-height:1.5;background:linear-gradient(135deg,#834e7644,#654a9b44);color:#ffe7f2}.rd-actions{display:flex;gap:9px;margin-top:12px}#reachDailyCard .rd-actions button{flex:1;width:auto;padding:13px 7px;font-size:13px;border-radius:13px;background:#824c82}#reachDailyCard #rdShare{background:linear-gradient(120deg,#d54c92,#8c58ba)}.rd-saved{margin-top:16px;font-size:13px}.rd-saved summary{cursor:pointer}.rd-saved-item{padding:10px;margin-top:8px;background:#ffffff12;border-radius:12px;line-height:1.5}#rdMessage{font-size:12px;color:#d4b9d7;margin-top:9px}
-  </style>
-  <link rel="stylesheet" href="./staging/reach2-shell.css?v=prod2">\n  <link rel="stylesheet" href="./staging/reach2-features.css?v=prod2">\n</head>
+  
+
+/* REACH scenic staging migration v1 — presentation only; no connection handlers changed */
+html{background:#100f2c}
+body:not(.reach-in-call){display:block;padding:0 16px 40px;min-height:100svh;background:linear-gradient(180deg,rgba(7,10,42,.46),rgba(12,8,39,.10) 48%,rgba(10,7,32,.44)),url("./staging/Reach%20back.png") center top / cover fixed no-repeat;color:#fff}
+body:not(.reach-in-call) main{max-width:570px;margin:0 auto}
+main>h1{text-align:center;margin:22px 0 4px!important;font-size:clamp(42px,11vw,70px)!important;letter-spacing:2px!important;font-weight:900;background:linear-gradient(90deg,#ff399c 10%,#f06bd8 48%,#239dff 90%);background-clip:text;-webkit-background-clip:text;color:transparent}
+.staging-marker{font-size:clamp(10px,2.7vw,14px)!important;vertical-align:middle;color:#ffaddf!important;background:#44205099!important;border-color:#ffaddf!important}
+.staging-notice{font-size:10px;letter-spacing:3px;color:#ffe4f4;margin:5px 0 18px}
+main>.tagline{text-align:center;color:#fff;font:clamp(18px,4.8vw,26px) Georgia,serif;margin:0 0 26px;text-shadow:0 2px 10px #10092f}
+.tagline .reach-verse-ref{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:16px;color:#f6a5e4}
+#mainConnectionCard{background:rgba(51,22,76,.48);border:1.5px solid #f08cce;border-radius:28px;backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);box-shadow:0 12px 32px #130a3266;padding:20px 18px}
+#mainConnectionCard>h2{text-align:center;font-size:22px;margin:0 0 15px}
+#mainConnectionCard .reach-avatar{box-shadow:0 0 18px #ff64ba55}
+#mainConnectionCard #favoriteConnection button:not(.reach-avatar){border-radius:18px}
+.reach-scenic-bridge{height:clamp(220px,34vh,390px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.reach-scenic-heart{width:130px;max-width:32vw;line-height:0;filter:drop-shadow(0 0 14px rgba(255,77,192,.4))}.reach-scenic-heart svg{display:block;width:100%;height:auto;overflow:visible}
+.reach-scenic-title{margin-top:auto;font-size:clamp(13px,3.3vw,18px);font-weight:800;letter-spacing:clamp(2px,.8vw,5px);color:#ffb0e1;text-shadow:0 2px 10px #110728}
+.reach-scenic-sub{font-size:11px;letter-spacing:3px;margin:8px 0 20px;color:#fff;text-shadow:0 2px 8px #10092e}
+#mediaControls,#connectionSettings{background:rgba(28,18,52,.88);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#reachDailyCard{background:rgba(31,19,53,.87);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#status{background:rgba(14,13,40,.85)}
+body.reach-in-call{background:#000}
+
+
+/* Production scenic layout: connection summary above, live action buttons on dock. */
+body:not(.reach-in-call) .reach-scenic-bridge{
+  height:auto;min-height:clamp(330px,48vh,510px);
+  justify-content:flex-start;padding:10px 0 14px;gap:0;
+}
+body:not(.reach-in-call) .reach-scenic-heart{margin:0 auto clamp(65px,13vh,135px)}
+body:not(.reach-in-call) .reach-scenic-title{margin-top:0}
+body:not(.reach-in-call) .reach-scenic-sub{margin-bottom:20px}
+.reach-dock-actions{width:100%;min-height:0}
+.reach-dock-actions .reach-main-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;width:100%}
+.reach-dock-actions .reach-main-actions button{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;
+  width:100%;min-width:0;min-height:126px;margin:0;padding:15px 7px;
+  border:1px solid rgba(255,255,255,.58);border-radius:19px;
+  color:white;font-size:clamp(14px,3.6vw,18px);font-weight:750;line-height:1.2;
+}
+.reach-dock-actions .reach-main-actions .reach-open{background:linear-gradient(135deg,#fa3998,#bc2bd1)}
+.reach-dock-actions .reach-main-actions .reach-take{background:linear-gradient(135deg,#6256e9,#1468ed)}
+.reach-dock-actions .reach-action-icon{font-size:31px;line-height:1}
+.reach-dock-actions .reach-action-sub{font-size:clamp(10px,2.7vw,13px);font-weight:450;opacity:.92}
+.reach-dock-actions .reach-main-actions button:disabled{opacity:.66}
+.reach-dock-actions .reach-main-actions button[hidden]{display:none!important}
+@media(max-width:365px){.reach-dock-actions .reach-main-actions{gap:9px}.reach-dock-actions .reach-main-actions button{padding:12px 4px;font-size:13px}}
+
+
+/* Production mobile spacing — visual only; no pairing or media logic changed. */
+@media (max-width: 600px) {
+  body:not(.reach-in-call) .reach-scenic-bridge {
+    min-height: 0;
+    height: auto;
+    padding: 4px 0 12px;
+  }
+  body:not(.reach-in-call) .reach-scenic-heart {
+    margin: 0 auto clamp(34px, 7vh, 68px);
+    font-size: clamp(72px, 18vw, 90px);
+  }
+  body:not(.reach-in-call) .reach-scenic-title { margin: 0 0 6px; }
+  body:not(.reach-in-call) .reach-scenic-sub { margin: 0 0 16px; }
+  .reach-dock-actions .reach-main-actions button {
+    min-height: 116px;
+    padding: 13px 7px;
+    gap: 7px;
+  }
+}
+
+
+/* Production translucent daily reminder glass panel over landscape. */
+#reachDailyCard {
+  background: rgba(28, 18, 51, .36);
+  -webkit-backdrop-filter: blur(3px) saturate(1.1);
+  backdrop-filter: blur(3px) saturate(1.1);
+  border-color: rgba(249, 146, 205, .76);
+}
+#reachDailyCard .rd-quote {
+  background: rgba(62, 36, 91, .52);
+  text-shadow: 0 1px 6px rgba(10, 5, 27, .65);
+}
+#reachDailyCard .rd-head,
+#reachDailyCard .rd-saved { text-shadow: 0 1px 5px rgba(8, 4, 24, .65); }
+
+
+/* REACH production visual checkpoint — 2026-10-17. Styling only. */
+@media (max-width:600px) {
+  #mainConnectionCard {padding:19px 18px 21px;}
+  #mainConnectionCard .reach-contact-head {gap:9px;padding-top:1px;}
+  #mainConnectionCard .reach-couple-photos {gap:13px;}
+  #mainConnectionCard .reach-couple-photos .reach-avatar {width:86px;height:86px;flex-basis:86px;}
+  #mainConnectionCard .reach-couple-labels {gap:44px;}
+  #mainConnectionCard .reach-contact-name {font-size:23px;letter-spacing:-.35px;}
+  #mainConnectionCard .reach-contact-status {margin-top:4px;}
+}
+#mainConnectionCard {background:linear-gradient(145deg,rgba(35,24,73,.43),rgba(67,29,75,.38));border-color:rgba(255,150,218,.82);box-shadow:0 10px 32px rgba(14,8,45,.2);}
+.reach-scenic-heart {width:138px;max-width:34vw;filter:drop-shadow(0 0 10px rgba(255,78,192,.42));}
+#reachDailyCard {padding:19px 18px 20px;background:linear-gradient(155deg,rgba(35,20,64,.31),rgba(30,18,53,.4));border-color:rgba(255,163,218,.78);box-shadow:0 7px 24px rgba(16,7,40,.14);}
+#reachDailyCard h2 {margin:6px 0 12px;line-height:1.2;}
+#reachDailyCard .rd-quote {padding:20px 15px;background:rgba(55,33,86,.42);line-height:1.43;}
+#reachDailyCard .rd-actions {margin-top:12px;gap:10px;}
+#reachDailyCard .rd-saved {margin-top:13px;}
+@media (prefers-reduced-motion:reduce){.reach-scenic-heart svg{animation:none!important;}}
+
+
+/* Our Profile mobile polish. */
+.r2-modal{padding:calc(env(safe-area-inset-top,0px) + 14px) 12px calc(env(safe-area-inset-bottom,0px) + 24px);overflow-y:auto;align-items:flex-start}
+.r2-modal-card{width:min(100%,470px);margin:auto;padding:24px 18px 28px;border-radius:26px;max-height:none;overflow:visible}
+.r2-modal-card>h2{padding-right:50px;margin-bottom:18px}
+.r2-close{top:14px;right:14px}
+.r2-profile-heart{text-align:center;font-size:46px;margin:4px 0 14px}
+.r2-profile-section{margin-top:24px}
+.r2-profile-section>h3,.r2-section-head h3{text-align:left;margin:0 0 15px}
+.r2-section-head{display:flex;align-items:end;justify-content:space-between;gap:10px;margin-bottom:12px}
+.r2-section-head>span{font-size:11px;color:#d7b9e5;text-align:right}
+.r2-field{display:block;width:100%;margin:0 0 16px}
+.r2-field>span{display:block;margin:0 0 7px;font-size:13px;font-weight:700;color:#f7e9f7}
+.r2-field>span small{font-weight:500;color:#cbb9d2}
+.r2-field input,.r2-field textarea,.r2-add-milestone input{display:block;width:100%;max-width:none;margin:0;text-align:left;text-transform:none;letter-spacing:0;font-size:16px;padding:14px 15px;border-radius:14px}
+.r2-field textarea{min-height:118px;resize:vertical;line-height:1.45;background:#211c38;color:white;border:1px solid rgba(180,145,226,.18)}
+.r2-field input[type="date"],.r2-add-milestone input[type="date"]{min-height:52px;color-scheme:dark}
+.r2-milestones{display:grid;gap:9px;margin-bottom:14px}
+.r2-milestone{display:flex;align-items:center;gap:10px;padding:13px 12px;border:1px solid rgba(222,161,235,.18);border-radius:14px;background:rgba(255,255,255,.06)}
+.r2-milestone>div{min-width:0;flex:1}
+.r2-milestone b,.r2-milestone small{display:block}
+.r2-milestone small{margin-top:4px;color:#cdbdd4;font-size:12px;line-height:1.35}
+.r2-mini-danger{width:38px;min-width:38px;height:38px;padding:0;margin:0;border-radius:50%;font-size:20px;background:rgba(180,49,104,.34);box-shadow:none}
+.r2-empty-line{margin:0 0 12px}
+.r2-add-milestone{display:grid;gap:10px}
+.r2-add-milestone .r2-secondary{margin:2px 0 8px}
+.r2-modal [data-save-profile]{margin-top:16px}
+@media(max-width:380px){.r2-modal{padding-left:8px;padding-right:8px}.r2-modal-card{padding:21px 14px 25px}.r2-section-head{display:block}.r2-section-head>span{display:block;text-align:left;margin-top:-8px;margin-bottom:12px}}
+
+  
+</style>
+  <link rel="stylesheet" href="./staging/reach2-shell.css?v=prod3">\n  <link rel="stylesheet" href="./staging/reach2-features.css?v=prod3">\n</head>
 
 <body>
 <main>
@@ -433,7 +568,10 @@
     </details>
   </section>
 
-  <section class="card" id="mediaCard">
+  <div class="reach-scenic-bridge" aria-label="Reach for each other"><div class="reach-scenic-heart" aria-hidden="true"><svg viewBox="0 0 180 160" role="presentation" focusable="false"><defs><linearGradient id="reachHeartGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffc6f1"/><stop offset="42%" stop-color="#ff69c8"/><stop offset="100%" stop-color="#e36cff"/></linearGradient><filter id="reachHeartGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5"/></filter></defs><path d="M90 143 C67 121 19 86 19 49 C19 19 56 10 90 45 C124 10 161 19 161 49 C161 86 113 121 90 143Z" fill="none" stroke="#ff62ca" stroke-width="9" opacity=".36" filter="url(#reachHeartGlow)"/><path d="M90 143 C67 121 19 86 19 49 C19 19 56 10 90 45 C124 10 161 19 161 49 C161 86 113 121 90 143Z" fill="none" stroke="url(#reachHeartGradient)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M35 44 C42 25 61 23 78 39" fill="none" stroke="#ffe6f9" stroke-width="2.5" stroke-linecap="round" opacity=".82"/></svg></div><div class="reach-scenic-title">REACH FOR EACH OTHER</div><div class="reach-scenic-sub">SAME MOMENT. ANY DISTANCE.</div><div id="reachDockActions" class="reach-dock-actions" aria-label="Connection actions"></div></div>
+
+  <details class="reach-fold" id="mediaControls"><summary>📷 Camera &amp; microphone <span class="reach-fold-right">Manage ▾</span></summary>
+<section class="card" id="mediaCard">
     <h2>Camera & microphone</h2>
 
     <p>
@@ -465,7 +603,10 @@
     </div>
   </section>
 
+  </details>
+
   <section class="card" id="reachDailyCard"><div class="rd-head"><div><span class="rd-kicker">A LITTLE LOVE, DAILY</span><h2>Today's little reminder ❤️</h2></div><label class="rd-toggle"><input id="rdEnabled" type="checkbox"> On</label></div><div id="rdBody"><div class="rd-quote" id="rdQuote"></div><div class="rd-actions"><button id="rdSave" type="button">♡ Save</button><button id="rdShare" type="button">↗ Share a nudge</button></div><details class="rd-saved"><summary>Our little reminders <span id="rdCount"></span></summary><div id="rdList"></div></details><div id="rdMessage" role="status"></div></div></section>
+  <details class="reach-fold" id="connectionSettings"><summary>🔗 Connection settings <span class="reach-fold-status">Check status</span><span class="reach-fold-right">Expand ▾</span></summary>
   <section class="card" id="pairCard">
     <h2>One-time pairing ❤️</h2>
     <p>Pair each phone once. Multiple devices can stay authorized, including a test phone.</p>
@@ -532,6 +673,7 @@
 
   </details>
 
+  </details>
   <section class="card" id="remoteCard">
     <h2>Partner</h2>
 
@@ -1566,6 +1708,10 @@ function watchPairs(){
       heroJoin.innerHTML='<span class="reach-action-icon">♡</span><span>Take their hand</span><span class="reach-action-sub">Connect to your partner</span>';
       const liveState=document.createElement("div");liveState.id="reachLiveState";liveState.className="reach-live-state";liveState.dataset.state="ready";liveState.textContent="● Ready";
       hero.appendChild(actions);hero.appendChild(liveState);favorite.appendChild(hero);mainReachIndicator=liveState;
+      // Presentation-only placement: move the existing action nodes into the scenic dock.
+      // Their original event handlers and live state logic stay untouched.
+      const dock=document.getElementById("reachDockActions");
+      if(dock)dock.replaceChildren(actions);
       pairListeners.push(onSnapshot(doc(db,"pairInvites",code),(snap)=>{
         if(!snap.exists()||!currentUser)return;
         const pair=snap.data();
@@ -2092,7 +2238,7 @@ window.joinRoom = async function () {
 };
 
 </script>
-  <script src="./staging/reach2-shell.js?v=prod2"></script>
-  <script src="./staging/reach2-date-ideas.js?v=prod2"></script>
-  <script src="./staging/reach2-features.js?v=prod2"></script>\n</body>
+  <script src="./staging/reach2-shell.js?v=prod3"></script>
+  <script src="./staging/reach2-date-ideas.js?v=prod3"></script>
+  <script src="./staging/reach2-features.js?v=prod3"></script>\n</body>
 </html>
