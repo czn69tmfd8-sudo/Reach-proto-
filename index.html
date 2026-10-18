@@ -1680,6 +1680,7 @@ window.requestDeviceMigration=async()=>{
     sessionStorage.setItem("reachMigrationToken",token);
     tokenEl.textContent=token;tokenBox.style.display="block";
     out.textContent="Request created. Give this token only to the already-authorized partner phone.";
+    const b=document.createElement("button");b.id="migrationFinishButton";b.type="button";b.textContent="Check approval & finish move";b.onclick=finishDeviceMigration;out.insertAdjacentElement("afterend",b);
   }catch(error){console.error("Device migration request failed:",error);out.textContent="Secure device move is not enabled yet ("+(error?.code||"not-authorized")+"). No partnership data changed.";}
 };
 window.checkDeviceMigrationRequest=async()=>{
@@ -1702,7 +1703,10 @@ window.checkDeviceMigrationRequest=async()=>{
 window.approveDeviceMigration=async(token,targetUid,code)=>{
   const txt=document.getElementById("migrationApprovalText"),btn=document.getElementById("migrationApproveButton");btn.disabled=true;
   try{
-    await updateDoc(doc(db,"deviceMigrationRequests",token),{status:"approved",approvedBy:currentUser.uid,approvedAt:serverTimestamp()});
+    const pairSnap=await getDoc(doc(db,"pairInvites",code));if(!pairSnap.exists())throw Error("Partnership unavailable.");
+    const pair=pairSnap.data(),replacing=pair.hostUid===currentUser.uid?"partnerUid":"hostUid",replacedUid=pair[replacing];
+    if(!replacedUid||replacedUid===currentUser.uid||targetUid===currentUser.uid)throw Error("Invalid migration target.");
+    await updateDoc(doc(db,"deviceMigrationRequests",token),{status:"approved",approvedBy:currentUser.uid,approvedAt:serverTimestamp(),replacedUid:replacedUid});
     txt.textContent="Approved. The replacement phone can now finish the secure move.";btn.style.display="none";
   }catch(error){console.error("Migration approval failed:",error);txt.textContent="Approval failed. Nothing changed.";btn.disabled=false;}
 };
@@ -1710,10 +1714,25 @@ window.finishDeviceMigration=async()=>{
   const out=document.getElementById("migrationMessage"),token=sessionStorage.getItem("reachMigrationToken");
   if(!currentUser||!token){out.textContent="No migration request is open on this phone.";return;}
   try{
-    const reqSnap=await getDoc(doc(db,"deviceMigrationRequests",token));
+    const reqRef=doc(db,"deviceMigrationRequests",token),reqSnap=await getDoc(reqRef);
     if(!reqSnap.exists()||reqSnap.data().requestedUid!==currentUser.uid||reqSnap.data().status!=="approved"){out.textContent="Waiting for approval from the authorized partner phone.";return;}
-    out.textContent="Approval confirmed. Final identity transfer is not enabled until the migration transaction rules are published.";
-  }catch(error){console.error(error);out.textContent="Could not confirm migration approval.";}
+    const req=reqSnap.data(),pairRef=doc(db,"pairInvites",req.pairCode),lockRef=doc(db,"memberLocks",currentUser.uid);
+    await runTransaction(db,async(tx)=>{
+      const freshReq=await tx.get(reqRef),pairSnap=await tx.get(pairRef),lockSnap=await tx.get(lockRef);
+      if(!freshReq.exists()||freshReq.data().status!=="approved"||freshReq.data().requestedUid!==currentUser.uid)throw Error("Migration approval invalid.");
+      if(!pairSnap.exists()||pairSnap.data().get?.("revoked",false)===true||pairSnap.data().revoked===true)throw Error("Partnership unavailable.");
+      if(lockSnap.exists())throw Error("This phone already has a permanent partnership lock.");
+      const approval=freshReq.data(),pair=pairSnap.data(),approver=approval.approvedBy;
+      if(![pair.hostUid,pair.partnerUid].includes(approver))throw Error("Approver is not a current member.");
+      const replacing=pair.hostUid===approver?"partnerUid":"hostUid",oldUid=pair[replacing];
+      if(!oldUid||oldUid===approver||currentUser.uid===approver||approval.replacedUid!==oldUid)throw Error("Migration target changed.");
+      tx.update(pairRef,{[replacing]:currentUser.uid});
+      tx.set(lockRef,{pairCode:req.pairCode,createdAt:serverTimestamp()});
+      tx.update(reqRef,{status:"completed",completedAt:serverTimestamp()});
+    });
+    if(!pairedCodes.includes(req.pairCode))pairedCodes.push(req.pairCode);savePairs();await reconcileLockedPartnership();watchPairs();sessionStorage.removeItem("reachMigrationToken");
+    out.textContent="❤️ This phone is now securely attached to your existing partnership.";
+  }catch(error){console.error("Device migration completion failed:",error);out.textContent="Could not finish the secure move. Nothing was changed.";}
 };
 window.upgradeLegacyPairLock=async()=>{
   if(!currentUser)return;
