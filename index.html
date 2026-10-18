@@ -626,6 +626,11 @@ body:not(.reach-in-call) .reach-scenic-sub{margin-bottom:20px}
         <div style="font-size:13px;color:#cbd5e1">Migration token</div>
         <div id="migrationToken" style="font-size:26px;letter-spacing:3px;color:#a5b4fc;font-weight:700"></div>
       </div>
+      <div id="migrationResume" style="margin-top:14px">
+        <p style="color:#cbd5e1;font-size:14px">Replacement phone: if a move was already requested or approved, enter its 8-character migration token to resume safely.</p>
+        <input id="migrationResumeToken" maxlength="8" placeholder="RESUME MIGRATION TOKEN" autocomplete="off">
+        <button id="migrationResumeButton" type="button" onclick="resumeDeviceMigration()">Resume secure move</button>
+      </div>
       <div id="migrationApproval" style="margin-top:14px">
         <p style="color:#cbd5e1;font-size:14px">Already-authorized phone: enter the migration token shown on the replacement phone.</p>
         <input id="migrationApprovalToken" maxlength="8" placeholder="MIGRATION TOKEN" autocomplete="off">
@@ -1823,6 +1828,7 @@ window.requestDeviceMigration=async()=>{
     if(lock.exists()){out.textContent="This phone already has a permanent partnership lock. Nothing was changed.";return;}
     const token=makeMigrationToken();
     await setDoc(doc(db,"deviceMigrationRequests",token),{requestedUid:currentUser.uid,pairCode:code,createdAt:serverTimestamp(),status:"pending"});
+    localStorage.setItem("reachMigrationToken",token);
     sessionStorage.setItem("reachMigrationToken",token);
     tokenEl.textContent=token;tokenBox.style.display="block";
     out.textContent="Request created. Give this token only to the already-authorized partner phone.";
@@ -1856,8 +1862,28 @@ window.approveDeviceMigration=async(token,targetUid,code)=>{
     txt.textContent="Approved. The replacement phone can now finish the secure move.";btn.style.display="none";
   }catch(error){console.error("Migration approval failed:",error);txt.textContent="Approval failed. Nothing changed.";btn.disabled=false;}
 };
+window.resumeDeviceMigration=async()=>{
+  const out=document.getElementById("migrationMessage");
+  const token=(document.getElementById("migrationResumeToken")?.value||"").trim().toUpperCase();
+  if(!currentUser){out.textContent="This phone is still authenticating.";return;}
+  if(token.length!==8){out.textContent="Enter the 8-character migration token from this replacement phone's move request.";return;}
+  try{
+    const reqSnap=await getDoc(doc(db,"deviceMigrationRequests",token));
+    if(!reqSnap.exists()){out.textContent="That migration request was not found.";return;}
+    const req=reqSnap.data();
+    if(req.requestedUid!==currentUser.uid){out.textContent="That migration token belongs to a different phone. Nothing changed.";return;}
+    if(req.status==="completed"){out.textContent="This migration is already completed. Run the connection health check.";return;}
+    if(req.status!=="pending"&&req.status!=="approved"){out.textContent="That migration request cannot be resumed. Nothing changed.";return;}
+    localStorage.setItem("reachMigrationToken",token);
+    sessionStorage.setItem("reachMigrationToken",token);
+    document.getElementById("migrationToken").textContent=token;
+    document.getElementById("migrationTokenBox").style.display="block";
+    if(req.status==="approved"){out.textContent="Approved migration recovered. Finishing the secure move now…";await finishDeviceMigration();}
+    else out.textContent="Pending migration recovered. Have the authorized partner phone approve this token, then tap Resume secure move again.";
+  }catch(error){console.error("Migration resume failed:",error);out.textContent="Could not resume that secure move ("+(error?.code||error?.message||"unknown-error")+"). Nothing changed.";}
+};
 window.finishDeviceMigration=async()=>{
-  const out=document.getElementById("migrationMessage"),token=sessionStorage.getItem("reachMigrationToken");
+  const out=document.getElementById("migrationMessage"),token=sessionStorage.getItem("reachMigrationToken")||localStorage.getItem("reachMigrationToken");
   if(!currentUser||!token){out.textContent="No migration request is open on this phone.";return;}
   try{
     const reqRef=doc(db,"deviceMigrationRequests",token),reqSnap=await getDoc(reqRef);
@@ -1876,9 +1902,9 @@ window.finishDeviceMigration=async()=>{
       tx.set(lockRef,{pairCode:req.pairCode,createdAt:serverTimestamp(),migrationToken:token});
       tx.update(reqRef,{status:"completed",completedAt:serverTimestamp()});
     });
-    if(!pairedCodes.includes(req.pairCode))pairedCodes.push(req.pairCode);savePairs();await reconcileLockedPartnership();watchPairs();sessionStorage.removeItem("reachMigrationToken");
+    if(!pairedCodes.includes(req.pairCode))pairedCodes.push(req.pairCode);savePairs();await reconcileLockedPartnership();watchPairs();sessionStorage.removeItem("reachMigrationToken");localStorage.removeItem("reachMigrationToken");
     out.textContent="❤️ This phone is now securely attached to your existing partnership.";
-  }catch(error){console.error("Device migration completion failed:",error);out.textContent="Could not finish the secure move. Nothing was changed.";}
+  }catch(error){console.error("Device migration completion failed:",error);out.textContent="Could not finish the secure move ("+(error?.code||error?.message||"unknown-error")+"). Nothing was changed.";}
 };
 window.upgradeLegacyPairLock=async()=>{
   if(!currentUser)return;
