@@ -79,3 +79,11 @@
  .r2-date-chip{font-size:13px}
  .r2-date-actions{flex-direction:column}
 }
+
+/* Shared mobile interaction polish: keep long dialogs usable above the iPhone browser chrome. */
+.r2-modal{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.r2-modal-card{min-width:0;box-sizing:border-box;overflow-wrap:break-word}
+.r2-modal-body{min-width:0}
+.r2-modal-card button:focus-visible,.r2-modal-card input:focus-visible,.r2-modal-card textarea:focus-visible{outline:2px solid #ffaddb;outline-offset:3px}
+.r2-modal-card button{max-width:100%}
+@media(max-width:390px){.r2-modal-card{width:100%}.r2-modal-card h2{overflow-wrap:anywhere}}
