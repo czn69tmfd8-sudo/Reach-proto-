@@ -24,3 +24,11 @@
 .rk-favourite{width:54px;flex:0 0 54px;border:1px solid #ad7eac;border-radius:18px;background:#ffffff13;color:#ff9ed2;font-size:30px;cursor:pointer}
 .rk-favourite[aria-pressed=true]{color:#f365b7;background:#ffffff20}
 @media(max-width:400px){.rk-filter-row{flex-wrap:wrap}.rk-fav-filter{padding-bottom:0}}
+
+/* Grocery list and visible favourites toggle */
+.rk-shop-select,.rk-shop-item{display:flex!important;align-items:center!important;gap:12px}
+.rk-shop-item span{flex:1;min-width:0}
+.rk-shop-item small{display:block;opacity:.7;font-size:12px;margin-top:4px}
+.rk-fav-filter input[type=checkbox]{appearance:none!important;-webkit-appearance:none!important;border:2px solid #eab4d9!important;border-radius:6px!important;background:#ffffff18!important;position:relative!important;flex-shrink:0}
+.rk-fav-filter input[type=checkbox]:checked{background:#ed63b5!important;border-color:#ed63b5!important}
+.rk-fav-filter input[type=checkbox]:checked:after{content:"✓";position:absolute;inset:0;color:white;text-align:center;line-height:16px;font-size:15px;font-weight:800}
