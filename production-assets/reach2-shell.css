@@ -1,0 +1,47 @@
+/* REACH 2.0 staging shell — visual/navigation layer only */
+:root{--r-pink:#ff69ae;--r-purple:#9a62ee;--r-ink:#17112e;--r-glass:rgba(35,24,69,.78)}
+body:not(.reach-in-call){padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+.reach2-tabs{position:fixed;z-index:8000;left:50%;bottom:calc(10px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(calc(100% - 24px),470px);display:grid;grid-template-columns:repeat(3,1fr);padding:8px;border:1px solid rgba(255,159,211,.32);border-radius:24px;background:rgba(20,13,42,.92);backdrop-filter:blur(18px);box-shadow:0 14px 38px #0008}
+.reach2-tab{background:transparent;box-shadow:none;padding:10px 4px;border-radius:17px;font-size:12px;color:#d9c7df}.reach2-tab span{display:block;font-size:22px;margin-bottom:2px}.reach2-tab.active{background:linear-gradient(135deg,rgba(255,91,166,.24),rgba(139,85,235,.28));color:#fff}
+.reach2-view[hidden]{display:none!important}.reach2-view{animation:r2in .22s ease}@keyframes r2in{from{opacity:.35;transform:translateY(5px)}to{opacity:1;transform:none}}
+.reach2-title{text-align:center;margin:16px 0 4px;font-size:34px}.reach2-sub{text-align:center;margin:0 0 20px;color:#e1cce5}
+.reach2-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.reach2-tile,.reach2-row{border:1px solid rgba(255,157,211,.26);background:linear-gradient(145deg,rgba(65,40,96,.88),rgba(36,30,72,.9));border-radius:20px;padding:18px;box-shadow:0 10px 24px #0003}.reach2-tile{min-height:138px;text-align:center}.reach2-tile b{display:block;font-size:16px;margin:8px 0 5px}.reach2-tile p{margin:0;font-size:12px}.reach2-icon{font-size:28px}.reach2-question{border:1px solid rgba(255,128,190,.62);background:linear-gradient(145deg,rgba(110,54,115,.78),rgba(64,48,112,.82));border-radius:22px;padding:22px;margin-bottom:14px}.reach2-question small{color:#ffb3d5;text-transform:uppercase;letter-spacing:1.5px}.reach2-question h3{font-size:20px;line-height:1.4;margin:12px 0 18px}.reach2-question button{background:linear-gradient(110deg,#ff6aa9,#d956be);padding:14px}
+.reach2-list{display:grid;gap:11px}.reach2-row{display:flex;align-items:center;gap:14px}.reach2-row .reach2-icon{width:42px;text-align:center}.reach2-row div{flex:1}.reach2-row b{display:block}.reach2-row small{color:#c9b8d2}.reach2-chevron{font-size:24px;color:#e8cfe4}
+.reach2-coming{opacity:.78}.reach2-badge{display:inline-block;padding:5px 9px;border-radius:999px;background:#ffffff15;color:#ffc2df;font-size:10px;margin-top:8px}
+body.reach-in-call .reach2-tabs{display:none}
+@media(max-width:370px){.reach2-grid{grid-template-columns:1fr}.reach2-title{font-size:29px}}
+
+/* v2.0.1 iPhone viewport correction */
+.reach2-active body:not(.reach-in-call){overflow-x:hidden}
+.reach2-active .reach2-tabs{bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+.reach2-active .reach2-view[data-view="reach"]{padding-bottom:18px}
+.reach2-active .reach2-view[data-view="reach"]>.reach-home-actions,
+.reach2-active #reachDockActions{position:static!important;transform:none!important}
+
+/* v2.1 — feature organization */
+.reach2-existing-daily{margin:14px 0}.reach2-existing-daily #reachDailyCard{margin:0}
+.reach2-legacy-settings{margin-top:16px;border:1px solid rgba(255,157,211,.22);border-radius:20px;background:rgba(29,20,58,.76);overflow:hidden}
+.reach2-legacy-settings>summary{padding:17px 19px;cursor:pointer;color:#efd9ee;font-weight:700;list-style:none}.reach2-legacy-settings>summary::-webkit-details-marker{display:none}
+.reach2-legacy-slot{padding:0 12px 12px}.reach2-legacy-slot>.card,.reach2-legacy-slot>.reach-fold{margin:10px 0}
+.reach2-view[data-view="reach"] #reachDailyCard{display:none}
+
+/* Production cleanup pass: compact controls + Safari-safe navigation */
+.reach2-active .reach-fold{border:1px solid rgba(255,159,211,.28);border-radius:17px;background:rgba(23,14,48,.76);overflow:hidden;margin:10px 0}
+.reach2-active .reach-fold>summary{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:7px;min-height:52px;padding:12px 14px;list-style:none;cursor:pointer;color:#f6eaf7;font-size:14px;font-weight:700;line-height:1.25}
+.reach2-active .reach-fold>summary::-webkit-details-marker{display:none}
+.reach2-active .reach-fold>summary::before{content:"›";grid-column:1;font-size:20px;color:#efb8e1;transform:rotate(0);transition:transform .18s ease}
+.reach2-active .reach-fold[open]>summary::before{transform:rotate(90deg)}
+.reach2-active .reach-fold>summary>.reach-fold-right{grid-column:3;font-size:12px;font-weight:600;color:#d9bedc;white-space:nowrap}
+.reach2-active .reach-fold>summary>.reach-fold-status{display:none}
+.reach2-active .reach-fold>.card{margin:0;border:0;border-top:1px solid rgba(255,159,211,.18);border-radius:0;background:rgba(23,14,48,.9)}
+.reach2-badge-ready{background:rgba(255,255,255,.12);color:#f8d8ec}
+.reach2-legacy-settings>summary{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.reach2-legacy-settings>summary>span{font-size:11px;font-weight:500;color:#cdb8d4;text-align:right}
+.reach2-tabs{bottom:max(8px,env(safe-area-inset-bottom,0px))}
+.reach2-view{padding-bottom:110px}
+@media(max-width:390px){
+ .reach2-active .reach-fold>summary{font-size:13px;padding:11px 12px}
+ .reach2-active .reach-fold>summary>.reach-fold-right{font-size:11px}
+ .reach2-legacy-settings>summary{display:block}
+ .reach2-legacy-settings>summary>span{display:block;text-align:left;margin-top:4px}
+}
