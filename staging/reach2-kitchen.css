@@ -12,3 +12,15 @@
 .rk-check:focus-within{outline:2px solid #f9a4d4;outline-offset:2px}
 .rk-sheet button:focus-visible,.rk-sheet input:focus-visible,.rk-sheet textarea:focus-visible{outline:2px solid #f9a4d4;outline-offset:2px}
 @media(max-width:420px){.rk-sheet{padding:22px 18px calc(24px + env(safe-area-inset-bottom,0px))}.rk-sheet h2{font-size:24px}}
+
+/* Recipe library controls */
+.rk-search-label{display:block;margin:14px 0}
+.rk-filter-row{display:flex;align-items:end;gap:12px;margin:10px 0 14px}
+.rk-filter-row>label:first-child{flex:1;min-width:0}
+.rk-fav-filter{display:flex!important;align-items:center;gap:7px;flex:0 0 auto;font-size:14px!important;padding-bottom:12px}
+.rk-fav-filter input{width:20px!important;height:20px!important;margin:0!important;accent-color:#ee69b7}
+.rk-recipe-row{display:flex;align-items:stretch;gap:8px;margin:10px 0}
+.rk-recipe-row .rk-recipe{flex:1;min-width:0;margin:0}
+.rk-favourite{width:54px;flex:0 0 54px;border:1px solid #ad7eac;border-radius:18px;background:#ffffff13;color:#ff9ed2;font-size:30px;cursor:pointer}
+.rk-favourite[aria-pressed=true]{color:#f365b7;background:#ffffff20}
+@media(max-width:400px){.rk-filter-row{flex-wrap:wrap}.rk-fav-filter{padding-bottom:0}}
