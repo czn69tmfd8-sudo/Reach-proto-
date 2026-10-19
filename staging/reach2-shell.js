@@ -1,0 +1,27 @@
+// REACH 2.0 staging navigation. No Firebase writes.
+(()=>{function init(){
+ const main=document.querySelector("main"); if(!main||document.querySelector(".reach2-tabs"))return;
+ const existing=[...main.children],home=document.createElement("section");home.className="reach2-view";home.dataset.view="reach";existing.forEach(n=>home.appendChild(n));main.appendChild(home);
+ const daily=document.getElementById("reachDailyCard");
+ const together=document.createElement("section");together.className="reach2-view";together.dataset.view="together";together.hidden=true;
+ together.innerHTML='<h2 class="reach2-title">Together 💗</h2><p class="reach2-sub">Small moments. Big connection.</p><div class="reach2-question"><small>Today’s question</small><h3>What is something you’re grateful for about each other right now?</h3><button type="button" data-r2-action="answer">✎ Write a response</button></div><div class="reach2-grid"><div class="reach2-tile"><span class="reach2-icon">🎮</span><b>Play a Game</b><p>Fun ways to connect</p><span class="reach2-badge reach2-badge-ready">Open</span></div><div class="reach2-tile"><span class="reach2-icon">💡</span><b>Date Ideas</b><p>Big or small adventures</p><span class="reach2-badge reach2-badge-ready">Open</span></div><div class="reach2-tile"><span class="reach2-icon">🖼️</span><b>Our Adventure Book</b><p>Photos, moments & milestones</p><span class="reach2-badge reach2-badge-ready">Open</span></div><div class="reach2-tile"><span class="reach2-icon">💗</span><b>Challenges</b><p>Little things that keep us close</p><span class="reach2-badge reach2-badge-ready">Open</span></div></div>';
+ if(daily){const slot=document.createElement("div");slot.className="reach2-existing-daily";slot.appendChild(daily);together.insertBefore(slot,together.querySelector(".reach2-grid"))}
+ const us=document.createElement("section");us.className="reach2-view";us.dataset.view="us";us.hidden=true;
+ us.innerHTML='<h2 class="reach2-title">Us 💗</h2><p class="reach2-sub">Our space. Our story.</p><div class="reach2-list"><div class="reach2-row"><span class="reach2-icon">👩‍❤️‍👨</span><div><b>Our Profile</b><small>Photos, names and details</small></div><span class="reach2-chevron">›</span></div><div class="reach2-row"><span class="reach2-icon">🔐</span><div><b>Connection Settings</b><small>Permissions and access</small></div><span class="reach2-chevron">›</span></div><div class="reach2-row"><span class="reach2-icon">🔔</span><div><b>Notifications</b><small>Stay connected, your way</small></div><span class="reach2-chevron">›</span></div><div class="reach2-row reach2-coming"><span class="reach2-icon">🌙</span><div><b>Sleep Connection</b><small>Intentional overnight connection</small><span class="reach2-badge">Designing safely</span></div><span class="reach2-chevron">›</span></div><div class="reach2-row"><span class="reach2-icon">💗</span><div><b>Our History</b><small>Notes, milestones, memories</small></div><span class="reach2-chevron">›</span></div><div class="reach2-row"><span class="reach2-icon">⚙️</span><div><b>App Settings</b><small>Camera, microphone, privacy</small></div><span class="reach2-chevron">›</span></div></div>';main.append(together,us);
+ const usLegacy=document.createElement("details");usLegacy.className="reach2-legacy-settings";usLegacy.innerHTML='<summary>Advanced connection controls <span>Pairing, device health & manual tools</span></summary><div class="reach2-legacy-slot"></div>';us.appendChild(usLegacy);const legacySlot=usLegacy.querySelector(".reach2-legacy-slot");
+ // Advanced tools belong under Us. Move the already-initialized contents out of the
+ // redundant inner accordion while preserving every original control node, ID and handler.
+ const advanced=document.getElementById("connectionSettings");
+ if(advanced&&legacySlot){
+   const redundantSummary=advanced.querySelector(":scope > summary");
+   if(redundantSummary)redundantSummary.remove();
+   while(advanced.firstChild)legacySlot.appendChild(advanced.firstChild);
+   advanced.remove();
+ }
+ 
+ const nav=document.createElement("nav");nav.className="reach2-tabs";nav.setAttribute("aria-label","REACH sections");nav.innerHTML='<button class="reach2-tab active" data-target="reach"><span>♥</span>Reach</button><button class="reach2-tab" data-target="together"><span>✨</span>Together</button><button class="reach2-tab" data-target="us"><span>♧</span>Us</button>';document.body.appendChild(nav);document.documentElement.classList.add("reach2-active");
+ nav.onclick=e=>{const b=e.target.closest(".reach2-tab");if(!b)return;document.querySelectorAll(".reach2-view").forEach(v=>v.hidden=v.dataset.view!==b.dataset.target);document.querySelectorAll(".reach2-tab").forEach(x=>x.classList.toggle("active",x===b));window.scrollTo({top:0,behavior:"smooth"})};
+ // Defensive cleanup for old staging markup that accidentally rendered literal backslash-n text.
+ const clean=()=>{const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT),bad=[];while(w.nextNode()){const n=w.currentNode;if(n.nodeValue&&/^(\\n\s*)+$/.test(n.nodeValue.trim()))bad.push(n)}bad.forEach(n=>n.remove())};clean();setTimeout(clean,250);
+ window.dispatchEvent(new CustomEvent("reach2:ready"));
+}document.readyState==="loading"?document.addEventListener("DOMContentLoaded",init):init()})();
