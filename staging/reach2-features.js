@@ -33,6 +33,6 @@ function bind(){
  }
  var tiles=document.querySelectorAll('[data-view="together"] .reach2-tile');
  var data=[["Play a Game","🎮","Quick games built for two people, whether you’re beside each other or thousands of kilometres apart."],["Date Ideas","💡","Save ideas for tonight, your next visit, or something completely ridiculous you want to try together."],["Our Adventure Book","🖼️","A private place for photos and the little stories you never want to lose."],["Challenges","💗","Small intentional acts that keep connection alive without turning love into homework."]];
- for(var j=0;j<tiles.length;j++){(function(tile,item){tile.tabIndex=0;tile.setAttribute("role","button");tile.onclick=function(){if(item[0]==="Our Adventure Book"){sharedMemories()}else if(item[0]==="Date Ideas"){dateIdeas()}else if(item[0]==="Play a Game"){games()}else if(item[0]==="Challenges"){challenges()}else{coming(item[0],item[1],item[2])}}})(tiles[j],data[j])}
+ for(var j=0;j<tiles.length;j++){(function(tile,item){if(!item||tile.hasAttribute('data-rk-entry'))return;tile.tabIndex=0;tile.setAttribute("role","button");tile.onclick=function(){if(item[0]==="Our Adventure Book"){sharedMemories()}else if(item[0]==="Date Ideas"){dateIdeas()}else if(item[0]==="Play a Game"){games()}else if(item[0]==="Challenges"){challenges()}else{coming(item[0],item[1],item[2])}}})(tiles[j],data[j])}
 }
 document.readyState==="loading"?document.addEventListener("DOMContentLoaded",function(){setTimeout(bind,0)}):setTimeout(bind,0)})();

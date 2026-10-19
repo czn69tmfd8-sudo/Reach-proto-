@@ -1,0 +1,89 @@
+/* REACH 2.0 feature sheets */
+.r2-modal{position:fixed;z-index:9000;inset:0;display:none;align-items:flex-end;justify-content:center;background:#09061699;backdrop-filter:blur(8px)}.r2-modal.open{display:flex}.r2-modal-card{position:relative;width:min(100%,520px);max-height:88dvh;overflow:auto;border-radius:30px 30px 0 0;padding:28px 24px calc(28px + env(safe-area-inset-bottom,0px));background:linear-gradient(160deg,rgba(61,34,88,.98),rgba(24,18,52,.99));border:1px solid #ff9dce55;box-shadow:0 -20px 50px #0008}.r2-modal-card h2{margin:0 40px 20px 0;font-size:27px}.r2-close{position:absolute;right:18px;top:16px;width:42px;height:42px;padding:0;border-radius:50%;background:#ffffff12;font-size:28px}.r2-prompt{font-size:20px;line-height:1.45}.r2-answer{width:100%;min-height:150px;resize:vertical;border:1px solid #ff9dce55;border-radius:18px;padding:15px;background:#ffffff10;color:#fff;font:inherit;box-sizing:border-box}.r2-count{text-align:right;font-size:12px;color:#cdbbd3;margin:6px}.r2-primary{width:100%;padding:15px;margin-top:10px;background:linear-gradient(110deg,#ff65a9,#c954dc)}.r2-primary:disabled{opacity:.45}.r2-note{font-size:12px;color:#bcaec5;line-height:1.45;margin-top:14px}.r2-profile-heart,.r2-empty>span,.r2-sleep>span{display:block;font-size:48px;text-align:center}.r2-modal-card h3{text-align:center;font-size:22px}.r2-info,.r2-toggle{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:15px 0;border-bottom:1px solid #ffffff18}.r2-info span{color:#80efae}.r2-toggle span{display:flex;flex-direction:column}.r2-toggle small{color:#bcaec5;margin-top:4px}.r2-toggle input{width:24px;height:24px;accent-color:#ec62b3}.r2-sleep p,.r2-empty p{text-align:center;line-height:1.55;color:#d9c8dd}.r2-safety{margin:20px 0;padding:16px;border:1px solid #ff9dce44;border-radius:17px;background:#ffffff0b}.r2-safety p{margin:7px 0 0;color:#cdbbd3;font-size:13px}.reach2-tile[role=button],.reach2-row[role=button]{cursor:pointer}
+
+/* Profile form controls: override legacy global input styling on every viewport. */
+.r2-modal .r2-field{display:block!important;width:100%!important;margin:0 0 17px!important}
+.r2-modal .r2-field>span{display:block!important;margin:0 0 7px!important;font-size:14px!important;font-weight:700!important}
+.r2-modal .r2-field input,
+.r2-modal .r2-field textarea,
+.r2-modal .r2-add-milestone input{
+ box-sizing:border-box!important;display:block!important;width:100%!important;max-width:100%!important;
+ margin:0!important;padding:14px 15px!important;border:1px solid #ff9dce55!important;border-radius:14px!important;
+ background:#ffffff10!important;color:#fff!important;text-align:left!important;text-transform:none!important;
+ letter-spacing:0!important;font-size:16px!important;font-family:inherit!important
+}
+.r2-modal .r2-field textarea{min-height:120px!important;line-height:1.45!important;resize:vertical!important}
+.r2-modal .r2-field input[type=date],
+.r2-modal .r2-add-milestone input[type=date]{min-height:52px!important}
+.r2-modal .r2-profile-section{display:block!important;margin-top:24px!important}
+.r2-modal .r2-profile-section>h3{text-align:left!important;margin:0 0 16px!important}
+.r2-modal .r2-section-head{display:block!important;margin-bottom:13px!important}
+.r2-modal .r2-section-head h3{text-align:left!important;margin:0 0 4px!important}
+.r2-modal .r2-section-head>span{display:block!important;font-size:12px!important;color:#cdbbd3!important}
+.r2-modal .r2-add-milestone{display:grid!important;grid-template-columns:1fr!important;gap:10px!important}
+.r2-modal .r2-milestone{display:flex!important;align-items:center!important;gap:10px!important;padding:12px!important;border:1px solid #ffffff18!important;border-radius:14px!important;background:#ffffff0b!important}
+.r2-modal .r2-milestone>div{flex:1!important;min-width:0!important}
+.r2-modal .r2-milestone b,.r2-modal .r2-milestone small{display:block!important}
+.r2-modal .r2-milestone small{margin-top:4px!important;color:#cdbbd3!important;font-size:12px!important}
+.r2-modal .r2-mini-danger{width:38px!important;min-width:38px!important;height:38px!important;margin:0!important;padding:0!important;border-radius:50%!important;background:#a9336555!important;box-shadow:none!important}
+
+/* iOS Safari: keep the profile milestone date control aligned with the form. */
+.r2-modal .r2-add-milestone input[type="date"]{
+ -webkit-appearance:none!important;appearance:none!important;
+ width:100%!important;min-width:100%!important;max-width:100%!important;
+ box-sizing:border-box!important;
+}
+.r2-modal .r2-add-milestone input[type="date"]::-webkit-date-and-time-value{
+ text-align:left!important;
+}
+
+/* Our Profile v1 final containment: prevent iOS date control from escaping the card. */
+.r2-modal .r2-field input[type="date"]{
+ -webkit-appearance:none!important;appearance:none!important;
+ inline-size:100%!important;min-inline-size:0!important;max-inline-size:100%!important;
+ box-sizing:border-box!important;overflow:hidden!important;
+}
+.r2-modal .r2-field input[type="date"]::-webkit-date-and-time-value{
+ min-width:0!important;text-align:left!important;
+}
+
+/* Date Ideas — compact discovery */
+.r2-date-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0 14px}
+.r2-date-chip{border:1px solid rgba(255,255,255,.24);background:rgba(255,255,255,.09);color:inherit;border-radius:14px;padding:10px 8px;font:inherit;font-weight:700}
+.r2-date-chip.active{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.48)}
+.r2-date-results{display:grid;gap:10px;margin-top:14px}
+.r2-date-card{margin:0}
+.r2-date-card p{margin:7px 0}
+.r2-date-card small{opacity:.78}
+.r2-date-actions{display:flex;gap:8px;margin-top:12px}
+.r2-mini{flex:1;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:inherit;border-radius:12px;padding:9px 6px;font:inherit;font-size:.82rem}
+.r2-mini:disabled{opacity:.55}
+.r2-date-featured h3{margin:6px 0}
+
+/* Production-ready local feature polish */
+.r2-modal-card{scrollbar-width:none}.r2-modal-card::-webkit-scrollbar{display:none}
+.r2-modal-card button{touch-action:manipulation}
+.r2-modal-card .r2-primary,.r2-modal-card .r2-secondary{min-height:48px}
+.r2-safety small{display:block;margin-top:5px;color:#cdbbd3}
+.r2-empty{padding:6px 2px 12px}
+.r2-empty h3{margin:10px 0 6px}
+.r2-date-card b{font-size:16px}
+.r2-date-card .r2-mini:not(:disabled){cursor:pointer}
+.r2-date-card .r2-mini:not(:disabled):active{transform:scale(.98)}
+.r2-modal [data-game-question]{font-size:19px;line-height:1.5;color:#f5e8f6}
+.r2-modal [data-challenge]{margin-top:12px}
+@media(max-width:390px){
+ .r2-modal{padding-left:8px;padding-right:8px}
+ .r2-modal-card{padding-left:16px;padding-right:16px;border-radius:24px}
+ .r2-date-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .r2-date-chip{font-size:13px}
+ .r2-date-actions{flex-direction:column}
+}
+
+/* Shared mobile interaction polish: keep long dialogs usable above the iPhone browser chrome. */
+.r2-modal{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.r2-modal-card{min-width:0;box-sizing:border-box;overflow-wrap:break-word}
+.r2-modal-body{min-width:0}
+.r2-modal-card button:focus-visible,.r2-modal-card input:focus-visible,.r2-modal-card textarea:focus-visible{outline:2px solid #ffaddb;outline-offset:3px}
+.r2-modal-card button{max-width:100%}
+@media(max-width:390px){.r2-modal-card{width:100%}.r2-modal-card h2{overflow-wrap:anywhere}}

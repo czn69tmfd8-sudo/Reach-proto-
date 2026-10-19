@@ -1,0 +1,22 @@
+name: REACH source checks
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - staging
+      - feature/**
+      - fix/**
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check staging/reach2-kitchen.js
+      - run: node --check staging/reach2-features.js
+      - run: node --check production-assets/reach2-features.js
+      - run: node scripts/check-environments.mjs
+      - run: node scripts/check-kitchen.mjs
