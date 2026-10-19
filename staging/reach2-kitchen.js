@@ -17,7 +17,7 @@ function importEditor(){const r=pendingImport;if(!r)return importer();form();con
 let overlay;
 function show(body){
  if(!overlay){overlay=document.createElement("div");overlay.className="rk-overlay";overlay.innerHTML='<section class="rk-sheet" role="dialog" aria-modal="true" aria-label="REACH Kitchen"><button class="rk-x" type="button" aria-label="Close">×</button><div class="rk-body"></div></section>';document.body.appendChild(overlay);overlay.querySelector(".rk-x").onclick=close;overlay.addEventListener("click",e=>{if(e.target===overlay)close()})}
- overlay.querySelector(".rk-body").innerHTML=body;overlay.classList.add("rk-open");overlay.querySelector(".rk-sheet").scrollTop=0;
+ overlay.querySelector(".rk-body").innerHTML=body;overlay.classList.add("rk-open");const sheet=overlay.querySelector(".rk-sheet");sheet.scrollTop=0;requestAnimationFrame(()=>{sheet.scrollTop=0});
 }
 function close(){overlay?.classList.remove("rk-open")}
 function home(){const recipes=load();show('<h2>🍳 REACH Kitchen</h2><p class="rk-muted">Two kitchens. One shared experience.</p><p class="rk-note">Private recipe book on this phone for now. No partner syncing or video yet.</p><button class="rk-main" data-rk="new">＋ Add a recipe</button><button class="rk-alt" data-rk="import">🔗 Import from a link</button><h3>My Recipe Book ('+recipes.length+')</h3>'+(!recipes.length?'<p class="rk-muted">Your favourite meals will appear here.</p>':recipes.map(r=>'<button class="rk-recipe" data-rk="view" data-id="'+esc(r.id)+'"><b>'+esc(r.title)+'</b><small>'+esc(r.category||"Other")+' · '+esc(r.minutes||"—")+' min · '+esc(r.servings||"—")+' servings</small></button>').join('')))}
