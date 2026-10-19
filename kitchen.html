@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>REACH Kitchen — Testing</title>
+<style>
+:root{font-family:system-ui,-apple-system,sans-serif;color:#fff;background:#160f2c}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(145deg,#201338,#51305c 55%,#251632)}main{max-width:760px;margin:auto;padding:24px 18px 110px}h1{font-size:2rem;margin:6px 0}h2{font-size:1.25rem}p,.muted{color:#ded0e9;line-height:1.5}.eyebrow{font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:#d7a8f4}.panel{background:#241838e8;border:1px solid #8e639d70;border-radius:22px;padding:20px;margin:18px 0;box-shadow:0 8px 30px #0c061520}input,textarea{display:block;width:100%;padding:13px;border-radius:12px;border:1px solid #8967a3;background:#150f29;color:white;font:inherit;margin:8px 0 14px}textarea{min-height:110px}label{font-size:.9rem}button,.button{border:0;border-radius:14px;padding:13px 17px;background:linear-gradient(90deg,#8853e4,#b35ad6);color:white;font:600 1rem system-ui;cursor:pointer}button.secondary{background:#49315f}button:disabled{opacity:.45}nav{display:flex;gap:10px;flex-wrap:wrap}.recipe{border:1px solid #70548b;border-radius:16px;padding:15px;margin:12px 0;background:#382349}ul,ol{padding-left:24px}li{padding:7px 0}li.done{text-decoration:line-through;opacity:.55}.hide{display:none}.tag{display:inline-block;padding:5px 9px;border-radius:9px;background:#583875;color:#f3dfff;font-size:.8rem}.actions{display:flex;gap:10px;flex-wrap:wrap}a{color:#edc8ff}footer{font-size:.8rem;color:#cbbbd8;margin-top:28px}
+</style></head><body><main>
+<div class="eyebrow">REACH • Testing environment</div><h1>🍳 Our Kitchen</h1><p>A place to collect recipes and make dinner feel a little closer.</p>
+<div class="panel"><span class="tag">Foundation preview</span><p>Recipes are saved on this device only for now. Partner synchronization and video are not connected yet.</p></div>
+<nav><button id="libraryTab">Our cookbook</button><button id="addTab" class="secondary">Add recipe</button></nav>
+<section id="library"><h2>Our cookbook</h2><div id="recipes"></div></section>
+<section id="add" class="hide"><h2>Add a recipe</h2><form id="recipeForm">
+<label>Recipe name<input id="name" required maxlength="120" placeholder="Sunday pasta"></label>
+<label>Source URL (optional)<input id="url" type="url" placeholder="https://example.com/recipe"></label>
+<label>Servings<input id="servings" type="number" min="1" max="100" value="2"></label>
+<label>Ingredients — one per line<textarea id="ingredients" required placeholder="2 tomatoes&#10;1 tbsp olive oil"></textarea></label>
+<label>Instructions — one step per line<textarea id="steps" required placeholder="Preheat oven&#10;Prepare ingredients"></textarea></label>
+<div class="actions"><button type="submit">Save to cookbook</button><button type="button" id="cancel" class="secondary">Cancel</button></div></form><p class="muted">URL importing is planned. For now, paste recipe details manually.</p></section>
+<section id="cook" class="hide"><button id="back" class="secondary">← Cookbook</button><h2 id="cookTitle"></h2><p id="cookMeta"></p><div class="panel"><h2>Ingredients</h2><ul id="cookIngredients"></ul></div><div class="panel"><h2>Let's cook</h2><div id="stepProgress"></div><p id="stepText"></p><div class="actions"><button id="previous" class="secondary">Previous</button><button id="next">Next step</button></div></div><p class="muted">Video and synchronized progress will be added after the shared recipe data layer is tested.</p></section>
+<footer>REACH Kitchen • staging prototype • No production data changed</footer></main>
+<script>
+"use strict";
+const KEY="reach_kitchen_staging_recipes_v1";let items=[],active=null,step=0;
+const $=id=>document.getElementById(id);
+function load(){try{const v=JSON.parse(localStorage.getItem(KEY)||"[]");items=Array.isArray(v)?v:[]}catch{items=[]}}
+function save(){localStorage.setItem(KEY,JSON.stringify(items))}
+function show(id){for(const section of ["library","add","cook"])$(section).classList.toggle("hide",section!==id);if(id==="library")render()}
+function element(tag,text){const e=document.createElement(tag);e.textContent=text;return e}
+function render(){const root=$("recipes");root.replaceChildren();if(!items.length){root.append(element("p","No recipes yet. Add your first one to start your cookbook."));return}items.forEach(item=>{const box=element("div","");box.className="recipe";box.append(element("h3",item.name),element("p",item.servings+" servings • "+item.ingredients.length+" ingredients"));const row=element("div","");row.className="actions";const cook=element("button","Cook this");cook.onclick=()=>start(item.id);row.append(cook);const del=element("button","Delete");del.className="secondary";del.onclick=()=>{if(confirm("Delete this recipe from this device?")){items=items.filter(r=>r.id!==item.id);save();render()}};row.append(del);box.append(row);root.append(box)})}
+function start(id){active=items.find(r=>r.id===id);if(!active)return;step=0;$("cookTitle").textContent=active.name;$("cookMeta").textContent=active.servings+" servings";const ul=$("cookIngredients");ul.replaceChildren();active.ingredients.forEach(ingredient=>{const li=element("li",ingredient);li.onclick=()=>li.classList.toggle("done");ul.append(li)});show("cook");drawStep()}
+function drawStep(){if(!active)return;$("stepProgress").textContent="Step "+(step+1)+" of "+active.steps.length;$("stepText").textContent=active.steps[step];$("previous").disabled=step===0;$("next").textContent=step===active.steps.length-1?"Finish cooking":"Next step"}
+$("libraryTab").onclick=()=>show("library");$("addTab").onclick=()=>show("add");$("cancel").onclick=()=>show("library");$("back").onclick=()=>show("library");$("previous").onclick=()=>{step=Math.max(0,step-1);drawStep()};$("next").onclick=()=>{if(step===active.steps.length-1){alert("Dinner is served! ❤️");show("library")}else{step++;drawStep()}};
+$("recipeForm").onsubmit=e=>{e.preventDefault();const lines=id=>$(id).value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);const name=$("name").value.trim(),ingredients=lines("ingredients"),steps=lines("steps");if(!name||!ingredients.length||!steps.length)return;items.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name,url:$("url").value.trim(),servings:Number($("servings").value),ingredients,steps});try{save()}catch{alert("Storage is unavailable; recipe cannot be saved.");return}$("recipeForm").reset();show("library")};
+load();show("library");
+</script></body></html>
