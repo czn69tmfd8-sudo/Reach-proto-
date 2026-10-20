@@ -32,3 +32,10 @@
 .rk-fav-filter input[type=checkbox]{appearance:none!important;-webkit-appearance:none!important;border:2px solid #eab4d9!important;border-radius:6px!important;background:#ffffff18!important;position:relative!important;flex-shrink:0}
 .rk-fav-filter input[type=checkbox]:checked{background:#ed63b5!important;border-color:#ed63b5!important}
 .rk-fav-filter input[type=checkbox]:checked:after{content:"✓";position:absolute;inset:0;color:white;text-align:center;line-height:16px;font-size:15px;font-weight:800}
+
+.rk-manual-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:stretch;margin:10px 0 18px}
+.rk-manual-row input{min-width:0;margin:0!important}
+.rk-manual-row .rk-alt{width:auto!important;margin:0!important;padding:0 18px!important}
+.rk-manual-item{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:8px;align-items:stretch}
+.rk-manual-item>button{border:1px solid #ffffff2e;border-radius:16px;background:#ffffff0c;color:#f6b5df;font-size:26px;margin:0 0 10px}
+@media(max-width:430px){.rk-manual-row{grid-template-columns:1fr}.rk-manual-row .rk-alt{min-height:50px}}
