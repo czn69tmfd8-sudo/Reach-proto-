@@ -749,6 +749,7 @@ import {
   doc,
   setDoc,
   getDoc,
+  getDocFromServer,
   updateDoc,
   onSnapshot,
   serverTimestamp,
@@ -760,12 +761,12 @@ import {
 
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCz2DVsAyjUWiKLxChzPWhPO5Dg4BaddEM",
-  authDomain: "reach-prototype-d70ef.firebaseapp.com",
-  projectId: "reach-prototype-d70ef",
-  storageBucket: "reach-prototype-d70ef.firebasestorage.app",
-  messagingSenderId: "250530646851",
-  appId: "1:250530646851:web:a2087cbf72cde0ffa5fdf6"
+  apiKey: "AIzaSyDjdTAx5MRpuntAR-upxfwdiYAfMamJAGA",
+  authDomain: "reach-staging-a4745.firebaseapp.com",
+  projectId: "reach-staging-a4745",
+  storageBucket: "reach-staging-a4745.firebasestorage.app",
+  messagingSenderId: "537916955208",
+  appId: "1:537916955208:web:7f21f2e92659aed2d4d67d"
 };
 
 
@@ -863,20 +864,25 @@ async function reconcileLockedPartnership(){
 }
 async function verifyPairLockReady(code){
   if(!currentUser || !code) return false;
+  const lockRef=doc(db,"memberLocks",currentUser.uid);
   try{
-    const snap=await getDoc(doc(db,"memberLocks",currentUser.uid));
+    // A call is a security-sensitive transition. Force a server read here so an
+    // older Safari/Firestore cache entry cannot report a migrated lock as missing.
+    const snap=await getDocFromServer(lockRef);
     if(!snap.exists()){
+      console.warn("REACH lock missing on server for authenticated UID",currentUser.uid);
       pairMessage.textContent="Security upgrade required before this connection can go live.";
       return false;
     }
     if(snap.data().pairCode!==code){
+      console.warn("REACH lock/pair mismatch",{uid:currentUser.uid,selectedPair:code,lockedPair:snap.data().pairCode});
       pairMessage.textContent="This phone is locked to a different REACH partnership.";
       return false;
     }
     return true;
   }catch(error){
-    console.error("Could not verify partnership lock:",error);
-    pairMessage.textContent="Could not verify the security upgrade.";
+    console.error("Could not verify partnership lock from server:",error);
+    pairMessage.textContent="Could not verify the secure connection. Check your internet connection and try again.";
     return false;
   }
 }
