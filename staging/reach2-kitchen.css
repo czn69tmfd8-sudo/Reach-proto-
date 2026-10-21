@@ -50,3 +50,7 @@
 /* v22: keep Kitchen exit reachable at every scroll position */
 .rk-x{position:sticky!important;top:10px!important;float:right;right:auto!important;z-index:40;margin:-10px -4px 0 12px;flex:0 0 auto;box-shadow:0 6px 22px #09061688;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .rk-sheet h2{clear:none}
+
+.rk-preview-list{padding-left:24px;line-height:1.5}
+.rk-preview-list li{margin:9px 0;color:#f7edf8}
+.rk-recipe-row .rk-recipe{cursor:pointer}
