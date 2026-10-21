@@ -54,3 +54,6 @@
 .rk-preview-list{padding-left:24px;line-height:1.5}
 .rk-preview-list li{margin:9px 0;color:#f7edf8}
 .rk-recipe-row .rk-recipe{cursor:pointer}
+
+/* v25: visually center the floating close glyph */
+.rk-x{display:grid!important;place-items:center!important;padding:0!important;text-align:center!important;line-height:1!important;font-family:Arial,sans-serif!important}
