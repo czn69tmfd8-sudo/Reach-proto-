@@ -1659,10 +1659,10 @@ function watchPairs(){
       const actions=document.createElement("div");actions.className="reach-main-actions";
       const heroOpen=addAction(actions,"My hand is open",()=>openPairedHand(code));
       heroOpen.classList.add("reach-open");
-      heroOpen.innerHTML='<span class="reach-action-icon"><svg viewBox="0 0 64 48" aria-hidden="true"><path d="M5 31c9-2 15-6 22-12l11-10c5-4 10 2 6 7l-7 9 14-5c7-2 10 5 4 9L35 41c-7 4-16 1-30-2" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>My hand is open</span><span class="reach-action-sub">I’m ready to connect</span>';
+      heroOpen.innerHTML='<span class="reach-action-icon" aria-hidden="true" style="font-size:32px;line-height:1">🍄</span><span>My hand is open</span><span class="reach-action-sub">I’m ready to connect</span>';
       const heroJoin=addAction(actions,"Take their hand",()=>join.click());
       heroJoin.classList.add("reach-take");heroJoin.disabled=true;heroJoin.setAttribute("aria-disabled","true");
-      heroJoin.innerHTML='<span class="reach-action-icon"><svg viewBox="0 0 64 48" aria-hidden="true"><path d="M5 31c9-2 15-6 22-12l11-10c5-4 10 2 6 7l-7 9 14-5c7-2 10 5 4 9L35 41c-7 4-16 1-30-2" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Take their hand</span><span class="reach-action-sub">Connect to your partner</span>';
+      heroJoin.innerHTML='<span class="reach-action-icon" aria-hidden="true" style="font-size:32px;line-height:1">🍄</span><span>Take their hand</span><span class="reach-action-sub">Connect to your partner</span>';
       hero.appendChild(actions);favorite.appendChild(hero);
       // Stage-only visual placement: keep original buttons and event handlers intact.
       const dock=document.getElementById("reachDockActions");
