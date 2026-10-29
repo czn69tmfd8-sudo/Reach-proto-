@@ -7,6 +7,12 @@ on:
     paths:
       - "native/**"
       - ".github/workflows/native-ios-ci.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "native/**"
+      - ".github/workflows/native-ios-ci.yml"
   workflow_dispatch:
 
 concurrency:
