@@ -74,6 +74,52 @@ final class ReachRoomCoordinatorTests: XCTestCase {
         }
     }
 
+
+    func testTakeHandRequiresVerifiedPartnerOwnedCurrentRoom() async throws {
+        let room = RoomRecord(
+            hostUid: "aaron",
+            partnerUid: "byron",
+            pairCode: "PAIR01",
+            createdAt: now.addingTimeInterval(-60),
+            expiresAt: now.addingTimeInterval(60),
+            active: true,
+            offer: nil,
+            answer: nil
+        )
+        let coordinator = ReachRoomCoordinator(rooms: StubRoomStore(room: room))
+        let session = try await coordinator.sessionToTake(
+            partnership: partnership,
+            pair: pair(activeRoom: "room-1", openedBy: "aaron"),
+            now: now
+        )
+        XCTAssertEqual(session.id, "room-1")
+        XCTAssertEqual(session.openedBy, "aaron")
+    }
+
+    func testTakeHandRejectsRoomOwnedByWrongDevice() async {
+        let room = RoomRecord(
+            hostUid: "intruder",
+            partnerUid: "byron",
+            pairCode: "PAIR01",
+            createdAt: now.addingTimeInterval(-60),
+            expiresAt: now.addingTimeInterval(60),
+            active: true,
+            offer: nil,
+            answer: nil
+        )
+        let coordinator = ReachRoomCoordinator(rooms: StubRoomStore(room: room))
+        do {
+            _ = try await coordinator.sessionToTake(
+                partnership: partnership,
+                pair: pair(activeRoom: "room-1", openedBy: "aaron"),
+                now: now
+            )
+            XCTFail("Expected stale/invalid room rejection")
+        } catch {
+            XCTAssertEqual(error as? ReachRoomCoordinatorError, .staleSession("room-1"))
+        }
+    }
+
     private func pair(activeRoom: String?, openedBy: String?) -> PairRecord {
         PairRecord(
             hostUid: "byron",
