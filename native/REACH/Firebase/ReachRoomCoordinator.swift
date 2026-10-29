@@ -47,6 +47,39 @@ struct ReachRoomCoordinator {
         }
     }
 
+    func sessionToTake(
+        partnership: Partnership,
+        pair: PairRecord,
+        now: Date = Date()
+    ) async throws -> ReachSession {
+        guard partnership.isAuthorized,
+              pair.isUsable(by: partnership.localMemberID),
+              pair.partnerUID(for: partnership.localMemberID) == partnership.partnerMemberID else {
+            throw ReachRoomCoordinatorError.unauthorized
+        }
+
+        guard case .partnerHandOpen(let roomID) =
+                PairSessionInterpreter.presentation(pair: pair, partnership: partnership) else {
+            throw ReachRoomCoordinatorError.partnerHandUnavailable
+        }
+
+        guard let room = try await rooms.room(id: roomID),
+              room.pairCode == partnership.id,
+              room.hostUid == partnership.partnerMemberID,
+              room.partnerUid == partnership.localMemberID,
+              room.isCurrent(at: now) else {
+            throw ReachRoomCoordinatorError.staleSession(roomID)
+        }
+
+        return ReachSession(
+            id: roomID,
+            partnershipID: partnership.id,
+            openedBy: partnership.partnerMemberID,
+            openedAt: room.createdAt ?? now,
+            phase: .open
+        )
+    }
+
     func end(
         session: ReachSession,
         partnership: Partnership
@@ -68,6 +101,7 @@ struct ReachRoomCoordinator {
 enum ReachRoomCoordinatorError: LocalizedError, Equatable {
     case unauthorized
     case partnerAlreadyOpen
+    case partnerHandUnavailable
     case staleSession(String)
     case invalidPairState
     case sessionMismatch
@@ -78,6 +112,8 @@ enum ReachRoomCoordinatorError: LocalizedError, Equatable {
             return "This device is not authorized for the partnership."
         case .partnerAlreadyOpen:
             return "Your partner already has their hand open."
+        case .partnerHandUnavailable:
+            return "Your partner does not currently have a valid REACH open."
         case .staleSession:
             return "The registered REACH session is stale and must be cleared before opening another."
         case .invalidPairState:
