@@ -37,9 +37,16 @@ struct PairRecord: Codable, Equatable {
 struct RoomRecord: Codable, Equatable {
     var hostUid: String
     var partnerUid: String?
+    var pairCode: String
+    var createdAt: Date?
+    var expiresAt: Date
     var active: Bool
     var offer: SessionDescriptionRecord?
     var answer: SessionDescriptionRecord?
+
+    func isCurrent(at now: Date = Date()) -> Bool {
+        active && expiresAt > now
+    }
 }
 
 struct SessionDescriptionRecord: Codable, Equatable {
