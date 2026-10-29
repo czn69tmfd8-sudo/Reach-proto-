@@ -12,6 +12,7 @@ struct ReachCameraFormat: Equatable {
     let framesPerSecond: Int
 }
 
+@MainActor
 protocol ReachCameraCapture: AnyObject {
     var isRunning: Bool { get }
     func prepare(position: ReachCameraPosition) async throws
