@@ -6,8 +6,13 @@ enum ReachSessionFreshness: Equatable {
     case invalid
 }
 
+enum ReachSessionContract {
+    /// Must match the proven web SESSION_LENGTH_MS.
+    static let maximumAge: TimeInterval = 8 * 60 * 60
+}
+
 enum ReachSessionFreshnessPolicy {
-    static let defaultMaximumAge: TimeInterval = 12 * 60 * 60
+    static let defaultMaximumAge: TimeInterval = ReachSessionContract.maximumAge
 
     static func evaluate(
         openedAt: Date,
