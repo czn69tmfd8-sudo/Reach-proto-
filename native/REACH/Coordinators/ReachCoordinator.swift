@@ -4,6 +4,7 @@ import Foundation
 final class ReachCoordinator: ObservableObject {
     @Published private(set) var state: ConnectionState
     @Published var errorMessage: String?
+    @Published private(set) var isBusy = false
 
     private let media: MediaService
     private let backend: MockReachBackend
@@ -19,7 +20,11 @@ final class ReachCoordinator: ObservableObject {
     }
 
     func bootstrap() async {
-        // Development identity only. Firebase auth/pairing replaces this adapter.
+        guard !isBusy else { return }
+        isBusy = true
+        defer { isBusy = false }
+
+        // Development identity only. The production Firebase adapter will replace this.
         if state.partnership == nil {
             state.partnership = Partnership(
                 id: "dev-pair",
@@ -40,6 +45,7 @@ final class ReachCoordinator: ObservableObject {
     }
 
     func openHand() async {
+        guard !isBusy else { return }
         guard let partnership = state.partnership, partnership.isAuthorized else {
             errorMessage = "Pair with your partner before opening your hand."
             return
@@ -49,41 +55,58 @@ final class ReachCoordinator: ObservableObject {
             return
         }
 
+        isBusy = true
+        defer { isBusy = false }
+
         do {
             try await media.prepare()
             let session = try await backend.open(partnership: partnership)
-            state.session = session
+            state.session = ReachConnectionMachine.reduce(state.session, event: .handOpened(session))
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
     func takeHand() async {
-        guard var session = state.session, let partnership = state.partnership else { return }
+        guard !isBusy else { return }
+        guard let session = state.session, let partnership = state.partnership else { return }
         guard session.openedBy != partnership.localMemberID else { return }
 
+        isBusy = true
+        defer { isBusy = false }
+
+        state.session = ReachConnectionMachine.reduce(state.session, event: .connectionStarted)
+        if let connecting = state.session { await backend.update(connecting) }
+
         do {
-            session.phase = .connecting
-            state.session = session
-            await backend.update(session)
             try await media.prepare()
             try await media.connect(to: session, as: .partner)
-            session.phase = .live
-            state.session = session
-            await backend.update(session)
+            state.session = ReachConnectionMachine.reduce(state.session, event: .mediaConnected)
+            if let live = state.session { await backend.update(live) }
         } catch {
-            session.phase = .failed(error.localizedDescription)
-            state.session = session
-            await backend.update(session)
+            state.session = ReachConnectionMachine.reduce(state.session, event: .failed(error.localizedDescription))
+            if let failed = state.session { await backend.update(failed) }
             errorMessage = error.localizedDescription
         }
     }
 
+    func transportInterrupted() async {
+        state.session = ReachConnectionMachine.reduce(state.session, event: .connectionInterrupted)
+        if let session = state.session { await backend.update(session) }
+    }
+
+    func transportRecovered() async {
+        state.session = ReachConnectionMachine.reduce(state.session, event: .connectionRecovered)
+        if let session = state.session { await backend.update(session) }
+    }
+
     func endReach() async {
-        guard var session = state.session else { return }
+        guard !isBusy, state.session != nil else { return }
+        isBusy = true
+        defer { isBusy = false }
+
         await media.disconnect()
-        session.phase = .ended
-        state.session = nil
+        state.session = ReachConnectionMachine.reduce(state.session, event: .ended)
         await backend.update(nil)
     }
 
@@ -98,7 +121,7 @@ final class ReachCoordinator: ObservableObject {
             phase: .open
         )
         await backend.update(session)
-        state.session = session
+        state.session = ReachConnectionMachine.reduce(state.session, event: .partnerHandObserved(session))
     }
     #endif
 }
