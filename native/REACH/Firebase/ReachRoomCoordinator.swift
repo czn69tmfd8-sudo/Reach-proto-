@@ -8,30 +8,43 @@ struct ReachRoomCoordinator {
         existingPair: PairRecord,
         now: Date = Date()
     ) async throws -> ReachSession {
-        guard partnership.isAuthorized else {
+        guard partnership.isAuthorized,
+              existingPair.isUsable(by: partnership.localMemberID),
+              existingPair.partnerUID(for: partnership.localMemberID) == partnership.partnerMemberID else {
             throw ReachRoomCoordinatorError.unauthorized
         }
 
-        if let activeRoom = existingPair.activeRoom,
-           let openedBy = existingPair.openedBy {
-            if openedBy == partnership.localMemberID {
-                return ReachSession(
-                    id: activeRoom,
-                    partnershipID: partnership.id,
-                    openedBy: openedBy,
-                    openedAt: now,
-                    phase: .open
-                )
+        switch PairSessionInterpreter.presentation(pair: existingPair, partnership: partnership) {
+        case .none:
+            return try await rooms.createRoom(
+                pairCode: partnership.id,
+                openedBy: partnership.localMemberID,
+                partnerUID: partnership.partnerMemberID
+            )
+
+        case .myHandOpen(let roomID):
+            guard let room = try await rooms.room(id: roomID),
+                  room.pairCode == partnership.id,
+                  room.hostUid == partnership.localMemberID,
+                  room.partnerUid == partnership.partnerMemberID,
+                  room.isCurrent(at: now) else {
+                throw ReachRoomCoordinatorError.staleSession(roomID)
             }
 
-            throw ReachRoomCoordinatorError.partnerAlreadyOpen
-        }
+            return ReachSession(
+                id: roomID,
+                partnershipID: partnership.id,
+                openedBy: partnership.localMemberID,
+                openedAt: room.createdAt ?? now,
+                phase: .open
+            )
 
-        return try await rooms.createRoom(
-            pairCode: partnership.id,
-            openedBy: partnership.localMemberID,
-            partnerUID: partnership.partnerMemberID
-        )
+        case .partnerHandOpen:
+            throw ReachRoomCoordinatorError.partnerAlreadyOpen
+
+        case .invalid:
+            throw ReachRoomCoordinatorError.invalidPairState
+        }
     }
 
     func end(
@@ -55,6 +68,8 @@ struct ReachRoomCoordinator {
 enum ReachRoomCoordinatorError: LocalizedError, Equatable {
     case unauthorized
     case partnerAlreadyOpen
+    case staleSession(String)
+    case invalidPairState
     case sessionMismatch
 
     var errorDescription: String? {
@@ -63,6 +78,10 @@ enum ReachRoomCoordinatorError: LocalizedError, Equatable {
             return "This device is not authorized for the partnership."
         case .partnerAlreadyOpen:
             return "Your partner already has their hand open."
+        case .staleSession:
+            return "The registered REACH session is stale and must be cleared before opening another."
+        case .invalidPairState:
+            return "The partnership has an incomplete REACH session registration."
         case .sessionMismatch:
             return "The REACH session no longer belongs to this partnership."
         }
