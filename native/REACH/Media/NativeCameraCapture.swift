@@ -1,12 +1,17 @@
 import AVFoundation
 import Foundation
 
+/// Camera capture is main-actor isolated. This keeps mutable capture state out of
+/// Swift 6 cross-actor closures while AVCaptureSession itself still performs its
+/// blocking start/stop work on a dedicated queue.
+@MainActor
 final class NativeCameraCapture: ReachCameraCapture {
     private let session = AVCaptureSession()
     private var input: AVCaptureDeviceInput?
+    private var running = false
     private let queue = DispatchQueue(label: "reach.camera.capture")
 
-    private(set) var isRunning = false
+    var isRunning: Bool { running }
 
     func prepare(position: ReachCameraPosition = .front) async throws {
         let granted = await AVCaptureDevice.requestAccess(for: .video)
@@ -28,44 +33,43 @@ final class NativeCameraCapture: ReachCameraCapture {
             throw ReachCameraCaptureError.configurationFailed
         }
 
-        try await withCheckedThrowingContinuation { continuation in
-            queue.async {
-                self.session.beginConfiguration()
-                defer { self.session.commitConfiguration() }
+        session.beginConfiguration()
+        defer { session.commitConfiguration() }
 
-                if let old = self.input {
-                    self.session.removeInput(old)
-                }
-
-                guard self.session.canAddInput(newInput) else {
-                    continuation.resume(throwing: ReachCameraCaptureError.configurationFailed)
-                    return
-                }
-
-                self.session.addInput(newInput)
-                self.input = newInput
-                continuation.resume()
-            }
+        if let old = input {
+            session.removeInput(old)
         }
+
+        guard session.canAddInput(newInput) else {
+            throw ReachCameraCaptureError.configurationFailed
+        }
+
+        session.addInput(newInput)
+        input = newInput
     }
 
     func start() throws {
         guard input != nil else { throw ReachCameraCaptureError.configurationFailed }
+        guard !running else { return }
+
+        let captureSession = session
         queue.async {
-            if !self.session.isRunning {
-                self.session.startRunning()
+            if !captureSession.isRunning {
+                captureSession.startRunning()
             }
-            self.isRunning = self.session.isRunning
         }
+        running = true
     }
 
     func stop() {
+        guard running else { return }
+        let captureSession = session
         queue.async {
-            if self.session.isRunning {
-                self.session.stopRunning()
+            if captureSession.isRunning {
+                captureSession.stopRunning()
             }
-            self.isRunning = false
         }
+        running = false
     }
 
     func switchCamera() async throws {
