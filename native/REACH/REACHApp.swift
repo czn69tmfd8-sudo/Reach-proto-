@@ -3,11 +3,13 @@ import SwiftUI
 @main
 struct REACHApp: App {
     @StateObject private var appState = AppState()
+    @StateObject private var reachCoordinator = ReachCoordinator()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(appState)
+                .environmentObject(reachCoordinator)
         }
     }
 }
@@ -15,7 +17,6 @@ struct REACHApp: App {
 @MainActor
 final class AppState: ObservableObject {
     @Published var selectedTab: AppTab = .reach
-    @Published var connection = ConnectionState()
 }
 
 enum AppTab: Hashable {
