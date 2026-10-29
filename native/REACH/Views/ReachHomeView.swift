@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ReachHomeView: View {
-    @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var reach: ReachCoordinator
 
     var body: some View {
         NavigationStack {
@@ -28,6 +28,15 @@ struct ReachHomeView: View {
                 .padding()
             }
             .toolbar(.hidden, for: .navigationBar)
+            .task { await reach.bootstrap() }
+            .alert("REACH", isPresented: Binding(
+                get: { reach.errorMessage != nil },
+                set: { if !$0 { reach.errorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) { reach.errorMessage = nil }
+            } message: {
+                Text(reach.errorMessage ?? "")
+            }
         }
     }
 
@@ -35,9 +44,34 @@ struct ReachHomeView: View {
         VStack(spacing: 14) {
             Text(statusText).font(.headline)
 
-            HStack(spacing: 12) {
-                action(title: "Take their hand", icon: "hand.raised.fill")
-                action(title: "My hand is open", icon: "heart.fill")
+            if let session = reach.state.session {
+                if session.openedBy == reach.state.partnership?.localMemberID {
+                    Text("Leave REACH open. Your partner can take your hand when they're ready.")
+                        .font(.subheadline)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white.opacity(0.75))
+                } else if session.phase == .open {
+                    action(title: "Take their hand", icon: "hand.raised.fill") {
+                        Task { await reach.takeHand() }
+                    }
+                }
+
+                Button("End REACH", role: .destructive) {
+                    Task { await reach.endReach() }
+                }
+                .buttonStyle(.bordered)
+            } else {
+                action(title: "My hand is open", icon: "heart.fill") {
+                    Task { await reach.openHand() }
+                }
+                .disabled(!reach.state.canOpenHand)
+
+                #if DEBUG
+                Button("Simulate partner opening their hand") {
+                    Task { await reach.simulatePartnerOpeningHand() }
+                }
+                .font(.caption)
+                #endif
             }
         }
         .padding(20)
@@ -45,9 +79,19 @@ struct ReachHomeView: View {
     }
 
     private var statusText: String {
-        guard let session = appState.connection.session else { return "Ready for each other" }
+        guard let session = reach.state.session else {
+            switch reach.state.mediaPermission {
+            case .requesting: return "Preparing camera and microphone…"
+            case .denied: return "Camera and microphone access needed"
+            default: return "Ready for each other"
+            }
+        }
+
         switch session.phase {
-        case .open: return session.openedBy == appState.connection.partnership?.localMemberID ? "Your hand is open" : "Your partner’s hand is open"
+        case .open:
+            return session.openedBy == reach.state.partnership?.localMemberID
+                ? "Your hand is open"
+                : "\(reach.state.partnership?.partnerDisplayName ?? "Your partner")’s hand is open"
         case .connecting: return "Connecting…"
         case .live: return "Connected"
         case .recovering: return "Reconnecting…"
@@ -56,8 +100,8 @@ struct ReachHomeView: View {
         }
     }
 
-    private func action(title: String, icon: String) -> some View {
-        Button(action: {}) {
+    private func action(title: String, icon: String, perform: @escaping () -> Void) -> some View {
+        Button(action: perform) {
             VStack(spacing: 10) {
                 Image(systemName: icon).font(.title)
                 Text(title).font(.headline).multilineTextAlignment(.center)
