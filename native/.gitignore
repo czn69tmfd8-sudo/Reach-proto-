@@ -1,0 +1,19 @@
+# Generated Xcode project
+REACH.xcodeproj/
+DerivedData/
+.build/
+
+# Local Apple signing
+*.mobileprovision
+*.p12
+*.cer
+*.provisionprofile
+Config/Signing.local.xcconfig
+
+# Firebase app-specific configuration is supplied per environment.
+GoogleService-Info.plist
+**/GoogleService-Info.plist
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
