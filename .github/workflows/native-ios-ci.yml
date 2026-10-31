@@ -1,0 +1,75 @@
+name: Native iOS CI
+
+on:
+  push:
+    branches:
+      - native-reach
+    paths:
+      - "native/**"
+      - ".github/workflows/native-ios-ci.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "native/**"
+      - ".github/workflows/native-ios-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: native-ios-ci-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 26.2
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app/Contents/Developer
+
+      - name: Toolchain diagnostics
+        run: |
+          sw_vers
+          ls -1 /Applications | grep '^Xcode' || true
+          xcode-select -p
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        working-directory: native
+        run: xcodegen generate
+
+      - name: Resolve Swift packages
+        working-directory: native
+        run: xcodebuild -resolvePackageDependencies -project REACH.xcodeproj -scheme REACH
+
+      - name: Build for simulator
+        working-directory: native
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project REACH.xcodeproj \
+            -scheme REACH \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Run unit tests
+        working-directory: native
+        run: |
+          set -o pipefail
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for runtime, xs in d.items() if "iOS" in runtime for x in xs if x["name"].startswith("iPhone")))')
+          xcodebuild \
+            -project REACH.xcodeproj \
+            -scheme REACH \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
+            CODE_SIGNING_ALLOWED=NO \
+            test
