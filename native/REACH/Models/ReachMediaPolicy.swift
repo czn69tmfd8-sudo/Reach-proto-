@@ -27,7 +27,7 @@ enum ReachMediaPolicy {
     }
 
     static func recoveryActions(
-        lifecycle: AppLifecycleState,
+        lifecycle: ReachAppLifecycleState,
         phase: ReachSessionPhase
     ) -> [ReachMediaAction] {
         switch SessionContinuityPolicy.action(
