@@ -32,7 +32,7 @@ final class ReachRoomCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(session.id, "room-1")
         XCTAssertEqual(session.openedAt, room.createdAt)
-        XCTAssertEqual(await store.createCount, 0)
+        let createCount = await store.createCount\n        XCTAssertEqual(createCount, 0)
     }
 
     func testExpiredRegisteredRoomIsRejectedInsteadOfReused() async {
