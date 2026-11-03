@@ -34,48 +34,112 @@ private struct PlaceholderView: View {
 }
 
 private struct StagingConnectionView: View {
-    @State private var result = "Check staging sign-in and pairing on this device."
-    @State private var checking = false
+    private enum Action: Equatable, Sendable {
+        case refresh, create, accept(String), revoke(String)
+    }
+
+    private struct Status: Sendable {
+        let message: String
+        var invitation: String?
+        var revocableCode: String?
+        var canPair = false
+    }
+
+    @State private var status = Status(message: "Checking staging pairing…")
+    @State private var input = ""
+    @State private var action: Action? = .refresh
+    @State private var confirmRevocation = false
+    @State private var error: String?
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("REACH Test Zone").font(.largeTitle.bold())
-            Text(result).multilineTextAlignment(.center)
-            Button("Check staging connection") {
-                checking = true
-                result = "Checking staging…"
+        Form {
+            Section("REACH Test Zone") {
+                Text(status.message)
+                if let invitation = status.invitation {
+                    Text(invitation).font(.title2.monospaced()).textSelection(.enabled)
+                    Text("Share this code privately with your partner.")
+                }
+                if let error { Text(error).foregroundStyle(.red) }
+                Button("Refresh status") { action = .refresh }
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(checking)
+            if status.canPair {
+                Section("Pair with your partner") {
+                    Button("Create pairing code") { action = .create }
+                    TextField("Partner’s pairing code", text: $input)
+                        .textInputAutocapitalization(.characters)
+                        .autocorrectionDisabled()
+                    Button("Accept pairing code") {
+                        action = .accept(input.trimmingCharacters(in: .whitespacesAndNewlines).uppercased())
+                    }
+                    .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).count != 12)
+                }
+            }
+            if let code = status.revocableCode {
+                Section {
+                    Button("Revoke authorization", role: .destructive) { confirmRevocation = true }
+                        .confirmationDialog("Revoke this staging pairing?", isPresented: $confirmRevocation) {
+                            Button("Revoke pairing", role: .destructive) { action = .revoke(code) }
+                        } message: {
+                            Text("The partnership will lose authorization. This installation’s membership lock will remain.")
+                        }
+                }
+            }
         }
-        .padding()
-        .task(id: checking) {
-            guard checking else { return }
-            result = await Self.checkStaging()
-            checking = false
+        .disabled(action != nil)
+        .task(id: action) {
+            guard let action else { return }
+            error = nil
+            do {
+                status = try await Self.perform(action)
+                if case .accept = action { input = "" }
+            } catch {
+                self.error = error.localizedDescription
+                if case .refresh = action {
+                    status = Status(message: "Staging pairing could not be verified.")
+                }
+            }
+            self.action = nil
         }
     }
 
-    private nonisolated static func checkStaging() async -> String {
-        do {
-            let dependencies = try FirebaseDependencyFactory.staging()
-            let resolver = PairResolver(auth: dependencies.auth, pairs: dependencies.pairs)
-            switch try await resolver.resolveCurrentPartnership() {
-            case .authorized:
-                return "Staging sign-in and pairing verified. Audio and video are unavailable in this check."
-            case .noMemberLock:
-                return "Signed in to staging. This installation has no staging pairing."
-            case .pairMissing:
-                return "The staging pairing record could not be found."
-            case .pairRevoked:
-                return "The staging pairing has been revoked."
-            case .pairIncomplete:
-                return "The staging pairing is waiting for a partner."
-            case .memberMismatch:
-                return "This installation is not authorized for the staging pairing."
-            }
-        } catch {
-            return error.localizedDescription
+    private nonisolated static func perform(_ action: Action) async throws -> Status {
+        let dependencies = try FirebaseDependencyFactory.staging()
+        guard let pairs = dependencies.pairs as? FirestorePairStore else {
+            return Status(message: "The staging pairing store is unavailable.")
+        }
+        let uid: String
+        if let existing = await dependencies.auth.currentUID() {
+            uid = existing
+        } else {
+            uid = try await dependencies.auth.signInAnonymously()
+        }
+
+        switch action {
+        case .refresh: break
+        case .create:
+            let code = try await pairs.createInvitation()
+            return Status(message: "Waiting for your partner.", invitation: code, revocableCode: code)
+        case .accept(let code):
+            try await pairs.acceptInvitation(code: code)
+        case .revoke(let code):
+            try await pairs.revokeInvitation(code: code)
+            return Status(message: "Staging pairing revoked.")
+        }
+
+        let lock = try await pairs.memberLock(uid: uid)
+        guard let lock else {
+            return Status(message: "This installation has no staging pairing.", canPair: true)
+        }
+        let pair = try await pairs.pair(code: lock.pairCode)
+        switch PairingAuthorization.resolve(uid: uid, memberLock: lock, pairCode: lock.pairCode, pair: pair) {
+        case .authorized:
+            return Status(message: "Paired and authorized in staging.", revocableCode: lock.pairCode)
+        case .pairRevoked:
+            return Status(message: "Staging pairing revoked.")
+        case .pairIncomplete:
+            return Status(message: "Waiting for your partner.", invitation: lock.pairCode, revocableCode: lock.pairCode)
+        case .noMemberLock, .pairMissing, .memberMismatch:
+            return Status(message: "This installation’s staging pairing could not be authorized.")
         }
     }
 }
