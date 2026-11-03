@@ -11,7 +11,7 @@ struct ConnectionState: Equatable {
 
     var canTakeHand: Bool {
         guard let session, let partnership else { return false }
-        return partnership.isAuthorized && session.openedBy != partnership.localMemberID
+        return ReachJoinPolicy.decide(session: session, partnership: partnership) == .allowed
     }
 }
 
