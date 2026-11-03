@@ -6,7 +6,7 @@ struct ConnectionState: Equatable {
     var mediaPermission: MediaPermissionState = .unknown
 
     var canOpenHand: Bool {
-        partnership?.isAuthorized == true && mediaPermission == .granted && session == nil
+        partnership?.isAuthorized == true && session == nil
     }
 
     var canTakeHand: Bool {
