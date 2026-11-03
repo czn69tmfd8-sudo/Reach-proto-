@@ -97,8 +97,11 @@ final class ReachCoordinator: ObservableObject {
 
         do {
             try await media.prepare()
-            guard ReachJoinPolicy.decide(session: session, partnership: partnership) == .allowed else {
+            let latestSession = await backend.currentSession()
+            guard latestSession == session,
+                  ReachJoinPolicy.decide(session: latestSession, partnership: partnership) == .allowed else {
                 errorMessage = "This REACH is no longer available."
+                state.session = latestSession
                 return
             }
             state.session = ReachConnectionMachine.reduce(state.session, event: .connectionStarted)
