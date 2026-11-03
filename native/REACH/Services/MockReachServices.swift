@@ -23,6 +23,23 @@ actor MockReachBackend {
         return created
     }
 
+    /// Only apply an update if it still refers to the active session.
+    /// A delayed media callback must never resurrect a session after it ends.
+    @discardableResult
+    func updateIfCurrent(_ updated: ReachSession, expectedID: String) -> Bool {
+        guard session?.id == expectedID else { return false }
+        session = updated
+        return true
+    }
+
+    /// Ending a stale call must not erase a newer call.
+    @discardableResult
+    func clearIfCurrent(id: String) -> Bool {
+        guard session?.id == id else { return false }
+        session = nil
+        return true
+    }
+
     func update(_ updated: ReachSession?) { session = updated }
 }
 
