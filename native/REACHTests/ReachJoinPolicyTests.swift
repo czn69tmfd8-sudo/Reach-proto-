@@ -114,4 +114,18 @@ final class ReachJoinPolicyTests: XCTestCase {
         XCTAssertTrue(ConnectionState(partnership: pair, session: session).canTakeHand)
     }
 
+    func testUnknownMemberCannotOpenJoinableSession() {
+        let session = ReachSession(
+            id: "s",
+            partnershipID: "pair",
+            openedBy: "unknown-user",
+            openedAt: now,
+            phase: .open
+        )
+        XCTAssertEqual(
+            ReachJoinPolicy.decide(session: session, partnership: pair, now: now),
+            .unauthorizedPair
+        )
+    }
+
 }
