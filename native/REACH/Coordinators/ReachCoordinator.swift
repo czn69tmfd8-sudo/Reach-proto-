@@ -86,16 +86,23 @@ final class ReachCoordinator: ObservableObject {
         isBusy = true
         defer { isBusy = false }
 
-        state.session = ReachConnectionMachine.reduce(state.session, event: .connectionStarted)
-        if let connecting = state.session { await backend.update(connecting) }
+        // Do not publish a connecting state until consent and local media are ready.
+        // A declined permission request must leave the partner's hand joinable.
+        state.mediaPermission = .requesting
+        state.mediaPermission = await media.requestPermission()
+        guard state.mediaPermission == .granted else {
+            errorMessage = "Camera and microphone permission are required to connect."
+            return
+        }
 
         do {
-            state.mediaPermission = .requesting
-            state.mediaPermission = await media.requestPermission()
-            guard state.mediaPermission == .granted else {
-                throw ReachCoordinatorMediaError.permissionDenied
-            }
             try await media.prepare()
+            guard ReachJoinPolicy.decide(session: session, partnership: partnership) == .allowed else {
+                errorMessage = "This REACH is no longer available."
+                return
+            }
+            state.session = ReachConnectionMachine.reduce(state.session, event: .connectionStarted)
+            if let connecting = state.session { await backend.update(connecting) }
             try await media.connect(to: session, as: .partner)
             state.session = ReachConnectionMachine.reduce(state.session, event: .mediaConnected)
             if let live = state.session { await backend.update(live) }
