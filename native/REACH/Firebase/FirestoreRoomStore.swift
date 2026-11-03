@@ -114,12 +114,18 @@ final class FirestoreRoomStore: ReachRoomStore {
         try await db.runTransaction { transaction, errorPointer in
             do {
                 let pairSnapshot = try transaction.getDocument(pairRef)
+                let roomSnapshot = try transaction.getDocument(roomRef)
+                guard let roomData = roomSnapshot.data() else { return nil }
+                guard roomData["pairCode"] as? String == pairCode else {
+                    throw FirestoreRoomStoreError.roomPairMismatch
+                }
+
                 let currentRoom = pairSnapshot.data()?["activeRoom"] as? String
 
-                transaction.setData([
+                transaction.updateData([
                     "active": false,
                     "endedAt": FieldValue.serverTimestamp()
-                ], forDocument: roomRef, merge: true)
+                ], forDocument: roomRef)
 
                 // Match the proven web contract: pair pointers remain present and nullable.
                 // Only clear the pointer if it still belongs to this room, so an old cleanup
@@ -177,6 +183,7 @@ final class FirestoreRoomStore: ReachRoomStore {
 
 enum FirestoreRoomStoreError: LocalizedError, Equatable {
     case pairMissing
+    case roomPairMismatch
     case pairRevoked
     case unauthorized
     case partnerMismatch
@@ -185,6 +192,7 @@ enum FirestoreRoomStoreError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
+        case .roomPairMismatch: return "The room does not belong to this partnership."
         case .pairMissing: return "The partnership no longer exists."
         case .pairRevoked: return "The partnership has been revoked."
         case .unauthorized: return "This device is not authorized for the partnership."
