@@ -50,10 +50,17 @@ struct ReachHomeView: View {
                         .font(.subheadline)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.white.opacity(0.75))
-                } else if session.phase == .open {
+                } else if reach.state.canTakeHand {
                     action(title: "Take their hand", icon: "hand.raised.fill") {
                         Task { await reach.takeHand() }
                     }
+                }
+
+                if session.openedBy != reach.state.partnership?.localMemberID && !reach.state.canTakeHand {
+                    Text("This connection is unavailable or no longer authorized.")
+                        .font(.caption)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white.opacity(0.75))
                 }
 
                 Button("End REACH", role: .destructive) {
