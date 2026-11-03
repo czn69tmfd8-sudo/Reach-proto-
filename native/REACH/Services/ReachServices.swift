@@ -11,6 +11,7 @@ protocol ReachSessionService {
     func end(session: ReachSession) async
 }
 
+@MainActor
 protocol MediaService {
     func requestPermission() async -> MediaPermissionState
     func prepare() async throws
