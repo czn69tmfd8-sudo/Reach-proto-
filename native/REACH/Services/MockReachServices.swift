@@ -7,7 +7,11 @@ actor MockReachBackend {
     func currentSession() -> ReachSession? { session }
 
     func open(partnership: Partnership) throws -> ReachSession {
-        if let session, session.phase != .ended { return session }
+        if let session,
+           ReachSessionFreshnessPolicy.evaluate(openedAt: session.openedAt) == .current,
+           session.phase != .ended {
+            throw MockReachBackendError.sessionAlreadyExists
+        }
         let created = ReachSession(
             id: UUID().uuidString,
             partnershipID: partnership.id,
@@ -29,4 +33,12 @@ struct MockMediaService: MediaService {
         try await Task.sleep(for: .milliseconds(650))
     }
     func disconnect() async {}
+}
+
+enum MockReachBackendError: LocalizedError {
+    case sessionAlreadyExists
+
+    var errorDescription: String? {
+        "An active REACH session already exists."
+    }
 }
