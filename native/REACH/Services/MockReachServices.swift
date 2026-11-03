@@ -27,7 +27,7 @@ actor MockReachBackend {
     /// A delayed media callback must never resurrect a session after it ends.
     @discardableResult
     func updateIfCurrent(_ updated: ReachSession, expectedID: String) -> Bool {
-        guard session?.id == expectedID else { return false }
+        guard session?.id == expectedID, updated.id == expectedID else { return false }
         session = updated
         return true
     }
