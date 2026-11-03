@@ -129,25 +129,49 @@ final class ReachCoordinator: ObservableObject {
             }
             state.session = ReachConnectionMachine.reduce(state.session, event: .mediaConnected)
             if let live = state.session {
-                _ = await backend.updateIfCurrent(live, expectedID: session.id)
+                let applied = await backend.updateIfCurrent(live, expectedID: session.id)
+                if !applied {
+                    await media.disconnect()
+                    state.session = await backend.currentSession()
+                    errorMessage = "This REACH ended while completing the connection."
+                }
             }
         } catch {
-            state.session = ReachConnectionMachine.reduce(state.session, event: .failed(error.localizedDescription))
-            if let failed = state.session {
-                _ = await backend.updateIfCurrent(failed, expectedID: session.id)
+            await media.disconnect()
+            let latest = await backend.currentSession()
+            if latest?.id == session.id {
+                let failed = ReachConnectionMachine.reduce(latest, event: .failed(error.localizedDescription))
+                if let failed {
+                    _ = await backend.updateIfCurrent(failed, expectedID: session.id)
+                }
             }
+            state.session = await backend.currentSession()
             errorMessage = error.localizedDescription
         }
     }
 
     func transportInterrupted() async {
-        state.session = ReachConnectionMachine.reduce(state.session, event: .connectionInterrupted)
-        if let session = state.session { await backend.update(session) }
+        guard let current = state.session else { return }
+        guard let latest = await backend.currentSession(), latest.id == current.id else {
+            state.session = await backend.currentSession()
+            return
+        }
+        if let interrupted = ReachConnectionMachine.reduce(latest, event: .connectionInterrupted) {
+            _ = await backend.updateIfCurrent(interrupted, expectedID: latest.id)
+        }
+        state.session = await backend.currentSession()
     }
 
     func transportRecovered() async {
-        state.session = ReachConnectionMachine.reduce(state.session, event: .connectionRecovered)
-        if let session = state.session { await backend.update(session) }
+        guard let current = state.session else { return }
+        guard let latest = await backend.currentSession(), latest.id == current.id else {
+            state.session = await backend.currentSession()
+            return
+        }
+        if let recovered = ReachConnectionMachine.reduce(latest, event: .connectionRecovered) {
+            _ = await backend.updateIfCurrent(recovered, expectedID: latest.id)
+        }
+        state.session = await backend.currentSession()
     }
 
     func endReach() async {
