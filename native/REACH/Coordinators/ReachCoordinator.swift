@@ -35,8 +35,8 @@ final class ReachCoordinator: ObservableObject {
             )
         }
 
-        state.mediaPermission = .requesting
-        state.mediaPermission = await media.requestPermission()
+        // Permission prompts belong to the user's explicit attempt to open or join.
+        // Bootstrapping the home screen must not activate camera/microphone prompts.
         state.session = await backend.currentSession()
     }
 
@@ -57,15 +57,16 @@ final class ReachCoordinator: ObservableObject {
             errorMessage = "A REACH session is already active or needs to be cleared."
             return
         }
-        guard state.mediaPermission == .granted else {
-            errorMessage = "Camera and microphone permission are required."
-            return
-        }
-
         isBusy = true
         defer { isBusy = false }
 
         do {
+            state.mediaPermission = .requesting
+            state.mediaPermission = await media.requestPermission()
+            guard state.mediaPermission == .granted else {
+                errorMessage = "Camera and microphone permission are required."
+                return
+            }
             try await media.prepare()
             let session = try await backend.open(partnership: partnership)
             state.session = ReachConnectionMachine.reduce(state.session, event: .handOpened(session))
@@ -89,6 +90,11 @@ final class ReachCoordinator: ObservableObject {
         if let connecting = state.session { await backend.update(connecting) }
 
         do {
+            state.mediaPermission = .requesting
+            state.mediaPermission = await media.requestPermission()
+            guard state.mediaPermission == .granted else {
+                throw ReachCoordinatorMediaError.permissionDenied
+            }
             try await media.prepare()
             try await media.connect(to: session, as: .partner)
             state.session = ReachConnectionMachine.reduce(state.session, event: .mediaConnected)
@@ -134,4 +140,12 @@ final class ReachCoordinator: ObservableObject {
         state.session = ReachConnectionMachine.reduce(state.session, event: .partnerHandObserved(session))
     }
     #endif
+}
+
+private enum ReachCoordinatorMediaError: LocalizedError {
+    case permissionDenied
+
+    var errorDescription: String? {
+        "Camera and microphone permission are required to connect."
+    }
 }
