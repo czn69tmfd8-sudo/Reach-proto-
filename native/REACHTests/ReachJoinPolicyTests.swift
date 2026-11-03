@@ -128,4 +128,32 @@ final class ReachJoinPolicyTests: XCTestCase {
         )
     }
 
+    func testFutureDatedSessionCannotBeJoined() {
+        let session = ReachSession(
+            id: "future",
+            partnershipID: "pair",
+            openedBy: "aaron",
+            openedAt: now.addingTimeInterval(300),
+            phase: .open
+        )
+        XCTAssertNotEqual(
+            ReachJoinPolicy.decide(session: session, partnership: pair, now: now),
+            .allowed
+        )
+    }
+
+    func testAlreadyLiveSessionCannotBeJoinedAgain() {
+        let session = ReachSession(
+            id: "live",
+            partnershipID: "pair",
+            openedBy: "aaron",
+            openedAt: now,
+            phase: .live
+        )
+        XCTAssertEqual(
+            ReachJoinPolicy.decide(session: session, partnership: pair, now: now),
+            .unavailable
+        )
+    }
+
 }
