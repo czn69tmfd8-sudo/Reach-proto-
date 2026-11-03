@@ -70,7 +70,10 @@ final class ReachCoordinator: ObservableObject {
     func takeHand() async {
         guard !isBusy else { return }
         guard let session = state.session, let partnership = state.partnership else { return }
-        guard session.openedBy != partnership.localMemberID else { return }
+        guard ReachJoinPolicy.decide(session: session, partnership: partnership) == .allowed else {
+            errorMessage = "This REACH is unavailable, expired, or not authorized for your partnership."
+            return
+        }
 
         isBusy = true
         defer { isBusy = false }
