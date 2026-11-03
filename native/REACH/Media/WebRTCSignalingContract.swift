@@ -1,7 +1,7 @@
 import Foundation
 
-struct ReachSessionDescription: Equatable, Codable {
-    enum Kind: String, Codable {
+struct ReachSessionDescription: Equatable, Codable, Sendable {
+    enum Kind: String, Codable, Sendable {
         case offer
         case answer
     }
@@ -10,7 +10,7 @@ struct ReachSessionDescription: Equatable, Codable {
     let sdp: String
 }
 
-struct ReachIceCandidate: Equatable, Codable {
+struct ReachIceCandidate: Equatable, Codable, Sendable {
     let sdp: String
     let sdpMid: String?
     let sdpMLineIndex: Int32
