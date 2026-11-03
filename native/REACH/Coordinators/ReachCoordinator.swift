@@ -68,6 +68,14 @@ final class ReachCoordinator: ObservableObject {
                 return
             }
             try await media.prepare()
+            let latest = await backend.currentSession()
+            guard case .create = ReachSessionLifecycle.openingDecision(
+                existing: latest,
+                partnership: partnership
+            ) else {
+                errorMessage = "Another REACH session was opened while preparing your connection."
+                return
+            }
             let session = try await backend.open(partnership: partnership)
             state.session = ReachConnectionMachine.reduce(state.session, event: .handOpened(session))
         } catch {
