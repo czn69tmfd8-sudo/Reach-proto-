@@ -78,4 +78,40 @@ final class ReachJoinPolicyTests: XCTestCase {
             .wrongPartnership
         )
     }
+    func testConnectionStateHidesJoinForExpiredHand() {
+        let stale = ReachSession(
+            id: "stale",
+            partnershipID: "pair",
+            openedBy: "aaron",
+            openedAt: Date().addingTimeInterval(-(ReachSessionContract.maximumAge + 60)),
+            phase: .open
+        )
+        let state = ConnectionState(partnership: pair, session: stale, mediaPermission: .granted)
+        XCTAssertFalse(state.canTakeHand)
+    }
+
+    func testConnectionStateHidesJoinForRevokedPair() {
+        var revoked = pair
+        revoked.isAuthorized = false
+        let session = ReachSession(
+            id: "s",
+            partnershipID: "pair",
+            openedBy: "aaron",
+            openedAt: Date(),
+            phase: .open
+        )
+        XCTAssertFalse(ConnectionState(partnership: revoked, session: session).canTakeHand)
+    }
+
+    func testConnectionStateAllowsCurrentPartnerHand() {
+        let session = ReachSession(
+            id: "s",
+            partnershipID: "pair",
+            openedBy: "aaron",
+            openedAt: Date(),
+            phase: .open
+        )
+        XCTAssertTrue(ConnectionState(partnership: pair, session: session).canTakeHand)
+    }
+
 }
