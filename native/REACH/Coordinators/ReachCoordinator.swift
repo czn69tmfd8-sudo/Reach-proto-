@@ -50,10 +50,10 @@ final class ReachCoordinator: ObservableObject {
             errorMessage = "Pair with your partner before opening your hand."
             return
         }
-        guard ReachSessionLifecycle.openingDecision(
+        guard case .create = ReachSessionLifecycle.openingDecision(
             existing: state.session,
             partnership: partnership
-        ) == .create else {
+        ) else {
             errorMessage = "A REACH session is already active or needs to be cleared."
             return
         }
