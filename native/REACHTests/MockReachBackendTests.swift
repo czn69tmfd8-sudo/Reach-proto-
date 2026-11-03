@@ -48,4 +48,21 @@ final class MockReachBackendTests: XCTestCase {
             // Expected
         }
     }
+    func testCannotOverwriteCurrentSessionWithDifferentID() async throws {
+        let backend = MockReachBackend()
+        let active = try await backend.open(partnership: pair())
+        let other = ReachSession(
+            id: "unrelated",
+            partnershipID: active.partnershipID,
+            openedBy: active.openedBy,
+            openedAt: active.openedAt,
+            phase: .live
+        )
+        let applied = await backend.updateIfCurrent(other, expectedID: active.id)
+        XCTAssertFalse(applied)
+        let current = await backend.currentSession()
+        XCTAssertEqual(current?.id, active.id)
+        XCTAssertEqual(current?.phase, .open)
+    }
+
 }
