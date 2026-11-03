@@ -16,7 +16,12 @@ final class ReachMediaSessionController: ObservableObject {
         refreshHealth()
 
         do {
-            try await media.prepare()
+            let permission = try await media.prepare()
+            guard permission == .granted else {
+                runtime.media = .failed("Camera and microphone permission required")
+                refreshHealth()
+                return
+            }
             runtime.media = .connecting
             refreshHealth()
         } catch {
@@ -46,8 +51,8 @@ final class ReachMediaSessionController: ObservableObject {
         refreshHealth()
     }
 
-    func stop() {
-        media.stop()
+    func stop() async {
+        await media.stop()
         runtime = ReachRuntimeState()
         refreshHealth()
     }
