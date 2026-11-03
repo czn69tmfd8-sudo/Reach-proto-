@@ -28,8 +28,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode 26.2
-        run: sudo xcode-select -s /Applications/Xcode_26.2.app/Contents/Developer
+      - name: Select installed Xcode
+        run: |
+          set -euo pipefail
+          # GitHub-hosted macOS images change their preinstalled Xcode versions.
+          # Use the runner's supported default instead of pinning an absent path.
+          xcode-select -p
+          xcodebuild -version
 
       - name: Toolchain diagnostics
         run: |
@@ -66,7 +71,7 @@ jobs:
         working-directory: native
         run: |
           set -o pipefail
-          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for runtime, xs in d.items() if "iOS" in runtime for x in xs if x["name"].startswith("iPhone")))')
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; ids=[x["udid"] for runtime, xs in d.items() if runtime.startswith("com.apple.CoreSimulator.SimRuntime.iOS-") for x in xs if x.get("isAvailable") and x["name"].startswith("iPhone")]; sys.exit("No available iPhone simulator found") if not ids else print(ids[0])')
           xcodebuild \
             -project REACH.xcodeproj \
             -scheme REACH \
