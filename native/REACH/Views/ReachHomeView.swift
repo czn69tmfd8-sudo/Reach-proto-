@@ -69,10 +69,15 @@ struct ReachHomeView: View {
                         .foregroundStyle(.white.opacity(0.75))
                 }
 
-                Button("End REACH", role: .destructive) {
-                    Task { await reach.endReach() }
+                if session.openedBy == reach.state.partnership?.localMemberID ||
+                    session.phase == .connecting || session.phase == .live ||
+                    session.phase == .recovering {
+                    Button("End REACH", role: .destructive) {
+                        Task { await reach.endReach() }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(reach.isBusy)
                 }
-                .buttonStyle(.bordered)
             } else {
                 action(title: "My hand is open", icon: "heart.fill") {
                     Task { await reach.openHand() }
