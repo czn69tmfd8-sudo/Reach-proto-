@@ -142,6 +142,7 @@ final class ReachCoordinator: ObservableObject {
         await media.disconnect()
         state.session = ReachConnectionMachine.reduce(state.session, event: .ended)
         await backend.update(nil)
+        state.session = nil
     }
 
     #if DEBUG
