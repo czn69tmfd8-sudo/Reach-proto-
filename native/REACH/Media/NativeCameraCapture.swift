@@ -1,4 +1,4 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import Foundation
 
 /// Camera capture is main-actor isolated. This keeps mutable capture state out of
