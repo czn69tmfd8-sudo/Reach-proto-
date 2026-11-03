@@ -113,13 +113,29 @@ final class ReachCoordinator: ObservableObject {
                 return
             }
             state.session = ReachConnectionMachine.reduce(state.session, event: .connectionStarted)
-            if let connecting = state.session { await backend.update(connecting) }
+            if let connecting = state.session {
+                guard await backend.updateIfCurrent(connecting, expectedID: session.id) else {
+                    state.session = await backend.currentSession()
+                    errorMessage = "This REACH ended before connecting."
+                    return
+                }
+            }
             try await media.connect(to: session, as: .partner)
+            guard let latest = await backend.currentSession(), latest.id == session.id else {
+                await media.disconnect()
+                state.session = await backend.currentSession()
+                errorMessage = "This REACH ended while connecting."
+                return
+            }
             state.session = ReachConnectionMachine.reduce(state.session, event: .mediaConnected)
-            if let live = state.session { await backend.update(live) }
+            if let live = state.session {
+                _ = await backend.updateIfCurrent(live, expectedID: session.id)
+            }
         } catch {
             state.session = ReachConnectionMachine.reduce(state.session, event: .failed(error.localizedDescription))
-            if let failed = state.session { await backend.update(failed) }
+            if let failed = state.session {
+                _ = await backend.updateIfCurrent(failed, expectedID: session.id)
+            }
             errorMessage = error.localizedDescription
         }
     }
@@ -139,10 +155,12 @@ final class ReachCoordinator: ObservableObject {
         isBusy = true
         defer { isBusy = false }
 
+        let endingID = state.session?.id
         await media.disconnect()
-        state.session = ReachConnectionMachine.reduce(state.session, event: .ended)
-        await backend.update(nil)
-        state.session = nil
+        if let endingID {
+            _ = await backend.clearIfCurrent(id: endingID)
+        }
+        state.session = await backend.currentSession()
     }
 
     #if DEBUG
