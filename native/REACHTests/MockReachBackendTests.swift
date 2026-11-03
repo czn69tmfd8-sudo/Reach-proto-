@@ -15,7 +15,8 @@ final class MockReachBackendTests: XCTestCase {
     func testOldSessionCleanupCannotRemoveNewSession() async throws {
         let backend = MockReachBackend()
         let first = try await backend.open(partnership: pair())
-        XCTAssertTrue(await backend.clearIfCurrent(id: first.id))
+        let clearedFirst = await backend.clearIfCurrent(id: first.id)
+        XCTAssertTrue(clearedFirst)
         let second = try await backend.open(partnership: pair())
 
         let removed = await backend.clearIfCurrent(id: first.id)
