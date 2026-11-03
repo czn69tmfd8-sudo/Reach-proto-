@@ -7,17 +7,12 @@ on:
     paths:
       - "native/**"
       - ".github/workflows/native-ios-ci.yml"
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "native/**"
-      - ".github/workflows/native-ios-ci.yml"
   workflow_dispatch:
 
 concurrency:
   group: native-ios-ci-${{ github.ref }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
   swift-domain-typecheck:
