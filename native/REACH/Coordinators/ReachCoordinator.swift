@@ -149,10 +149,3 @@ final class ReachCoordinator: ObservableObject {
     #endif
 }
 
-private enum ReachCoordinatorMediaError: LocalizedError {
-    case permissionDenied
-
-    var errorDescription: String? {
-        "Camera and microphone permission are required to connect."
-    }
-}
