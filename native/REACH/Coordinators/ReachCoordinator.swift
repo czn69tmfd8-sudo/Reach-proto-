@@ -50,6 +50,13 @@ final class ReachCoordinator: ObservableObject {
             errorMessage = "Pair with your partner before opening your hand."
             return
         }
+        guard ReachSessionLifecycle.openingDecision(
+            existing: state.session,
+            partnership: partnership
+        ) == .create else {
+            errorMessage = "A REACH session is already active or needs to be cleared."
+            return
+        }
         guard state.mediaPermission == .granted else {
             errorMessage = "Camera and microphone permission are required."
             return
