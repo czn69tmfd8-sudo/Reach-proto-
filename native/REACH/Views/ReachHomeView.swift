@@ -22,6 +22,12 @@ struct ReachHomeView: View {
                         .foregroundStyle(.white.opacity(0.82))
 
                     connectionCard
+                    #if DEBUG
+                    Text("DEVELOPMENT DEMO — connections are simulated, not live calls.")
+                        .font(.caption2.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white.opacity(0.9))
+                    #endif
                     Spacer()
                 }
                 .foregroundStyle(.white)
@@ -100,7 +106,7 @@ struct ReachHomeView: View {
                 ? "Your hand is open"
                 : "\(reach.state.partnership?.partnerDisplayName ?? "Your partner")’s hand is open"
         case .connecting: return "Connecting…"
-        case .live: return "Connected"
+        case .live: return "Demo connection established"
         case .recovering: return "Reconnecting…"
         case .ended: return "Reach ended"
         case .failed: return "Connection needs attention"
