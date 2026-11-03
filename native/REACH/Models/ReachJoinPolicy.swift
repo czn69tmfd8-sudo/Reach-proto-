@@ -20,6 +20,7 @@ enum ReachJoinPolicy {
         guard let partnership, partnership.isAuthorized else { return .unauthorizedPair }
         guard session.partnershipID == partnership.id else { return .wrongPartnership }
         guard session.openedBy != partnership.localMemberID else { return .ownHand }
+        guard session.openedBy == partnership.partnerMemberID else { return .unauthorizedPair }
 
         guard ReachSessionFreshnessPolicy.evaluate(openedAt: session.openedAt, now: now) == .current
         else { return .expired }
