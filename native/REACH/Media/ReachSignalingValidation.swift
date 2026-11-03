@@ -16,7 +16,7 @@ enum ReachSignalingValidation {
         guard !candidate.sdp.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               candidate.sdp.utf8.count <= maximumCandidateBytes,
               candidate.sdpMLineIndex >= 0,
-              candidate.sdpMid?.utf8.count ?? 0 <= 256 else {
+              (candidate.sdpMid?.utf8.count ?? 0) <= 256 else {
             throw ReachSignalingValidationError.invalidCandidate
         }
     }
