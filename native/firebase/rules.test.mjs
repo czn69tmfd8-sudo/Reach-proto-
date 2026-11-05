@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {createHash} from 'node:crypto';
+import {buildAdditiveRules,readReview,sha256,stagingProject} from './prepare-rules-review.mjs';
 import {readFile} from 'node:fs/promises';
 import {after, before, beforeEach, test} from 'node:test';
 import {initializeTestEnvironment, assertSucceeds, assertFails} from '@firebase/rules-unit-testing';
@@ -34,10 +34,11 @@ async function fixture() { await invite(); await assertSucceeds(accept()); await
 async function adminPatch(path,data) { await env.withSecurityRulesDisabled(async c=>updateDoc(doc(c.firestore(),root+path),data)); }
 before(async()=>{
  const legacy=await readFile('fixtures/8956bb8-shared-collections.rules','utf8');
- assert.equal(createHash('sha256').update(legacy).digest('hex'),'0f18c159fab30af407c618ca57a23caa35408462faa83528fddd7a135b3aef03');
+ assert.equal(sha256(legacy),'0f18c159fab30af407c618ca57a23caa35408462faa83528fddd7a135b3aef03');
  const native=await readFile('firestore.rules','utf8');
- const fragment=native.slice(native.indexOf('  match /nativeStaging/v1 {'),native.lastIndexOf('\n }'));
- const combined=legacy.replace(/\n }\n}\s*$/, '\n'+fragment+'\n }\n}\n');
+ const combined=process.env.REACH_RULES_REVIEW_DIR
+  ? await readReview(process.env.REACH_RULES_REVIEW_DIR,native)
+  : buildAdditiveRules(legacy,native,{project:stagingProject,expectedBaselineSHA:sha256(legacy)}).merged;
  env=await initializeTestEnvironment({projectId:'demo-reach-native',firestore:{rules:combined}});
 });
 beforeEach(async()=>env.clearFirestore());

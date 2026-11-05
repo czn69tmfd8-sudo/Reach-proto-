@@ -46,3 +46,35 @@ A creates a native code; B accepts; both refresh; A opens a hand; B explicitly
 takes it. Verify actual sound and moving video, then End, expiry, revoke, and
 fresh re-pair. No automatic overnight join is enabled. Device signing and TURN
 connectivity remain separate milestones.
+
+## Additive review preparation
+
+`prepare-rules-review.mjs` performs local review preparation only. Supply the full
+exported staging source and its independently checked SHA-256, then run from the
+repository root (substitute real source path/hash):
+
+```
+node native/firebase/prepare-rules-review.mjs \
+  /secure/staging-export.rules native/firebase/firestore.rules \
+  native/firebase/review-output reach-staging-a4745 EXPECTED_SHA256 --review-only
+```
+
+The new review directory contains the untouched baseline, native insertion,
+merged source and hash manifest. The tool refuses overwrites, unsupported or
+incomplete input, a non-staging target, existing native matches, and potentially
+overlapping broad grants. It never calls Firebase. The manifest always says
+`deploymentApproved: false` and `liveBaselineVerified: false`; hashes are not proof
+that a supplied file is the current live release. Human source verification,
+emulator testing against that exact merged file and explicit approval remain
+required. No deployment function or command is provided.
+
+The emulator security suite now uses this same merge function with the historical
+fixture, so merge tests and authorization tests exercise the same insertion path.
+This is still not a replacement for obtaining the full deployed baseline.
+
+To exercise that exact prepared artifact with the security tests, set
+`REACH_RULES_REVIEW_DIR` to the new review directory when running `npm test` from
+`native/firebase`. The loader verifies baseline/native/merged hashes and rebuilds
+the addition for an exact comparison before loading any rules into the demo
+emulator. A changed artifact fails testing. This mode still cannot deploy or
+assert that the baseline is the current live release.
