@@ -22,12 +22,10 @@ struct ReachHomeView: View {
                         .foregroundStyle(.white.opacity(0.82))
 
                     connectionCard
-                    #if DEBUG
                     Text("DEVELOPMENT DEMO — connections are simulated, not live calls.")
                         .font(.caption2.weight(.semibold))
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.white.opacity(0.9))
-                    #endif
                     Spacer()
                 }
                 .foregroundStyle(.white)

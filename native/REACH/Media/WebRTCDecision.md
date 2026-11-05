@@ -24,3 +24,16 @@ boundary. Firebase signaling remains independent of the WebRTC binary.
 
 Production reliability also requires TURN. STUN-only success in development is
 not considered sufficient for release.
+
+## Native staging transport (November 2026)
+
+The simulator baseline passed 62 tests. The Staging tab now owns an actual
+RTCPeerConnection with microphone and camera tracks, SDP/ICE over Firestore,
+remote video rendering, and explicit foreground-only joining. The dependency is
+pinned to stasel/WebRTC 140.0.0 (device arm64 and simulator arm64/x86_64).
+A connected transport callback reports media transport connectivity; it is not a
+claim that two humans verified audio/video. No TURN relay is provisioned. Test
+first on two physical iPhones on the same Wi-Fi, then separate networks. Cellular
+reliability requires a separately approved TURN deployment or existing credentials.
+The original home is isolated in the Demo tab; the default Staging tab is for
+live testing. No overnight auto-join is enabled.

@@ -7,6 +7,9 @@ packages:
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk.git
     from: 12.19.3
+  WebRTC:
+    url: https://github.com/stasel/WebRTC.git
+    exactVersion: 140.0.0
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -20,6 +23,8 @@ targets:
     sources:
       - path: REACH
     dependencies:
+      - package: WebRTC
+        product: WebRTC
       - package: Firebase
         product: FirebaseAuth
       - package: Firebase
@@ -47,6 +52,8 @@ targets:
       - path: REACHTests
     dependencies:
       - target: REACH
+      - package: WebRTC
+        product: WebRTC
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

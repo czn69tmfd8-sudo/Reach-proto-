@@ -5,12 +5,12 @@ struct RootView: View {
 
     var body: some View {
         TabView(selection: $appState.selectedTab) {
-            ReachHomeView()
-                .tabItem { Label("Reach", systemImage: "heart.fill") }
-                .tag(AppTab.reach)
-
             StagingConnectionView()
                 .tabItem { Label("Staging", systemImage: "network") }
+                .tag(AppTab.reach)
+
+            ReachHomeView()
+                .tabItem { Label("Demo", systemImage: "heart.fill") }
                 .tag(AppTab.together)
 
             PlaceholderView(title: "Us", subtitle: "Your shared relationship space.")
@@ -35,7 +35,7 @@ private struct PlaceholderView: View {
 
 private struct StagingConnectionView: View {
     private enum Action: Equatable, Sendable {
-        case refresh, create, accept(String), revoke(String)
+        case refresh, create, accept(String), revoke(String), clearOwnSession
     }
 
     private struct Status: Sendable {
@@ -43,6 +43,7 @@ private struct StagingConnectionView: View {
         var invitation: String?
         var revocableCode: String?
         var canPair = false
+        var canCloseOwnSession = false
     }
 
     @State private var status = Status(message: "Checking staging pairing…")
@@ -53,6 +54,7 @@ private struct StagingConnectionView: View {
 
     var body: some View {
         Form {
+            StagingCallView()
             Section("REACH Test Zone") {
                 Text(status.message)
                 if let invitation = status.invitation {
@@ -60,23 +62,28 @@ private struct StagingConnectionView: View {
                     Text("Share this code privately with your partner.")
                 }
                 if let error { Text(error).foregroundStyle(.red) }
-                Button("Refresh status") { action = .refresh }
+                Button("Refresh status") { action = .refresh }.disabled(action != nil)
+                if status.canCloseOwnSession {
+                    Button("Close my previously open hand", role: .destructive) { action = .clearOwnSession }
+                        .disabled(action != nil)
+                }
             }
             if status.canPair {
                 Section("Pair with your partner") {
-                    Button("Create pairing code") { action = .create }
+                    Button("Create pairing code") { action = .create }.disabled(action != nil)
                     TextField("Partner’s pairing code", text: $input)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                     Button("Accept pairing code") {
                         action = .accept(input.trimmingCharacters(in: .whitespacesAndNewlines).uppercased())
                     }
-                    .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).count != 12)
+                    .disabled(action != nil || input.trimmingCharacters(in: .whitespacesAndNewlines).count != 12)
                 }
             }
             if let code = status.revocableCode {
                 Section {
                     Button("Revoke authorization", role: .destructive) { confirmRevocation = true }
+                        .disabled(action != nil)
                         .confirmationDialog("Revoke this staging pairing?", isPresented: $confirmRevocation) {
                             Button("Revoke pairing", role: .destructive) { action = .revoke(code) }
                         } message: {
@@ -85,7 +92,6 @@ private struct StagingConnectionView: View {
                 }
             }
         }
-        .disabled(action != nil)
         .task(id: action) {
             guard let action else { return }
             error = nil
@@ -102,7 +108,7 @@ private struct StagingConnectionView: View {
         }
     }
 
-    private nonisolated static func perform(_ action: Action) async throws -> Status {
+    @MainActor private static func perform(_ action: Action) async throws -> Status {
         let dependencies = try FirebaseDependencyFactory.staging()
         guard let pairs = dependencies.pairs as? FirestorePairStore else {
             return Status(message: "The staging pairing store is unavailable.")
@@ -116,6 +122,11 @@ private struct StagingConnectionView: View {
 
         switch action {
         case .refresh: break
+        case .clearOwnSession:
+            guard let lock = try await pairs.memberLock(uid: uid),
+                  let pair = try await pairs.pair(code: lock.pairCode),
+                  pair.openedBy == uid, let roomID = pair.activeRoom else { throw ReachRoomCoordinatorError.unauthorized }
+            try await dependencies.rooms.clearPairSessionIfCurrent(pairCode: lock.pairCode, roomID: roomID)
         case .create:
             let code = try await pairs.createInvitation()
             return Status(message: "Waiting for your partner.", invitation: code, revocableCode: code)
@@ -133,7 +144,7 @@ private struct StagingConnectionView: View {
         let pair = try await pairs.pair(code: lock.pairCode)
         switch PairingAuthorization.resolve(uid: uid, memberLock: lock, pairCode: lock.pairCode, pair: pair) {
         case .authorized:
-            return Status(message: "Paired and authorized in staging.", revocableCode: lock.pairCode)
+            return Status(message: "Paired and authorized in staging.", revocableCode: lock.pairCode, canCloseOwnSession: pair?.openedBy == uid && pair?.activeRoom != nil)
         case .pairRevoked:
             return Status(message: "Staging pairing revoked.")
         case .pairIncomplete:
