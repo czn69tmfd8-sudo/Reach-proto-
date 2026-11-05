@@ -7,9 +7,15 @@ struct REACHApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environmentObject(appState)
-                .environmentObject(reachCoordinator)
+            if NSClassFromString("XCTestCase") != nil {
+                // Hosted unit tests must not start the interactive UI's live
+                // staging sign-in or listeners as an incidental launch effect.
+                Color.clear
+            } else {
+                RootView()
+                    .environmentObject(appState)
+                    .environmentObject(reachCoordinator)
+            }
         }
     }
 }

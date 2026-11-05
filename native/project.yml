@@ -33,6 +33,8 @@ targets:
         product: FirebaseCore
     settings:
       base:
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": Configuration/Simulator.entitlements
+        "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
         PRODUCT_BUNDLE_IDENTIFIER: com.reachprototype.app
         PRODUCT_NAME: REACH
         GENERATE_INFOPLIST_FILE: YES
