@@ -20,6 +20,30 @@ workflows:
           test "$CM_BRANCH" = "native-reach"
           xcodebuild -version
           swift --version
+      - name: Install optional staging Firebase configuration
+        script: |
+          set -euo pipefail
+          python3 - <<'PYTHON'
+          import base64
+          import os
+          import pathlib
+          import plistlib
+
+          encoded = os.environ.get("REACH_STAGING_FIREBASE_PLIST_BASE64")
+          if encoded:
+              payload = base64.b64decode(encoded, validate=True)
+              config = plistlib.loads(payload)
+              if config.get("PROJECT_ID") != "reach-staging-a4745":
+                  raise SystemExit("Firebase configuration must use reach-staging-a4745.")
+              if config.get("BUNDLE_ID") != "com.reachprototype.app":
+                  raise SystemExit("Firebase configuration bundle ID does not match REACH.")
+              if not all(config.get(key) for key in ("GOOGLE_APP_ID", "API_KEY", "GCM_SENDER_ID")):
+                  raise SystemExit("Firebase configuration is missing required fields.")
+              pathlib.Path("native/REACH/GoogleService-Info.plist").write_bytes(payload)
+              print("Staging Firebase configuration validated.")
+          else:
+              print("Building without Firebase configuration. Staging sign-in will be unavailable.")
+          PYTHON
       - name: Generate Xcode project
         script: |
           set -euo pipefail
