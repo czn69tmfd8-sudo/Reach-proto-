@@ -50,16 +50,17 @@ private struct StagingConnectionView: View {
     @State private var input = ""
     @State private var action: Action? = .refresh
     @State private var confirmRevocation = false
+    @State private var mediaStopID = UUID()
     @State private var error: String?
 
     var body: some View {
         Form {
-            StagingCallView()
+            StagingCallView(stopID: mediaStopID)
             Section("REACH Test Zone") {
                 Text(status.message)
                 if let invitation = status.invitation {
                     Text(invitation).font(.title2.monospaced()).textSelection(.enabled)
-                    Text("Share this code privately with your partner.")
+                    Text("Share this native staging code privately with your partner. Existing web pairings are kept separate.")
                 }
                 if let error { Text(error).foregroundStyle(.red) }
                 Button("Refresh status") { action = .refresh }.disabled(action != nil)
@@ -85,9 +86,12 @@ private struct StagingConnectionView: View {
                     Button("Revoke authorization", role: .destructive) { confirmRevocation = true }
                         .disabled(action != nil)
                         .confirmationDialog("Revoke this staging pairing?", isPresented: $confirmRevocation) {
-                            Button("Revoke pairing", role: .destructive) { action = .revoke(code) }
+                            Button("Revoke pairing", role: .destructive) {
+                                mediaStopID = UUID()
+                                action = .revoke(code)
+                            }
                         } message: {
-                            Text("The partnership will lose authorization. This installation’s membership lock will remain.")
+                            Text("This pairing and its calls will lose authorization. You can then create or accept a fresh native pairing. Your web pairing stays unchanged.")
                         }
                 }
             }
@@ -129,12 +133,12 @@ private struct StagingConnectionView: View {
             try await dependencies.rooms.clearPairSessionIfCurrent(pairCode: lock.pairCode, roomID: roomID)
         case .create:
             let code = try await pairs.createInvitation()
-            return Status(message: "Waiting for your partner.", invitation: code, revocableCode: code)
+            return Status(message: "Waiting for your partner. This native code expires in 30 minutes.", invitation: code, revocableCode: code)
         case .accept(let code):
             try await pairs.acceptInvitation(code: code)
         case .revoke(let code):
             try await pairs.revokeInvitation(code: code)
-            return Status(message: "Staging pairing revoked.")
+            return Status(message: "Native pairing revoked. You can pair again.", canPair: true)
         }
 
         let lock = try await pairs.memberLock(uid: uid)
@@ -146,9 +150,12 @@ private struct StagingConnectionView: View {
         case .authorized:
             return Status(message: "Paired and authorized in staging.", revocableCode: lock.pairCode, canCloseOwnSession: pair?.openedBy == uid && pair?.activeRoom != nil)
         case .pairRevoked:
-            return Status(message: "Staging pairing revoked.")
+            return Status(message: "Native pairing revoked. You can pair again.", canPair: true)
         case .pairIncomplete:
-            return Status(message: "Waiting for your partner.", invitation: lock.pairCode, revocableCode: lock.pairCode)
+            if let expires = pair?.invitationExpiresAt, expires > Date() {
+                return Status(message: "Waiting for your partner. Code expires at \(expires.formatted(date: .omitted, time: .shortened)).", invitation: lock.pairCode, revocableCode: lock.pairCode)
+            }
+            return Status(message: "Native invitation expired. Revoke it before creating a fresh code.", revocableCode: lock.pairCode)
         case .noMemberLock, .pairMissing, .memberMismatch:
             return Status(message: "This installation’s staging pairing could not be authorized.")
         }

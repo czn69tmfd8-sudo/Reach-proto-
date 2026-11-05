@@ -18,8 +18,8 @@ enum PairingAuthorization {
     ) -> PairingAuthorizationResult {
         guard let memberLock else { return .noMemberLock }
         guard memberLock.pairCode == pairCode, let pair else { return .pairMissing }
-        guard pair.revoked != true else { return .pairRevoked }
         guard pair.contains(uid: uid) else { return .memberMismatch }
+        guard pair.revoked != true else { return .pairRevoked }
         guard let partnerUID = pair.partnerUID(for: uid) else { return .pairIncomplete }
 
         return .authorized(

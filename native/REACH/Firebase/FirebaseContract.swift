@@ -1,11 +1,11 @@
 import Foundation
 
-/// Native representation of the proven web Firestore contract.
-/// No live writes are enabled by this file.
+/// Fresh native staging records are isolated from every existing web record.
 enum ReachCollections {
-    static let pairInvites = "pairInvites"
-    static let memberLocks = "memberLocks"
-    static let rooms = "rooms"
+    static let root = "nativeStaging/v1"
+    static let pairInvites = root + "/pairInvites"
+    static let memberLocks = root + "/memberLocks"
+    static let rooms = root + "/rooms"
     static let hostCandidates = "hostCandidates"
     static let partnerCandidates = "partnerCandidates"
 }
@@ -20,6 +20,7 @@ struct PairRecord: Codable, Equatable, Sendable {
     var revoked: Bool?
     var activeRoom: String?
     var openedBy: String?
+    var invitationExpiresAt: Date? = nil
 
     func contains(uid: String) -> Bool {
         hostUid == uid || partnerUid == uid

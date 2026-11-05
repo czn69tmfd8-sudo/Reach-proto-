@@ -1,3 +1,5 @@
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {after, before, beforeEach, test} from 'node:test';
 import {initializeTestEnvironment, assertSucceeds, assertFails} from '@firebase/rules-unit-testing';
@@ -5,15 +7,16 @@ import {doc, getDoc, getDocs, collection, setDoc, updateDoc, deleteDoc, writeBat
 
 let env;
 const code = 'ABCDEFGHJKLM';
+const root = 'nativeStaging/v1/';
 const db = uid => uid ? env.authenticatedContext(uid).firestore() : env.unauthenticatedContext().firestore();
-const pair = d => doc(d,'pairInvites',code);
-const lock = (d,u) => doc(d,'memberLocks',u);
-const room = (d,id='r1') => doc(d,'rooms',id);
-const ice = (d,side='hostCandidates',id='c1') => doc(d,'rooms/r1/'+side,id);
+const pair = d => doc(d,root+'pairInvites',code);
+const lock = (d,u) => doc(d,root+'memberLocks',u);
+const room = (d,id='r1') => doc(d,root+'rooms',id);
+const ice = (d,side='hostCandidates',id='c1') => doc(d,root+'rooms/r1/'+side,id);
 const candidate = {candidate:'candidate:1 1 UDP 123 192.0.2.1 12345 typ host',sdpMid:'0',sdpMLineIndex:0};
 async function invite() {
  const d=db('a'), b=writeBatch(d);
- b.set(pair(d),{hostUid:'a',partnerUid:null,activeRoom:null,openedBy:null,createdAt:serverTimestamp()});
+ b.set(pair(d),{hostUid:'a',partnerUid:null,activeRoom:null,openedBy:null,createdAt:serverTimestamp(),expiresAt:Date.now()+25*60000});
  b.set(lock(d,'a'),{pairCode:code,createdAt:serverTimestamp()});
  await assertSucceeds(b.commit());
 }
@@ -28,8 +31,15 @@ async function open(uid='a',id='r1') {
  b.update(pair(d),{activeRoom:id,openedBy:uid}); return b.commit();
 }
 async function fixture() { await invite(); await assertSucceeds(accept()); await assertSucceeds(open()); }
-async function adminPatch(path,data) { await env.withSecurityRulesDisabled(async c=>updateDoc(doc(c.firestore(),path),data)); }
-before(async()=>{env=await initializeTestEnvironment({projectId:'demo-reach-native',firestore:{rules:await readFile('firestore.rules','utf8')}})});
+async function adminPatch(path,data) { await env.withSecurityRulesDisabled(async c=>updateDoc(doc(c.firestore(),root+path),data)); }
+before(async()=>{
+ const legacy=await readFile('fixtures/8956bb8-shared-collections.rules','utf8');
+ assert.equal(createHash('sha256').update(legacy).digest('hex'),'0f18c159fab30af407c618ca57a23caa35408462faa83528fddd7a135b3aef03');
+ const native=await readFile('firestore.rules','utf8');
+ const fragment=native.slice(native.indexOf('  match /nativeStaging/v1 {'),native.lastIndexOf('\n }'));
+ const combined=legacy.replace(/\n }\n}\s*$/, '\n'+fragment+'\n }\n}\n');
+ env=await initializeTestEnvironment({projectId:'demo-reach-native',firestore:{rules:combined}});
+});
 beforeEach(async()=>env.clearFirestore());
 after(async()=>env?.cleanup());
 test('fresh installations create and accept atomically, persist own locks',async()=>{
@@ -38,7 +48,7 @@ test('fresh installations create and accept atomically, persist own locks',async
  await assertFails(getDoc(lock(db('a'),'b'))); await assertFails(getDoc(pair(db('c'))));
 });
 test('anonymous requests and invitation enumeration are denied',async()=>{
- await invite(); await assertFails(getDoc(pair(db()))); await assertFails(getDocs(collection(db('b'),'pairInvites')));
+ await invite(); await assertFails(getDoc(pair(db()))); await assertFails(getDocs(collection(db('b'),root+'pairInvites')));
 });
 test('accept without atomic lock, self acceptance and second acceptance denied',async()=>{
  await invite(); await assertFails(updateDoc(pair(db('b')),{partnerUid:'b'})); await assertFails(accept('a'));
@@ -56,10 +66,10 @@ test('only opener offers, only partner answers, descriptions immutable',async()=
 });
 test('ICE directions enforced and both partners can receive',async()=>{
  await fixture(); await assertSucceeds(setDoc(ice(db('a')),candidate));
- await assertSucceeds(getDocs(collection(db('b'),'rooms/r1/hostCandidates')));
+ await assertSucceeds(getDocs(collection(db('b'),root+'rooms/r1/hostCandidates')));
  await assertFails(setDoc(ice(db('b'),'hostCandidates','c2'),candidate));
  await assertSucceeds(setDoc(ice(db('b'),'partnerCandidates'),candidate));
- await assertFails(getDocs(collection(db('c'),'rooms/r1/hostCandidates')));
+ await assertFails(getDocs(collection(db('c'),root+'rooms/r1/hostCandidates')));
  await assertFails(updateDoc(ice(db('a')),{candidate:'replace'}));
 });
 test('malformed or oversized signaling rejected',async()=>{
@@ -74,9 +84,9 @@ test('duplicate sessions cannot overwrite active pointer',async()=>{
 });
 test('revocation atomically ends room and prevents all further signaling and new rooms',async()=>{
  await fixture(); const d=db('b'),b=writeBatch(d);
- b.update(pair(d),{revoked:true,activeRoom:null,openedBy:null}); b.update(room(d),{active:false,endedAt:serverTimestamp()});
+ b.update(pair(d),{revoked:true,revokedBy:'b',revokedAt:serverTimestamp(),activeRoom:null,openedBy:null}); b.update(room(d),{active:false,endedAt:serverTimestamp()});
  await assertSucceeds(b.commit());
- await assertFails(getDoc(room(db('a')))); await assertFails(setDoc(ice(db('a')),candidate)); await assertFails(getDocs(collection(db('a'),'rooms/r1/hostCandidates')));
+ await assertFails(getDoc(room(db('a')))); await assertFails(setDoc(ice(db('a')),candidate)); await assertFails(getDocs(collection(db('a'),root+'rooms/r1/hostCandidates')));
  await assertFails(updateDoc(room(db('a')),{offer:{type:'offer',sdp:'v=0'}})); await assertFails(open('a','r2'));
  await assertFails(updateDoc(pair(db('a')),{revoked:false}));
 });
@@ -95,4 +105,111 @@ test('expired sessions, mismatched pair membership and stale locks fail closed',
  await fixture(); await adminPatch('rooms/r1',{expiresAt:Date.now()-1000}); await assertFails(setDoc(ice(db('a')),candidate));
  await adminPatch('rooms/r1',{expiresAt:Date.now()+60000,partnerUid:'c'}); await assertFails(setDoc(ice(db('a')),candidate));
  await adminPatch('rooms/r1',{partnerUid:'b'}); await adminPatch('memberLocks/b',{pairCode:'OTHER'}); await assertFails(setDoc(ice(db('a')),candidate));
+});
+
+const secondCode='MNPQRSTVWXYZ';
+async function createFor(uid,c=secondCode) {
+ const d=db(uid),b=writeBatch(d);
+ b.set(doc(d,root+'pairInvites',c),{hostUid:uid,partnerUid:null,activeRoom:null,openedBy:null,createdAt:serverTimestamp(),expiresAt:Date.now()+25*60000});
+ b.set(lock(d,uid),{pairCode:c,createdAt:serverTimestamp()});
+ return b.commit();
+}
+async function acceptFor(uid,c=secondCode) {
+ const d=db(uid),b=writeBatch(d);
+ b.update(doc(d,root+'pairInvites',c),{partnerUid:uid});
+ b.set(lock(d,uid),{pairCode:c,createdAt:serverTimestamp()});
+ return b.commit();
+}
+async function revokeFor(uid='a') {
+ return updateDoc(pair(db(uid)),{revoked:true,revokedBy:uid,revokedAt:serverTimestamp(),activeRoom:null,openedBy:null});
+}
+test('same authenticated users re-pair only after authorized revocation, retaining old pair audit',async()=>{
+ await fixture(); await assertFails(createFor('a')); await assertSucceeds(revokeFor());
+ await assertSucceeds(createFor('a')); await assertSucceeds(acceptFor('b'));
+ const old=(await getDoc(pair(db('a')))).data();
+ assert.equal(old.revoked,true);assert.equal(old.hostUid,'a');assert.equal(old.partnerUid,'b');assert.equal(old.revokedBy,'a');assert.ok(old.revokedAt);
+ assert.equal((await getDoc(lock(db('a'),'a'))).data().pairCode,secondCode);
+ assert.equal((await getDoc(lock(db('b'),'b'))).data().pairCode,secondCode);
+ await assertFails(getDoc(room(db('a'))));await assertFails(setDoc(ice(db('b'),'partnerCandidates','late'),candidate));
+ await assertFails(updateDoc(pair(db('a')),{revoked:false}));
+});
+test('revoked former partners may independently re-pair without moving the other users lock',async()=>{
+ await fixture();await assertSucceeds(revokeFor('b'));await assertSucceeds(createFor('b'));await assertSucceeds(acceptFor('c'));
+ assert.equal((await getDoc(lock(db('a'),'a'))).data().pairCode,code);
+ await assertFails(updateDoc(lock(db('a'),'b'),{pairCode:code,createdAt:serverTimestamp()}));
+ await assertFails(getDoc(doc(db('a'),root+'pairInvites',secondCode)));
+});
+test('revocation cannot spoof audit identity/time or mutate partnership membership',async()=>{
+ await fixture();
+ for(const value of [
+  {revoked:true,revokedBy:'b',revokedAt:serverTimestamp(),activeRoom:null,openedBy:null},
+  {revoked:true,revokedBy:'a',revokedAt:null,activeRoom:null,openedBy:null},
+  {revoked:true,revokedBy:'a',revokedAt:serverTimestamp(),hostUid:'c',activeRoom:null,openedBy:null}
+ ]) await assertFails(updateDoc(pair(db('a')),value));
+});
+test('expired invitation cannot be read by outsiders or accepted, but owner can revoke and start fresh',async()=>{
+ await invite();await adminPatch('pairInvites/'+code,{expiresAt:Date.now()-1});
+ await assertSucceeds(getDoc(pair(db('a'))));await assertFails(getDoc(pair(db('b'))));await assertFails(accept());
+ await assertFails(createFor('a'));await assertSucceeds(revokeFor());await assertSucceeds(createFor('a'));
+});
+test('revocation succeeds with a missing room pointer and no room read',async()=>{
+ await fixture();await adminPatch('pairInvites/'+code,{activeRoom:'missing'});
+ await assertSucceeds(revokeFor());await assertSucceeds(createFor('a'));
+ await assertFails(getDoc(room(db('b'))));await assertFails(setDoc(ice(db('b'),'partnerCandidates'),candidate));
+});
+test('revocation does not depend on expired SDP read access',async()=>{
+ await fixture();await adminPatch('rooms/r1',{expiresAt:Date.now()-1});
+ await assertFails(getDoc(room(db('a'))));await assertSucceeds(revokeFor());
+ await assertSucceeds(updateDoc(room(db('a')),{pairCode:code,active:false,endedAt:serverTimestamp()}));
+});
+test('all SDP/ICE reads and writes deny at expiry, cleanup remains authorized',async()=>{
+ await fixture();await assertSucceeds(updateDoc(room(db('a')),{offer:{type:'offer',sdp:'v=0'}}));
+ await assertSucceeds(setDoc(ice(db('a')),candidate));await adminPatch('rooms/r1',{expiresAt:Date.now()-1});
+ for(const uid of ['a','b']) {
+  await assertFails(getDoc(room(db(uid))));
+  await assertFails(getDoc(ice(db(uid))));
+  await assertFails(getDocs(collection(db(uid),root+'rooms/r1/hostCandidates')));
+ }
+ await assertFails(updateDoc(room(db('b')),{answer:{type:'answer',sdp:'v=0'}}));
+ await assertFails(setDoc(ice(db('b'),'partnerCandidates'),candidate));
+ const d=db('a'),b=writeBatch(d);
+ b.update(room(d),{pairCode:code,active:false,endedAt:serverTimestamp()});b.update(pair(d),{activeRoom:null,openedBy:null});
+ await assertSucceeds(b.commit());await assertSucceeds(open('b','fresh-room'));
+});
+test('ending a room denies its payload and candidates even before its timestamp expires',async()=>{
+ await fixture();await assertSucceeds(setDoc(ice(db('a')),candidate));
+ const d=db('a'),b=writeBatch(d);b.update(room(d),{pairCode:code,active:false,endedAt:serverTimestamp()});b.update(pair(d),{activeRoom:null,openedBy:null});await assertSucceeds(b.commit());
+ await assertFails(getDoc(room(db('a'))));await assertFails(getDoc(ice(db('b'))));
+});
+test('cleanup cannot change a rooms pairCode, reopen it or create a sparse missing room',async()=>{
+ await fixture();
+ await assertFails(updateDoc(room(db('a')),{pairCode:'WRONG',active:false,endedAt:serverTimestamp()}));
+ await assertFails(updateDoc(room(db('a'),'missing'),{pairCode:code,active:false,endedAt:serverTimestamp()}));
+ await assertSucceeds(updateDoc(room(db('a')),{active:false,endedAt:serverTimestamp()}));
+ await assertFails(updateDoc(room(db('a')),{active:true}));
+});
+test('simultaneous acceptances allow exactly one partner and leave no loser lock',async()=>{
+ await invite();const results=await Promise.allSettled([accept('b'),accept('c')]);
+ assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
+ const loser=results[0].status==='rejected'?'b':'c';assert.equal((await getDoc(lock(db(loser),loser))).exists(),false);
+});
+test('simultaneous open attempts allow only one room for the pair',async()=>{
+ await invite();await assertSucceeds(accept());
+ const results=await Promise.allSettled([open('a','first'),open('b','second')]);
+ assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
+});
+test('native create accept revoke and re-pair leave all pre-existing web documents unchanged',async()=>{
+ const records={
+  'pairInvites/WEB123':{hostUid:'a',partnerUid:'b',activeRoom:'web-room',openedBy:'a',profilePhotos:{a:'photo'},custom:'keep'},
+  'memberLocks/a':{pairCode:'WEB123',legacy:true},'memberLocks/b':{pairCode:'WEB123'},
+  'rooms/web-room':{pairCode:'WEB123',active:true,hostUid:'a',partnerUid:'b',offer:{sdp:'web-offer'}},
+  'rooms/web-room/hostCandidates/keep':{candidate:'web-candidate'}
+ };
+ await env.withSecurityRulesDisabled(async c=>{for(const [path,data] of Object.entries(records))await setDoc(doc(c.firestore(),path),data)});
+ await fixture();await assertSucceeds(revokeFor());await assertSucceeds(createFor('a'));await assertSucceeds(acceptFor('b'));
+ await env.withSecurityRulesDisabled(async c=>{for(const [path,data] of Object.entries(records))assert.deepEqual((await getDoc(doc(c.firestore(),path))).data(),data)});
+});
+test('invitation and room expiry cannot be extended by their members',async()=>{
+ await invite();await assertFails(updateDoc(pair(db('a')),{expiresAt:Date.now()+999999999}));
+ await assertSucceeds(accept());await assertSucceeds(open());await assertFails(updateDoc(room(db('a')),{expiresAt:Date.now()+999999999}));
 });

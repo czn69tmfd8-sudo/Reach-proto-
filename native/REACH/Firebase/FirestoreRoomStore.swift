@@ -122,15 +122,12 @@ final class FirestoreRoomStore: @unchecked Sendable, ReachRoomStore {
         try await db.runTransaction { transaction, errorPointer in
             do {
                 let pairSnapshot = try transaction.getDocument(pairRef)
-                let roomSnapshot = try transaction.getDocument(roomRef)
-                guard let roomData = roomSnapshot.data() else { return nil }
-                guard roomData["pairCode"] as? String == pairCode else {
-                    throw FirestoreRoomStoreError.roomPairMismatch
-                }
-
+                // Expired SDP is intentionally unreadable. Rules check the immutable
+                // pairCode supplied below and deny cross-pair cleanup or sparse creates.
                 let currentRoom = pairSnapshot.data()?["activeRoom"] as? String
 
                 transaction.updateData([
+                    "pairCode": pairCode,
                     "active": false,
                     "endedAt": FieldValue.serverTimestamp()
                 ], forDocument: roomRef)

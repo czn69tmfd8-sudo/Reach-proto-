@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct StagingCallView: View {
+    let stopID: UUID
     @StateObject private var call = StagingCallController()
     @Environment(\.scenePhase) private var scenePhase
     @State private var muted = false
@@ -26,6 +27,11 @@ struct StagingCallView: View {
             }
             Text("Both partners must explicitly join. Keep REACH in the foreground. This prototype uses direct/STUN connectivity; some networks require a TURN relay that is not configured yet.")
                 .font(.footnote).foregroundStyle(.secondary)
+        }
+        .onChange(of: stopID) { _, _ in
+            // Stop this installation's capture immediately, even if server-side
+            // revocation is delayed or rejected while the device is offline.
+            Task { await call.end() }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { Task { await call.end() } }
