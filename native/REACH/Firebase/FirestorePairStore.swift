@@ -2,6 +2,12 @@ import FirebaseAuth
 import FirebaseFirestore
 import Foundation
 
+// Firebase owns listener synchronization; this box only transfers the registration
+// to AsyncThrowingStream's @Sendable termination callback for removal.
+private struct PairListenerRegistrationBox: @unchecked Sendable {
+    let registration: any ListenerRegistration
+}
+
 final class FirestorePairStore: ReachPairStore {
     private let db: Firestore
 
@@ -132,8 +138,9 @@ final class FirestorePairStore: ReachPairStore {
                     continuation.yield(Self.decodePair(data))
                 }
 
+            let listenerBox = PairListenerRegistrationBox(registration: registration)
             continuation.onTermination = { _ in
-                registration.remove()
+                listenerBox.registration.remove()
             }
         }
     }
