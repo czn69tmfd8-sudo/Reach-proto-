@@ -1,6 +1,12 @@
 import FirebaseFirestore
 import Foundation
 
+// Firebase owns listener synchronization; this box only transfers the registration
+// to AsyncThrowingStream's @Sendable termination callback for removal.
+private struct RoomListenerRegistrationBox: @unchecked Sendable {
+    let registration: any ListenerRegistration
+}
+
 final class FirestoreRoomStore: ReachRoomStore {
     static let sessionLifetime: TimeInterval = 8 * 60 * 60
 
@@ -103,7 +109,8 @@ final class FirestoreRoomStore: ReachRoomStore {
                     continuation.yield(Self.decodeRoom(data))
                 }
 
-            continuation.onTermination = { _ in registration.remove() }
+            let listenerBox = RoomListenerRegistrationBox(registration: registration)
+            continuation.onTermination = { _ in listenerBox.registration.remove() }
         }
     }
 
