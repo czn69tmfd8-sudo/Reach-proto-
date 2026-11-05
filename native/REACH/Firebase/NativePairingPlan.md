@@ -1,28 +1,25 @@
-# Native Firebase migration contract
+# Native staging pairing
 
-The native app must preserve the security meaning of the current production data before it ever writes to production.
+Native uses `nativeStaging/v1/pairInvites`, `nativeStaging/v1/memberLocks`, and
+`nativeStaging/v1/rooms`. Existing web collections and records are never imported,
+modified, deleted, or adopted as native authorization. Firebase anonymous auth
+persists the installation identity; revocation/re-pairing does not sign out or
+manufacture a new identity.
 
-## Existing production truth
-- Authentication currently gives each web installation a Firebase anonymous UID.
-- memberLocks/{uid}.pairCode is the authoritative permanent partnership selection.
-- pairInvites/{pairCode} contains hostUid, partnerUid, revoked, activeRoom and openedBy.
-- rooms/{roomCode} is the signaling session.
-- Candidate subcollections are hostCandidates and partnerCandidates.
-- Ending a paired session clears activeRoom/openedBy only when the pair still points at that room.
+Create and accept atomically write the caller's native lock. Only the lock owner
+can replace it, and only after their existing native pair is revoked. Missing,
+active, or foreign prior pairs fail closed. Invitations expire after 30 minutes;
+accepted partnerships stay authorized until revoked. Revocation records the
+actor/server time and clears the session pointer, and cannot depend on reading a
+possibly expired/missing room. Historical pair records remain immutable.
 
-## Native rules
-1. Do not infer authorization from a locally remembered pair code.
-2. Resolve the authenticated UID's memberLock first.
-3. Fetch that pair record and verify the UID is hostUid or partnerUid.
-4. Reject revoked or incomplete pairs.
-5. Only then expose the partnership to the UI.
-6. A partner may take a hand only when activeRoom exists and openedBy is the other UID.
-7. Ending a session must be idempotent.
-8. Native identity migration must be designed explicitly: a new native anonymous UID will NOT automatically equal the existing Safari UID.
+The Staging tab provides create, accept, status/expiry, revoke, and re-pair actions.
+Opening or taking a hand is explicit. Rooms and ICE require both current locks,
+unrevoked membership, matching roles/current pointer, active status and expiry.
+The client stops media at room expiry and reacts to pair/room invalidation.
+Cleanup updates the immutable expected pair code without reading protected SDP;
+rules reject cross-pair writes and stale clearing of a newer pointer.
 
-## Critical migration issue
-The web app's device identity is anonymous-auth based. Installing native REACH creates a different Firebase auth installation/UID unless we intentionally migrate identity.
-
-Therefore native REACH must not simply point at production Firebase and expect the existing Byron/Aaron pair to work.
-
-Before live native pairing is enabled we will choose and test a migration path. Until then native development uses adapters/mocks and must not mutate production.
+See `native/firebase/RULES_COMPARISON.md` for evidence, tests and the deployment
+gate. The native-only candidate cannot replace the deployed staging rules. No
+rules are deployed by this change.
