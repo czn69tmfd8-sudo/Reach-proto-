@@ -82,9 +82,10 @@ final class FirestoreSignalingTransport: ReachSignalingTransport {
 }
 
 enum SignalingError: LocalizedError {
-    case wrongRole, malformed, ended
+    case wrongRole, malformed, ended, transportFailed
     var errorDescription: String? {
         switch self {
+        case .transportFailed: return "Media transport ended or timed out. Explicitly open a fresh hand to retry."
         case .wrongRole: return "Only the opener may offer and only the joining partner may answer."
         case .malformed: return "Invalid signaling message."
         case .ended: return "The staging session ended or expired."

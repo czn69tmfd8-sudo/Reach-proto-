@@ -9,6 +9,7 @@ final class NativeWebRTCPeer: NSObject, ObservableObject {
     @Published private(set) var remoteVideo: RTCVideoTrack?
     var onCandidate: ((ReachIceCandidate) -> Void)?
     var onState: ((String) -> Void)?
+    var onTransportEvent: ((ReachTransportWatchdog.Event) -> Void)?
     private var peer: RTCPeerConnection?
     private var camera: RTCCameraVideoCapturer?
     private var audio: RTCAudioTrack?
@@ -116,7 +117,7 @@ final class NativeWebRTCPeer: NSObject, ObservableObject {
     func close() {
         guard !closed else { return }
         closed = true
-        onCandidate = nil; onState = nil
+        onCandidate = nil; onState = nil; onTransportEvent = nil
         audio?.isEnabled = false; localVideo?.isEnabled = false
         camera?.stopCapture(); camera = nil
         peer?.delegate = nil; peer?.close(); peer = nil
@@ -135,10 +136,18 @@ extension NativeWebRTCPeer: RTCPeerConnectionDelegate {
         Task { @MainActor [weak self] in
             guard let self, !self.closed else { return }
             switch RTCPeerConnectionState(rawValue: raw) {
-            case .connected: self.onState?("Media transport connected")
-            case .disconnected: self.onState?("Media transport interrupted")
-            case .failed: self.onState?("Media transport failed — end and retry")
-            case .closed: self.onState?("Media transport closed")
+            case .connected:
+                self.onState?("Media transport connected")
+                self.onTransportEvent?(.connected)
+            case .disconnected:
+                self.onState?("Media transport interrupted")
+                self.onTransportEvent?(.disconnected)
+            case .failed:
+                self.onState?("Media transport failed — end and retry")
+                self.onTransportEvent?(.failed)
+            case .closed:
+                self.onState?("Media transport closed")
+                self.onTransportEvent?(.closed)
             default: self.onState?("Connecting media transport…")
             }
         }

@@ -13,10 +13,13 @@ final class StagingCallController: ObservableObject {
     private var partnership: Partnership?
     private var rooms: (any ReachRoomStore)?
     private var inbox = SignalingInbox()
+    private var watchdog = ReachTransportWatchdog()
+    private var watchdogTask: Task<Void, Never>?
 
     func start(join: Bool) async {
         guard !busy, peer == nil else { return }
         busy = true
+        watchdog = ReachTransportWatchdog()
         let token = UUID(); generation = token
         do {
             let dependencies = try FirebaseDependencyFactory.staging()
@@ -50,6 +53,10 @@ final class StagingCallController: ObservableObject {
                 guard let self, self.generation == token else { return }
                 self.status = value
             }
+            media.onTransportEvent = { [weak self] event in
+                guard let self, self.generation == token else { return }
+                self.handleTransport(event, token: token)
+            }
             media.onCandidate = { [weak self] candidate in
                 guard let self, self.generation == token else { return }
                 self.tasks.append(Task { [weak self] in
@@ -64,6 +71,7 @@ final class StagingCallController: ObservableObject {
                     for try await description in signaling.observeRemoteDescription(roomID: session.id, role: role) {
                         guard let self, self.generation == token else { return }
                         if try self.inbox.accept(description) {
+                            self.handleTransport(.negotiationStarted, token: token)
                             try await media.apply(description)
                             guard self.generation == token else { return }
                             for candidate in self.inbox.remoteDescriptionApplied() { try await media.add(candidate) }
@@ -121,6 +129,31 @@ final class StagingCallController: ObservableObject {
 
     func end() async { await stop(message: "Staging call ended.") }
 
+    private func handleTransport(_ event: ReachTransportWatchdog.Event, token: UUID) {
+        applyWatchdog(watchdog.receive(event), token: token)
+    }
+
+    private func applyWatchdog(_ action: ReachTransportWatchdog.Action, token: UUID) {
+        switch action {
+        case .none: break
+        case .cancelDeadline:
+            watchdogTask?.cancel(); watchdogTask = nil
+        case .startDeadline(let id, let seconds):
+            watchdogTask?.cancel()
+            watchdogTask = Task { [weak self] in
+                do { try await Task.sleep(for: .seconds(seconds)) } catch { return }
+                guard let self, self.generation == token else { return }
+                self.applyWatchdog(self.watchdog.deadlineExpired(id), token: token)
+            }
+        case .stop:
+            // Stop capture synchronously, before any Firebase cleanup awaits.
+            peer?.close()
+            tasks.append(Task { [weak self] in
+                await self?.fail(SignalingError.transportFailed, token: token)
+            })
+        }
+    }
+
     private func fail(_ error: Error, token: UUID) async {
         guard generation == token else { return }
         await stop(message: error.localizedDescription)
@@ -129,6 +162,7 @@ final class StagingCallController: ObservableObject {
     private func stop(message: String) async {
         generation = UUID()
         let stopToken = generation
+        watchdogTask?.cancel(); watchdogTask = nil
         tasks.forEach { $0.cancel() }; tasks.removeAll()
         peer?.close(); peer = nil
         let oldSession = session, oldPartnership = partnership, oldRooms = rooms

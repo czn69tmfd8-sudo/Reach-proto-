@@ -50,3 +50,19 @@ All configuration injection uses `scripts/install-staging-config.py`; device bui
 require the validated staging client plist. Automatic CI runs only mocked Auth
 smoke-test unit tests; the live check requires an explicit `--live-staging-test`
 invocation and is never run on every push.
+
+### Portable verification without Xcode
+
+Run `python3 scripts/run-portable-tests.py` with Swift installed (or set `SWIFTC`).
+It compiles portable application policies in Swift 6 mode and runs their XCTest
+suite; it does not compile Firebase, UIKit, Keychain or the real WebRTC SDK. Those
+remain part of the full Codemagic simulator suite. Linux XCTest discovery uses
+Swift 5 compatibility mode for its wrappers.
+
+Real transport failure closes media immediately. Negotiation after a remote SDP
+arrives is bounded to 45 seconds; a disconnected established transport has a
+20-second recovery window. Reconnection cancels the deadline, and stale callbacks
+cannot stop a recovered/new call. Waiting for a partner to explicitly take an
+open hand does not start the negotiation timeout. Terminal failure ends the old
+room; retry requires an explicit fresh open/join, never silent auto-joining or
+reusing old SDP/ICE. These policy tests do not prove physical media transport.

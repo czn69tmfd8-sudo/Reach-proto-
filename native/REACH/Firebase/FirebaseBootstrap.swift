@@ -15,9 +15,10 @@ enum FirebaseBootstrap {
             throw FirebaseBootstrapError.missingConfiguration
         }
 
-        try ReachEnvironmentGuard.validate(
-            environment: .staging,
-            configuredProjectID: options.projectID
+        try ReachEnvironmentGuard.validateNativeConfiguration(
+            projectID: options.projectID,
+            configuredBundleID: options.bundleID,
+            runningBundleID: Bundle.main.bundleIdentifier
         )
 
         FirebaseApp.configure(options: options)
@@ -25,13 +26,14 @@ enum FirebaseBootstrap {
     }
 
     private static func validateConfiguredProject() throws {
-        guard let projectID = FirebaseApp.app()?.options.projectID else {
+        guard let options = FirebaseApp.app()?.options else {
             throw FirebaseBootstrapError.missingConfiguration
         }
 
-        try ReachEnvironmentGuard.validate(
-            environment: .staging,
-            configuredProjectID: projectID
+        try ReachEnvironmentGuard.validateNativeConfiguration(
+            projectID: options.projectID,
+            configuredBundleID: options.bundleID,
+            runningBundleID: Bundle.main.bundleIdentifier
         )
     }
 }

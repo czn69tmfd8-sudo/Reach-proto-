@@ -27,6 +27,15 @@ enum ReachEnvironment: String, Codable, CaseIterable {
 }
 
 enum ReachEnvironmentGuard {
+    static let nativeBundleID = "com.reachprototype.app"
+
+    static func validateNativeConfiguration(projectID: String?, configuredBundleID: String?, runningBundleID: String?) throws {
+        try validate(environment: .staging, configuredProjectID: projectID)
+        guard configuredBundleID == nativeBundleID, runningBundleID == nativeBundleID else {
+            throw ReachEnvironmentError.bundleMismatch
+        }
+    }
+
     static func validate(
         environment: ReachEnvironment,
         configuredProjectID: String?
@@ -42,10 +51,13 @@ enum ReachEnvironmentGuard {
 
 enum ReachEnvironmentError: LocalizedError, Equatable {
     case projectMismatch
+    case bundleMismatch
     case productionLocked
 
     var errorDescription: String? {
         switch self {
+        case .bundleMismatch:
+            return "Firebase configuration does not match this native REACH app."
         case .projectMismatch:
             return "Firebase project does not match the selected REACH environment."
         case .productionLocked:
