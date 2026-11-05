@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 
 native = Path(__file__).resolve().parents[1]
@@ -39,7 +40,7 @@ with tempfile.TemporaryDirectory(prefix='reach-portable-') as temporary:
     # The application policies compile under strict Swift 6 concurrency checking.
     subprocess.run([swift, '-swift-version', '6', '-enable-testing', '-emit-module',
         '-emit-library', '-module-name', 'REACH', *map(str, sources),
-        '-o', str(out/'libREACH.so')], cwd=out, check=True)
+        '-o', str(out/('libREACH.dylib' if sys.platform == 'darwin' else 'libREACH.so'))], cwd=out, check=True)
     entries = []
     for path in tests:
         methods = re.findall(r'func (test\w+)\([^)]*\)(\s+async)?', path.read_text())
