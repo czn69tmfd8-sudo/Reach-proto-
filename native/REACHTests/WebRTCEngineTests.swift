@@ -47,7 +47,7 @@ final class WebRTCEngineTests: XCTestCase {
     private func makeDescription(peer: RTCPeerConnection, offer: Bool) async throws -> ReachSessionDescription {
         try await withCheckedThrowingContinuation { continuation in
             let deadline = CallbackDeadline(continuation, operation: offer ? "test create offer" : "test create answer")
-            let completion: (RTCSessionDescription?, Error?) -> Void = { description, error in
+            let completion: @Sendable (RTCSessionDescription?, Error?) -> Void = { description, error in
                 if let error { deadline.resolve(.failure(error)) }
                 else if let description {
                     deadline.resolve(.success(ReachSessionDescription(kind: offer ? .offer : .answer, sdp: description.sdp)))
@@ -63,7 +63,7 @@ final class WebRTCEngineTests: XCTestCase {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             let deadline = CallbackDeadline(continuation, operation: local ? "test set local SDP" : "test set remote SDP")
             let value = RTCSessionDescription(type: description.kind == .offer ? .offer : .answer, sdp: description.sdp)
-            let completion: (Error?) -> Void = { error in
+            let completion: @Sendable (Error?) -> Void = { error in
                 if let error { deadline.resolve(.failure(error)) } else { deadline.resolve(.success(())) }
             }
             if local { peer.setLocalDescription(value, completionHandler: completion) }

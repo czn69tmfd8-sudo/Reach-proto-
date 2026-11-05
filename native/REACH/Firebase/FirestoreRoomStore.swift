@@ -28,7 +28,7 @@ final class FirestoreRoomStore: @unchecked Sendable, ReachRoomStore {
         let pairRef = db.collection(ReachCollections.pairInvites).document(pairCode)
         let roomRef = db.collection(ReachCollections.rooms).document(roomID)
 
-        try await db.runTransaction { transaction, errorPointer in
+        _ = try await db.runTransaction { transaction, errorPointer in
             do {
                 let pairSnapshot = try transaction.getDocument(pairRef)
                 guard let pairData = pairSnapshot.data(),
@@ -119,7 +119,7 @@ final class FirestoreRoomStore: @unchecked Sendable, ReachRoomStore {
         let pairRef = db.collection(ReachCollections.pairInvites).document(pairCode)
         let roomRef = db.collection(ReachCollections.rooms).document(roomID)
 
-        try await db.runTransaction { transaction, errorPointer in
+        _ = try await db.runTransaction { transaction, errorPointer in
             do {
                 let pairSnapshot = try transaction.getDocument(pairRef)
                 // Expired SDP is intentionally unreadable. Rules check the immutable

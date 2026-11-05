@@ -11,13 +11,20 @@ final class NativeWebRTCPeer: NSObject, ObservableObject {
     var onState: ((String) -> Void)?
     var onTransportEvent: ((ReachTransportWatchdog.Event) -> Void)?
     private var peer: RTCPeerConnection?
-    private var camera: RTCCameraVideoCapturer?
+    private var camera: CameraCaptureLifetime?
     private var audio: RTCAudioTrack?
     private var closed = false
+    private var preparing = false
 
 
     func prepare() async throws {
-        guard !closed, peer == nil else { throw CancellationError() }
+        guard !closed, !preparing, peer == nil else { throw CancellationError() }
+        preparing = true
+        var prepared = false
+        defer {
+            preparing = false
+            if !prepared { close() }
+        }
         guard await NativePermissionService().requestCameraAndMicrophone() == .granted else { throw PeerError.permission }
         try checkOpen()
         let factory = try await WebRTCFactoryProvider.shared.get().factory
@@ -39,19 +46,23 @@ final class NativeWebRTCPeer: NSObject, ObservableObject {
         connection.add(video, streamIds: ["reach"])
         #if !targetEnvironment(simulator)
         let capturer = RTCCameraVideoCapturer(delegate: source)
-        camera = capturer
         guard let device = RTCCameraVideoCapturer.captureDevices().first(where: { $0.position == .front }) ?? RTCCameraVideoCapturer.captureDevices().first,
               let format = RTCCameraVideoCapturer.supportedFormats(for: device).min(by: {
                   abs(CMVideoFormatDescriptionGetDimensions($0.formatDescription).width - 640) < abs(CMVideoFormatDescriptionGetDimensions($1.formatDescription).width - 640)
               }), let maxFPS = format.videoSupportedFrameRateRanges.map(\.maxFrameRate).max() else { throw PeerError.camera }
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            let deadline = CallbackDeadline(continuation, operation: "camera capture")
-            capturer.startCapture(with: device, format: format, fps: min(30, Int(maxFPS))) { error in
-                if let error { deadline.resolve(.failure(error)) } else { deadline.resolve(.success(())) }
-            }
+        let capture = CameraCaptureLifetime(driver: WebRTCCameraCaptureDriver(
+            capturer: capturer, device: device, format: format, fps: min(30, Int(maxFPS))))
+        camera = capture
+        do {
+            try await capture.start()
+            try checkOpen()
+        } catch {
+            // Cancellation and a close during startup cannot leave audio/video alive.
+            close()
+            throw error
         }
-        if closed { capturer.stopCapture(); throw CancellationError() }
         #endif
+        prepared = true
     }
 
     private func configureAudio() throws {
@@ -67,7 +78,7 @@ final class NativeWebRTCPeer: NSObject, ObservableObject {
         guard let peer else { throw PeerError.creation }
         let description: ReachSessionDescription = try await withCheckedThrowingContinuation { continuation in
             let deadline = CallbackDeadline(continuation, operation: "create \(kind.rawValue)")
-            let callback: (RTCSessionDescription?, Error?) -> Void = { result, error in
+            let callback: @Sendable (RTCSessionDescription?, Error?) -> Void = { result, error in
                 if let error { deadline.resolve(.failure(error)) }
                 else if let result { deadline.resolve(.success(ReachSessionDescription(kind: kind, sdp: result.sdp))) }
                 else { deadline.resolve(.failure(PeerError.creation)) }
@@ -119,7 +130,7 @@ final class NativeWebRTCPeer: NSObject, ObservableObject {
         closed = true
         onCandidate = nil; onState = nil; onTransportEvent = nil
         audio?.isEnabled = false; localVideo?.isEnabled = false
-        camera?.stopCapture(); camera = nil
+        camera?.close(); camera = nil
         peer?.delegate = nil; peer?.close(); peer = nil
         audio = nil; localVideo = nil; remoteVideo = nil
     }

@@ -66,3 +66,27 @@ cannot stop a recovered/new call. Waiting for a partner to explicitly take an
 open hand does not start the negotiation timeout. Terminal failure ends the old
 room; retry requires an explicit fresh open/join, never silent auto-joining or
 reusing old SDP/ICE. These policy tests do not prove physical media transport.
+
+### Device camera startup and cleanup
+
+The device-only `WebRTCCameraCaptureDriver` calls WebRTC's explicit
+`stopCapture(completionHandler:)` overload. A bare `stopCapture()` in an async
+function selects the imported async overload and caused the unsigned iPhone
+compile to fail. Camera startup/shutdown requests and mutable ownership now live
+in `CameraCaptureLifetime` on MainActor. Close disables peer tracks immediately,
+cancels a pending startup continuation, and requests hardware shutdown without
+blocking the UI. The driver remains retained through the stop completion.
+A late startup callback after close requests another stop; it cannot revive the
+peer. Failed, timed-out or cancelled preparation closes the peer, and a second
+concurrent preparation cannot replace an in-flight capture.
+
+Portable tests inject a controllable camera driver to cover these races and
+retention. They do not replace the real device SDK compile or physical camera
+verification. Keep both simulator tests and unsigned physical-iPhone compilation
+enabled in Codemagic. No signing credentials are needed for that compile step.
+
+SDP completion closures are explicitly `@Sendable`, capture only the synchronized
+continuation deadline and immutable values, and do not mutate peer/UI state from
+worker threads. Firestore room transaction return values are explicitly discarded;
+optional post-revocation housekeeping uses its async API in an independent task.
+Revocation still commits authorization first and never waits for housekeeping.

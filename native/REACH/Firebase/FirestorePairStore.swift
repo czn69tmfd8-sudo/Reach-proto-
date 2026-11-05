@@ -90,9 +90,13 @@ final class FirestorePairStore: @unchecked Sendable, ReachPairStore {
         if action == .revoke, let roomID = result as? String {
             // Best-effort housekeeping after authorization has been irreversibly revoked.
             // Rules reject mismatched pairCode; updateData cannot create a missing room.
-            db.collection(ReachCollections.rooms).document(roomID).updateData([
-                "pairCode": code, "active": false, "endedAt": FieldValue.serverTimestamp()
-            ]) { _ in }
+            // An unstructured task keeps optional cleanup independent of the UI
+            // caller's cancellation; immutable pairCode and rules bound its scope.
+            Task {
+                try? await db.collection(ReachCollections.rooms).document(roomID).updateData([
+                    "pairCode": code, "active": false, "endedAt": FieldValue.serverTimestamp()
+                ])
+            }
             // Do not make the revocation UI wait for optional cleanup to reconnect.
         }
     }
