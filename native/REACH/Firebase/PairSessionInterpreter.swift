@@ -16,12 +16,17 @@ enum PairSessionInterpreter {
         guard pair.contains(uid: partnership.localMemberID) else { return .invalid }
         guard pair.revoked != true else { return .invalid }
 
-        guard
-            let roomID = pair.activeRoom,
-            !roomID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-            let openedBy = pair.openedBy
-        else {
+        // A session is absent only when both pointer fields are absent.
+        // Half-written or blank pointers must never authorize a new room.
+        if pair.activeRoom == nil && pair.openedBy == nil {
             return .none
+        }
+
+        guard let roomID = pair.activeRoom,
+              !roomID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let openedBy = pair.openedBy,
+              !openedBy.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .invalid
         }
 
         if openedBy == partnership.localMemberID {
