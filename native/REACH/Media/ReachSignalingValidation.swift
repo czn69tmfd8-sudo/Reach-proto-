@@ -2,8 +2,8 @@ import Foundation
 
 /// Validates untrusted signaling payloads before handing them to a native WebRTC peer.
 enum ReachSignalingValidation {
-    static let maximumSDPBytes = 256 * 1024
-    static let maximumCandidateBytes = 8 * 1024
+    static let maximumSDPBytes = 256_000
+    static let maximumCandidateBytes = 8_000
 
     static func validate(_ description: ReachSessionDescription) throws {
         guard !description.sdp.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,

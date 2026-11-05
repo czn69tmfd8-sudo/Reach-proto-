@@ -7,7 +7,8 @@ private struct RoomListenerRegistrationBox: @unchecked Sendable {
     let registration: any ListenerRegistration
 }
 
-final class FirestoreRoomStore: ReachRoomStore {
+// Immutable SDK handle; Firebase synchronizes its own operations and callbacks.
+final class FirestoreRoomStore: @unchecked Sendable, ReachRoomStore {
     static let sessionLifetime: TimeInterval = 8 * 60 * 60
 
     private let db: Firestore
@@ -88,7 +89,7 @@ final class FirestoreRoomStore: ReachRoomStore {
     }
 
     func room(id: String) async throws -> RoomRecord? {
-        let snapshot = try await db.collection(ReachCollections.rooms).document(id).getDocument()
+        let snapshot = try await db.collection(ReachCollections.rooms).document(id).getDocument(source: .server)
         guard snapshot.exists, let data = snapshot.data() else { return nil }
         return Self.decodeRoom(data)
     }

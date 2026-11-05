@@ -10,12 +10,13 @@ struct ReachSessionDescription: Equatable, Codable, Sendable {
     let sdp: String
 }
 
-struct ReachIceCandidate: Equatable, Codable, Sendable {
+struct ReachIceCandidate: Equatable, Hashable, Codable, Sendable {
     let sdp: String
     let sdpMid: String?
     let sdpMLineIndex: Int32
 }
 
+@MainActor
 protocol ReachSignalingTransport {
     func publishDescription(
         _ description: ReachSessionDescription,

@@ -1,7 +1,8 @@
 import FirebaseAuth
 import Foundation
 
-final class FirebaseAuthProvider: ReachAuthenticationProvider {
+// Immutable SDK handle; Firebase synchronizes its own operations and callbacks.
+final class FirebaseAuthProvider: @unchecked Sendable, ReachAuthenticationProvider {
     func currentUID() async -> String? {
         Auth.auth().currentUser?.uid
     }

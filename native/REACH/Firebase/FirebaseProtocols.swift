@@ -1,17 +1,17 @@
 import Foundation
 
-protocol ReachAuthenticationProvider {
+protocol ReachAuthenticationProvider: Sendable {
     func currentUID() async -> String?
     func signInAnonymously() async throws -> String
 }
 
-protocol ReachPairStore {
+protocol ReachPairStore: Sendable {
     func memberLock(uid: String) async throws -> MemberLockRecord?
     func pair(code: String) async throws -> PairRecord?
     func observePair(code: String) -> AsyncThrowingStream<PairRecord?, Error>
 }
 
-protocol ReachRoomStore {
+protocol ReachRoomStore: Sendable {
     func createRoom(
         pairCode: String,
         openedBy uid: String,
@@ -27,7 +27,7 @@ protocol ReachRoomStore {
     ) async throws
 }
 
-struct FirebaseReachDependencies {
+struct FirebaseReachDependencies: Sendable {
     let auth: any ReachAuthenticationProvider
     let pairs: any ReachPairStore
     let rooms: any ReachRoomStore

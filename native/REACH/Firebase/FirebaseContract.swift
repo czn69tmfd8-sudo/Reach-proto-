@@ -10,11 +10,11 @@ enum ReachCollections {
     static let partnerCandidates = "partnerCandidates"
 }
 
-struct MemberLockRecord: Codable, Equatable {
+struct MemberLockRecord: Codable, Equatable, Sendable {
     let pairCode: String
 }
 
-struct PairRecord: Codable, Equatable {
+struct PairRecord: Codable, Equatable, Sendable {
     let hostUid: String
     let partnerUid: String?
     var revoked: Bool?
@@ -34,7 +34,7 @@ struct PairRecord: Codable, Equatable {
     }
 }
 
-struct RoomRecord: Codable, Equatable {
+struct RoomRecord: Codable, Equatable, Sendable {
     var hostUid: String
     var partnerUid: String?
     var pairCode: String
@@ -49,12 +49,12 @@ struct RoomRecord: Codable, Equatable {
     }
 }
 
-struct SessionDescriptionRecord: Codable, Equatable {
+struct SessionDescriptionRecord: Codable, Equatable, Sendable {
     let type: String
     let sdp: String
 }
 
-struct IceCandidateRecord: Codable, Equatable {
+struct IceCandidateRecord: Codable, Equatable, Sendable {
     let candidate: String
     let sdpMid: String?
     let sdpMLineIndex: Int?

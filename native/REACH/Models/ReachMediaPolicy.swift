@@ -1,6 +1,6 @@
 import Foundation
 
-enum ReachMediaRole: Equatable {
+enum ReachMediaRole: Equatable, Sendable {
     case opener
     case joiner
 }

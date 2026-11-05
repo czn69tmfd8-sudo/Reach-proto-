@@ -8,7 +8,8 @@ private struct PairListenerRegistrationBox: @unchecked Sendable {
     let registration: any ListenerRegistration
 }
 
-final class FirestorePairStore: ReachPairStore {
+// Immutable SDK handle; Firebase synchronizes its own operations and callbacks.
+final class FirestorePairStore: @unchecked Sendable, ReachPairStore {
     private let db: Firestore
 
     init(db: Firestore = Firestore.firestore()) {
@@ -44,6 +45,7 @@ final class FirestorePairStore: ReachPairStore {
             throw InvitationError.unavailable
         }
 
+        let db = self.db
         let lockRef = db.collection(ReachCollections.memberLocks).document(uid)
         let pairRef = db.collection(ReachCollections.pairInvites).document(code)
         _ = try await db.runTransaction { transaction, errorPointer in
@@ -52,6 +54,7 @@ final class FirestorePairStore: ReachPairStore {
                 switch action {
                 case .create:
                     guard !lock.exists else { throw InvitationError.alreadyLocked }
+                    guard try !transaction.getDocument(pairRef).exists else { throw InvitationError.unavailable }
                     transaction.setData([
                         "hostUid": uid, "partnerUid": NSNull(), "activeRoom": NSNull(),
                         "openedBy": NSNull(), "createdAt": FieldValue.serverTimestamp()
@@ -72,7 +75,13 @@ final class FirestorePairStore: ReachPairStore {
                           data["hostUid"] as? String == uid || data["partnerUid"] as? String == uid else {
                         throw InvitationError.unavailable
                     }
-                    transaction.updateData(["revoked": true], forDocument: pairRef)
+                    if let roomID = data["activeRoom"] as? String {
+                        let roomRef = db.collection(ReachCollections.rooms).document(roomID)
+                        let room = try transaction.getDocument(roomRef)
+                        guard room.data()?["pairCode"] as? String == code else { throw InvitationError.unavailable }
+                        transaction.updateData(["active": false, "endedAt": FieldValue.serverTimestamp()], forDocument: roomRef)
+                    }
+                    transaction.updateData(["revoked": true, "activeRoom": NSNull(), "openedBy": NSNull()], forDocument: pairRef)
                     return nil
                 }
                 transaction.setData([
@@ -101,7 +110,7 @@ final class FirestorePairStore: ReachPairStore {
     func memberLock(uid: String) async throws -> MemberLockRecord? {
         let snapshot = try await db.collection(ReachCollections.memberLocks)
             .document(uid)
-            .getDocument()
+            .getDocument(source: .server)
 
         guard snapshot.exists, let data = snapshot.data() else { return nil }
         guard let pairCode = data["pairCode"] as? String, !pairCode.isEmpty else {
@@ -114,7 +123,7 @@ final class FirestorePairStore: ReachPairStore {
     func pair(code: String) async throws -> PairRecord? {
         let snapshot = try await db.collection(ReachCollections.pairInvites)
             .document(code)
-            .getDocument()
+            .getDocument(source: .server)
 
         guard snapshot.exists, let data = snapshot.data() else { return nil }
         return Self.decodePair(data)

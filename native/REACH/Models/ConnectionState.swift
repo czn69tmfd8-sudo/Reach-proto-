@@ -15,7 +15,7 @@ struct ConnectionState: Equatable {
     }
 }
 
-struct Partnership: Equatable, Identifiable {
+struct Partnership: Equatable, Identifiable, Sendable {
     let id: String
     let localMemberID: String
     let partnerMemberID: String
@@ -23,7 +23,7 @@ struct Partnership: Equatable, Identifiable {
     var isAuthorized: Bool
 }
 
-struct ReachSession: Equatable, Identifiable {
+struct ReachSession: Equatable, Identifiable, Sendable {
     let id: String
     let partnershipID: String
     let openedBy: String
@@ -31,7 +31,7 @@ struct ReachSession: Equatable, Identifiable {
     var phase: ReachSessionPhase
 }
 
-enum ReachSessionPhase: Equatable {
+enum ReachSessionPhase: Equatable, Sendable {
     case open
     case connecting
     case live
