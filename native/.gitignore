@@ -17,3 +17,9 @@ GoogleService-Info.plist
 # Xcode user state
 xcuserdata/
 *.xcuserstate
+
+# Device archive outputs and local review artifacts
+DeviceDerivedData/
+build/
+scripts/__pycache__/
+*.p8

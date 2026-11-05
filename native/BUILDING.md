@@ -40,3 +40,13 @@ DTLS fingerprints and stable signaling, and close. It does not prove PCM deliver
 or a two-iPhone call. Device builds keep the default native audio backend.
 Factory initialization runs off MainActor, and all SDK callbacks have deadlines.
 The hosted unit-test app does not automatically sign in to live staging.
+
+### Physical iPhone preparation
+
+See `DEVICE_INSTALLATION.md` for the manual registered-device IPA workflow and
+exact Apple signing/TestFlight prerequisites. The normal simulator workflow also
+compiles device-only code without signing. The device workflow does not publish.
+All configuration injection uses `scripts/install-staging-config.py`; device builds
+require the validated staging client plist. Automatic CI runs only mocked Auth
+smoke-test unit tests; the live check requires an explicit `--live-staging-test`
+invocation and is never run on every push.
