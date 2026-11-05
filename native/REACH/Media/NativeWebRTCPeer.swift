@@ -13,28 +13,27 @@ final class NativeWebRTCPeer: NSObject, ObservableObject {
     private var camera: RTCCameraVideoCapturer?
     private var audio: RTCAudioTrack?
     private var closed = false
-    private static let factory: RTCPeerConnectionFactory = {
-        RTCInitializeSSL()
-        return RTCPeerConnectionFactory(encoderFactory: RTCDefaultVideoEncoderFactory(), decoderFactory: RTCDefaultVideoDecoderFactory())
-    }()
+
 
     func prepare() async throws {
         guard !closed, peer == nil else { throw CancellationError() }
         guard await NativePermissionService().requestCameraAndMicrophone() == .granted else { throw PeerError.permission }
+        try checkOpen()
+        let factory = try await WebRTCFactoryProvider.shared.get().factory
         try checkOpen()
         let config = RTCConfiguration()
         config.sdpSemantics = .unifiedPlan
         // Direct/STUN prototype. TURN credentials must be provisioned before promising cellular reliability.
         config.iceServers = [RTCIceServer(urlStrings: ["stun:stun.l.google.com:19302"])]
         config.continualGatheringPolicy = .gatherContinually
-        guard let connection = Self.factory.peerConnection(with: config, constraints: RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil), delegate: self) else { throw PeerError.creation }
+        guard let connection = factory.peerConnection(with: config, constraints: RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil), delegate: self) else { throw PeerError.creation }
         peer = connection
         try configureAudio()
-        let track = Self.factory.audioTrack(with: Self.factory.audioSource(with: RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)), trackId: "reach-audio")
+        let track = factory.audioTrack(with: factory.audioSource(with: RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)), trackId: "reach-audio")
         audio = track
         connection.add(track, streamIds: ["reach"])
-        let source = Self.factory.videoSource()
-        let video = Self.factory.videoTrack(with: source, trackId: "reach-video")
+        let source = factory.videoSource()
+        let video = factory.videoTrack(with: source, trackId: "reach-video")
         localVideo = video
         connection.add(video, streamIds: ["reach"])
         #if !targetEnvironment(simulator)
@@ -45,8 +44,9 @@ final class NativeWebRTCPeer: NSObject, ObservableObject {
                   abs(CMVideoFormatDescriptionGetDimensions($0.formatDescription).width - 640) < abs(CMVideoFormatDescriptionGetDimensions($1.formatDescription).width - 640)
               }), let maxFPS = format.videoSupportedFrameRateRanges.map(\.maxFrameRate).max() else { throw PeerError.camera }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let deadline = CallbackDeadline(continuation, operation: "camera capture")
             capturer.startCapture(with: device, format: format, fps: min(30, Int(maxFPS))) { error in
-                if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+                if let error { deadline.resolve(.failure(error)) } else { deadline.resolve(.success(())) }
             }
         }
         if closed { capturer.stopCapture(); throw CancellationError() }
@@ -65,10 +65,11 @@ final class NativeWebRTCPeer: NSObject, ObservableObject {
         try checkOpen()
         guard let peer else { throw PeerError.creation }
         let description: ReachSessionDescription = try await withCheckedThrowingContinuation { continuation in
+            let deadline = CallbackDeadline(continuation, operation: "create \(kind.rawValue)")
             let callback: (RTCSessionDescription?, Error?) -> Void = { result, error in
-                if let error { continuation.resume(throwing: error) }
-                else if let result { continuation.resume(returning: ReachSessionDescription(kind: kind, sdp: result.sdp)) }
-                else { continuation.resume(throwing: PeerError.creation) }
+                if let error { deadline.resolve(.failure(error)) }
+                else if let result { deadline.resolve(.success(ReachSessionDescription(kind: kind, sdp: result.sdp))) }
+                else { deadline.resolve(.failure(PeerError.creation)) }
             }
             let constraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
             if kind == .offer { peer.offer(for: constraints, completionHandler: callback) }
@@ -76,8 +77,9 @@ final class NativeWebRTCPeer: NSObject, ObservableObject {
         }
         try checkOpen()
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let deadline = CallbackDeadline(continuation, operation: "set local SDP")
             peer.setLocalDescription(RTCSessionDescription(type: kind == .offer ? .offer : .answer, sdp: description.sdp)) { error in
-                if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+                if let error { deadline.resolve(.failure(error)) } else { deadline.resolve(.success(())) }
             }
         }
         try checkOpen()
@@ -88,8 +90,9 @@ final class NativeWebRTCPeer: NSObject, ObservableObject {
         try checkOpen()
         guard let peer else { throw PeerError.creation }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let deadline = CallbackDeadline(continuation, operation: "set remote SDP")
             peer.setRemoteDescription(RTCSessionDescription(type: description.kind == .offer ? .offer : .answer, sdp: description.sdp)) { error in
-                if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+                if let error { deadline.resolve(.failure(error)) } else { deadline.resolve(.success(())) }
             }
         }
         try checkOpen()
@@ -100,8 +103,9 @@ final class NativeWebRTCPeer: NSObject, ObservableObject {
         try checkOpen()
         guard let peer else { throw PeerError.creation }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let deadline = CallbackDeadline(continuation, operation: "add remote ICE")
             peer.add(RTCIceCandidate(sdp: candidate.sdp, sdpMLineIndex: candidate.sdpMLineIndex, sdpMid: candidate.sdpMid)) { error in
-                if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+                if let error { deadline.resolve(.failure(error)) } else { deadline.resolve(.success(())) }
             }
         }
         try checkOpen()
