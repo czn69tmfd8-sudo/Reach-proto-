@@ -64,9 +64,11 @@ preparation. The owner must explicitly approve the eventual upload/distribution.
 
 ## Live two-device test gate
 
-First obtain the complete deployed staging rules, review the additive merge,
-run the emulator suite against that exact merged source, and obtain explicit
-approval before deploying it to `reach-staging-a4745`. Then use fresh **native**
+The complete staging rules were supplied by the owner on November 5. The additive
+artifact and before/after compatibility tests are in
+`firebase/reviews/staging-2026-11-05/`. Explicit approval is still required before
+deploying that tested artifact to `reach-staging-a4745`; recheck the live baseline
+for intervening changes first. Then use fresh **native**
 pairings on the two installed phones, grant camera/microphone intentionally, and
 verify sound and moving video in both directions. Exercise End, backgrounding,
 revocation, re-pairing and expiration. No overnight auto-join is enabled.

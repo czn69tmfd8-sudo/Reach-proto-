@@ -5,10 +5,16 @@ new native namespace and would deny existing web collections if deployed alone.
 No live rules or data are changed by this directory's tests.
 
 Run `npm ci && npm test`. The emulator uses demo projects and no Firebase login.
-The suite runs the original 12 security tests against an exact `8956bb8` fixture,
-then native tests against that fixture plus the new native rules. The fixture is
-repository history, **not an export of the currently deployed staging rules**.
-The production hosting configuration is untouched.
+The suite retains the original 12 tests against the historical `8956bb8` fixture.
+It additionally runs the same nine web-compatibility tests against both the full
+user-supplied deployed baseline and the exact additive artifact, and 27 native
+security tests against that artifact. Twelve local merge/integrity tests complete
+the 69-test suite. The production hosting configuration is untouched.
+
+See `reviews/staging-2026-11-05/COMPARISON.md` for the concrete reviewed update.
+`reviews/staging-2026-11-05/merged.rules` is the complete additive source for
+approval, **not deployed**. The full baseline was supplied by the owner on
+November 5; it has not been independently fetched from Firebase.
 
 Native data lives exclusively under `nativeStaging/v1/{pairInvites,memberLocks,rooms}`.
 There is no import, rewrite, deletion, migration, or adoption of web `pairInvites`,
@@ -35,11 +41,11 @@ pair invalidation. Server TTL/janitor deletion is a separate retention task.
 Cleanup may end an expired room without reading its protected SDP. Supplying a
 mismatched pair code is rejected, and stale cleanup cannot clear a newer room.
 
-Before deployment: obtain the **complete currently published staging rules**,
-verify all web matches and broad wildcard grants, merge only the native block,
-run the same tests against that exact merged artifact, and review its diff. The
-visible conversation excerpt is insufficient for that final comparison. Do not
-publish this native-only file or substitute the historical fixture for live rules.
+Before deployment: obtain explicit owner approval for the exact merged artifact,
+confirm the published staging rules still match the supplied baseline, and verify
+the target is `reach-staging-a4745`. If the baseline has changed, regenerate and
+retest the addition first. Do not deploy the native-only candidate or replace the
+baseline with the historical fixture. No deployment command is run by this suite.
 
 After review/deployment and Anonymous Auth verification, test two installations:
 A creates a native code; B accepts; both refresh; A opens a hand; B explicitly
@@ -68,9 +74,9 @@ that a supplied file is the current live release. Human source verification,
 emulator testing against that exact merged file and explicit approval remain
 required. No deployment function or command is provided.
 
-The emulator security suite now uses this same merge function with the historical
-fixture, so merge tests and authorization tests exercise the same insertion path.
-This is still not a replacement for obtaining the full deployed baseline.
+The default emulator suite loads the committed review artifact, verifies its
+hashes, and rebuilds it byte-for-byte from the baseline and native candidate.
+Web compatibility is tested both without and with the native addition.
 
 To exercise that exact prepared artifact with the security tests, set
 `REACH_RULES_REVIEW_DIR` to the new review directory when running `npm test` from

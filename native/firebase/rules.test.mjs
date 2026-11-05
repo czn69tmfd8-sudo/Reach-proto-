@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {buildAdditiveRules,readReview,sha256,stagingProject} from './prepare-rules-review.mjs';
+import {readReview,sha256} from './prepare-rules-review.mjs';
 import {readFile} from 'node:fs/promises';
 import {after, before, beforeEach, test} from 'node:test';
 import {initializeTestEnvironment, assertSucceeds, assertFails} from '@firebase/rules-unit-testing';
@@ -33,12 +33,12 @@ async function open(uid='a',id='r1') {
 async function fixture() { await invite(); await assertSucceeds(accept()); await assertSucceeds(open()); }
 async function adminPatch(path,data) { await env.withSecurityRulesDisabled(async c=>updateDoc(doc(c.firestore(),root+path),data)); }
 before(async()=>{
- const legacy=await readFile('fixtures/8956bb8-shared-collections.rules','utf8');
- assert.equal(sha256(legacy),'0f18c159fab30af407c618ca57a23caa35408462faa83528fddd7a135b3aef03');
+ const legacy=await readFile('fixtures/deployed-staging-2026-11-05.rules','utf8');
+ assert.equal(sha256(legacy),'63f06d53574e186e933c8629099439f94d554798322363eaad5edb0d1a1bfeeb');
  const native=await readFile('firestore.rules','utf8');
  const combined=process.env.REACH_RULES_REVIEW_DIR
   ? await readReview(process.env.REACH_RULES_REVIEW_DIR,native)
-  : buildAdditiveRules(legacy,native,{project:stagingProject,expectedBaselineSHA:sha256(legacy)}).merged;
+  : await readReview('reviews/staging-2026-11-05',native);
  env=await initializeTestEnvironment({projectId:'demo-reach-native',firestore:{rules:combined}});
 });
 beforeEach(async()=>env.clearFirestore());
@@ -213,4 +213,27 @@ test('native create accept revoke and re-pair leave all pre-existing web documen
 test('invitation and room expiry cannot be extended by their members',async()=>{
  await invite();await assertFails(updateDoc(pair(db('a')),{expiresAt:Date.now()+999999999}));
  await assertSucceeds(accept());await assertSucceeds(open());await assertFails(updateDoc(room(db('a')),{expiresAt:Date.now()+999999999}));
+});
+
+test('same UIDs and codes use separate native and permanent web locks',async()=>{
+ // Native users must never inherit, revoke or migrate existing web pairing data.
+ const d=db('a');
+ await env.withSecurityRulesDisabled(async c=>{
+  const w=c.firestore();await setDoc(doc(w,'memberLocks','a'),{pairCode:code,createdAt:new Date(0)});
+  await setDoc(doc(w,'pairInvites',code),{hostUid:'a',partnerUid:'b',createdAt:new Date(0),activeRoom:null,openedBy:null,profilePhotos:{a:'keep'},dailyQuestionAnswers:{host:{text:'keep'}}});
+ });
+ const old=(await getDoc(doc(d,'pairInvites',code))).data();
+ await invite();await assertSucceeds(accept());await assertSucceeds(open());
+ await assertSucceeds(revokeFor());await assertSucceeds(createFor('a'));await assertSucceeds(acceptFor('b'));
+ assert.deepEqual((await getDoc(doc(d,'pairInvites',code))).data(),old);
+ assert.equal((await getDoc(doc(d,'memberLocks','a'))).data().pairCode,code);
+ assert.equal((await getDoc(lock(d,'a'))).data().pairCode,secondCode);
+});
+test('web records cannot authorize native room or candidate access',async()=>{
+ await env.withSecurityRulesDisabled(async c=>{
+  const d=c.firestore();await setDoc(doc(d,'pairInvites',code),{hostUid:'a',partnerUid:'b',activeRoom:'r1',openedBy:'a'});
+  await setDoc(doc(d,'memberLocks','a'),{pairCode:code});await setDoc(doc(d,'memberLocks','b'),{pairCode:code});
+ });
+ await assertFails(open());await assertFails(setDoc(ice(db('a')),candidate));
+ await assertFails(getDoc(room(db('b'))));
 });
