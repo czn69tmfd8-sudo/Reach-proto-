@@ -5,7 +5,14 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: latest
-    # Start manually from native-reach while establishing the first build.
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: native-reach
+          include: true
+          source: true
+      cancel_previous_builds: false
     scripts:
       - name: Verify branch and toolchain
         script: |
