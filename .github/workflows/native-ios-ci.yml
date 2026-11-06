@@ -35,7 +35,9 @@ jobs:
           if-no-files-found: ignore
 
   build-and-test:
-    runs-on: macos-15
+    # Standard Intel runner avoids the observed arm64 capacity cancellations.
+    # Codemagic continues validating on Apple Silicon. Device builds remain arm64.
+    runs-on: macos-15-intel
     timeout-minutes: 30
 
     steps:
@@ -57,6 +59,9 @@ jobs:
           xcode-select -p
           xcodebuild -version
           swift --version
+
+      - name: Validate distribution preparation and packaging
+        run: python3 -m unittest discover -s native/scripts -p 'test_*.py'
 
       - name: Install XcodeGen
         run: brew install xcodegen

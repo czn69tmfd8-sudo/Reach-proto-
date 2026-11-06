@@ -64,4 +64,24 @@ class DeviceArchiveTests(unittest.TestCase):
             with self.subTest(target=target),self.assertRaises(ValueError):archive.validate_profile(changed_p,changed_e)
     def test_unexpired_exact_ad_hoc_profile_accepted(self):
         e,p=self.signing_data();archive.validate_profile(p,e,datetime(2029,1,1,tzinfo=timezone.utc))
+    def store_data(self):
+        e,p=self.signing_data();p.pop('ProvisionedDevices')
+        p['Entitlements']['beta-reports-active']=True
+        return e,p
+    def test_store_profile_requires_explicit_mode_and_expected_team(self):
+        e,p=self.store_data()
+        archive.validate_profile(p,e,distribution='app_store',expected_team='TESTTEAM00')
+        with self.assertRaises(ValueError):archive.validate_profile(p,e)
+        with self.assertRaises(ValueError):archive.validate_profile(p,e,distribution='app_store',expected_team='OTHERTEAM0')
+    def test_testflight_rejects_ad_hoc_development_enterprise_and_wrong_app(self):
+        e,p=self.store_data()
+        for patch in [{'ProvisionedDevices':['phone']},{'ProvisionedDevices':[]},{'ProvisionsAllDevices':True}]:
+            with self.subTest(patch=patch),self.assertRaises(ValueError):archive.validate_profile(dict(p,**patch),e,distribution='app_store')
+        for key,value in [('get-task-allow',True),('beta-reports-active',False),('application-identifier','TESTTEAM00.other')]:
+            bad=deepcopy(p);bad['Entitlements'][key]=value
+            with self.subTest(key=key),self.assertRaises(ValueError):archive.validate_profile(bad,e,distribution='app_store')
+    def test_testflight_rejects_expired_and_unknown_profile_modes(self):
+        e,p=self.store_data();p['ExpirationDate']=datetime(2000,1,1)
+        with self.assertRaises(ValueError):archive.validate_profile(p,e,distribution='app_store')
+        with self.assertRaises(ValueError):archive.validate_profile(p,e,distribution='unknown')
 if __name__=='__main__':unittest.main()

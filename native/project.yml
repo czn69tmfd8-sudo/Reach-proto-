@@ -38,7 +38,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.reachprototype.app
         PRODUCT_NAME: REACH
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: REACH
+        INFOPLIST_KEY_CFBundleDisplayName: REACH Staging
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_NSCameraUsageDescription: "REACH uses your camera when you intentionally open or take your partner's hand for a video connection."
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "REACH uses your microphone when you intentionally open or take your partner's hand for an audio/video connection."
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES

@@ -146,3 +146,68 @@ workflows:
     artifacts:
       - native/build/ios/ipa/*.ipa
       - native/build-logs/device-*.log
+
+  reach-ios-testflight-archive:
+    name: REACH staging TestFlight archive (manual, upload disabled)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      groups:
+        - reach-staging
+      xcode: latest
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.reachprototype.app
+    # Manual archive/export only. No publishing block, upload command or trigger.
+    scripts:
+      - name: Validate branch, staging configuration and Apple build inputs
+        script: |
+          set -euo pipefail
+          test "$CM_BRANCH" = "native-reach"
+          python3 native/scripts/install-staging-config.py --required
+          python3 native/scripts/prepare-store-export.py inputs
+          python3 -m unittest discover -s native/scripts -p 'test_*.py'
+      - name: Generate Xcode project for tests and archive
+        script: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
+          cd native
+          xcodegen generate
+      - name: Run native simulator tests before archiving
+        script: |
+          set -euo pipefail
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; ids=[x["udid"] for r,xs in d.items() if r.startswith("com.apple.CoreSimulator.SimRuntime.iOS-") for x in xs if x.get("isAvailable") and x["name"].startswith("iPhone")]; sys.exit("No available iPhone simulator") if not ids else print(ids[0])')
+          export DEVICE_ID
+          cd native
+          bash scripts/run-simulator-tests.sh
+      - name: Apply existing App Store distribution profiles
+        script: |
+          set -euo pipefail
+          cd native
+          xcode-project use-profiles
+          python3 scripts/prepare-store-export.py export "$HOME/export_options.plist"
+      - name: Archive for TestFlight without uploading
+        script: |
+          set -euo pipefail
+          cd native
+          mkdir -p build-logs
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build/REACH-TestFlight.xcarchive \
+            DEVELOPMENT_TEAM="$REACH_APPLE_TEAM_ID" \
+            CURRENT_PROJECT_VERSION="$REACH_IOS_BUILD_NUMBER" archive \
+            2>&1 | tee build-logs/testflight-archive.log
+          python3 scripts/verify-device-archive.py build/REACH-TestFlight.xcarchive/Products/Applications/REACH.app \
+            --distribution app_store --expected-team "$REACH_APPLE_TEAM_ID"
+      - name: Export App Store-signed IPA and verify exported app
+        script: |
+          set -euo pipefail
+          cd native
+          xcodebuild -exportArchive -archivePath build/REACH-TestFlight.xcarchive \
+            -exportPath build/testflight -exportOptionsPlist "$HOME/export_options.plist" \
+            2>&1 | tee build-logs/testflight-export.log
+          python3 scripts/prepare-store-export.py verify-ipa build/testflight
+    artifacts:
+      - native/build/testflight/*.ipa
+      - native/build/REACH-TestFlight.xcarchive/dSYMs/**
+      - native/build-logs/**
+      - native/TestResults.xcresult
