@@ -153,3 +153,26 @@ library compiled, but the full Linux test process reproduced SIGILL at the same
 dispatch offset; this run is failed, not a passing 106-test result. Loader trace
 preservation was verified. Codemagic Build #11 passed on 1c60ac1 according to the
 owner; 18041be and these changes still require macOS validation.
+
+### Call startup choices and runtime isolation follow-up
+
+Mute and video transmission choices now persist while permission, factory and
+camera setup suspend. Tracks receive the current choice before attachment to the
+peer. Ending the peer disables and detaches the controls; late toggle/binding
+callbacks cannot enable a closed session. Six portable tests cover setup choices,
+independent controls, replacement and terminal closure. A real-SDK track test is
+included in the native simulator suite and still needs macOS execution.
+
+In this follow-up, the full portable suite passed 112/112 in one run, with strict
+Swift 6 application compilation. The 69 emulator, 16 script and 9 web recovery
+checks also passed. Separate standalone dispatch and pthread probes establish
+that live worker proc entries are missing in this Work Linux environment; see
+scripts/diagnostics/README.md for evidence and reproduction sources. This is an
+environment-level reproduction, not evidence of the same defect on GitHub-hosted
+Ubuntu or on iOS. No runtime patch, suppressed failure or automatic retry is used.
+
+Codemagic remains configured for push events on native-reach, including simulator
+launch/tests and unsigned physical-device compilation. No new macOS result is
+claimed here; the owner-confirmed last successful build is #11 on 1c60ac1. Firebase
+authentication and rules deployment remain paused; no signed phone install or
+physical audio/video call has been verified.
