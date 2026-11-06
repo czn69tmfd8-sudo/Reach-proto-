@@ -169,7 +169,11 @@ final class StagingCallController: ObservableObject {
         session = nil; partnership = nil; rooms = nil; inbox = SignalingInbox()
         busy = true; status = message
         if let oldSession, let oldPartnership, let oldRooms {
-            do { try await ReachRoomCoordinator(rooms: oldRooms).end(session: oldSession, partnership: oldPartnership) }
+            do {
+                try await SessionCleanupDeadline.run {
+                    try await ReachRoomCoordinator(rooms: oldRooms).end(session: oldSession, partnership: oldPartnership)
+                }
+            }
             catch {
                 if generation == stopToken { status = "Media stopped. Session cleanup could not be confirmed: \(error.localizedDescription)" }
             }

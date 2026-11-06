@@ -2,19 +2,24 @@
 
 ## Current verification
 
-Codemagic build 8 on `ec3a7d9` is confirmed by the user as 78/78 native simulator
-tests passing. The current session additionally verified live **REST** anonymous
-sign-in, token-backed account lookup, and deletion of only that newly created
-staging test account. The key's project binding was verified before account
-creation, using the approved staging project number and public Auth domain.
-No Firestore writes, existing user changes, or rules deployments occurred.
-This does not establish native SDK sign-in, live native pairing, or media delivery.
+Codemagic build **10** on `0a87493` is confirmed by the supplied screenshots as
+successful: simulator build, installation, launch, native test step, and unsigned
+physical-iPhone compilation. The screenshots do not establish an exact simulator
+test count or any physical-device runtime result. Local portable tests are
+reported separately and do not replace the Xcode SDK tests.
+
+Live REST anonymous sign-in, token-backed lookup, and deletion of the newly
+created staging test account were previously verified. Native Firebase SDK
+sign-in, live two-device pairing, and media delivery remain unverified.
+The approved additive rules have not been deployed: the browser's Google sign-in
+expired before authorization completed. A fresh authenticated session must read
+and compare the live baseline before the existing deployment approval can be used.
 
 ## Prepared workflows
 
 - `reach-ios-simulator`: automatic native branch validation. It also compiles the
   physical-iPhone source branch without signing credentials, catching code hidden
-  by simulator conditionals. This compile result still needs Codemagic logs.
+  by simulator conditionals. The unsigned device compile passed in build 10; later changes still need CI validation.
 - `reach-ios-device`: **manual**, using existing ad-hoc identities in Codemagic.
   It requires staging config, archives Release for iPhone hardware, verifies bundle,
   project, platform and signature, and exports an IPA artifact. It has no automatic

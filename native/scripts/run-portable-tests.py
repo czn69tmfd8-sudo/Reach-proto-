@@ -21,7 +21,7 @@ sources = [
     *[native/'REACH/Media'/name for name in [
         'CallbackDeadline.swift', 'ReachReconnectPolicy.swift', 'ReachSignalingValidation.swift',
         'SignalingInbox.swift', 'WebRTCSignalingContract.swift', 'ReachTransportWatchdog.swift', 'CameraCaptureLifetime.swift']],
-    *[native/'REACH/Services'/name for name in ['ReachServices.swift', 'MockReachServices.swift']],
+    *[native/'REACH/Services'/name for name in ['ReachServices.swift', 'MockReachServices.swift', 'SessionCleanupDeadline.swift']],
 ]
 test_names = [
     'ReachSignalingValidationTests', 'ReachRoomCoordinatorTests', 'PairSessionInterpreterTests',
@@ -29,7 +29,7 @@ test_names = [
     'ReachMediaPolicyTests', 'SignalingInboxTests', 'ReachEnvironmentTests',
     'ReachSessionLifecycleTests', 'ReachReconnectPolicyTests', 'SessionContinuityPolicyTests',
     'ReachTransportStateTests', 'MockReachBackendTests', 'PairingAuthorizationTests',
-    'NativePairingPolicyTests', 'IdentityMigrationPolicyTests', 'ReachTransportWatchdogTests', 'CameraCaptureLifetimeTests',
+    'NativePairingPolicyTests', 'IdentityMigrationPolicyTests', 'ReachTransportWatchdogTests', 'CameraCaptureLifetimeTests', 'SessionCleanupDeadlineTests',
 ]
 tests = [native/'REACHTests'/f'{name}.swift' for name in test_names]
 swift = os.environ.get('SWIFTC') or shutil.which('swiftc')

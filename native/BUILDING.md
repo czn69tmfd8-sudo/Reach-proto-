@@ -90,3 +90,13 @@ continuation deadline and immutable values, and do not mutate peer/UI state from
 worker threads. Firestore room transaction return values are explicitly discarded;
 optional post-revocation housekeeping uses its async API in an independent task.
 Revocation still commits authorization first and never waits for housekeeping.
+
+### Offline session cleanup
+
+Ending capture remains immediate. The call controller waits at most 15 seconds
+for Firebase session cleanup, then releases its busy state and reports that server
+confirmation is missing. Cleanup may complete later, but remains bound to the
+original room/pair and cannot clear a newer room pointer. A timeout never means
+server cleanup succeeded or that a new call has authorization. Reconnect and
+refresh/close the old hand before retrying. Four portable tests cover success,
+server rejection, timeout with late completion, and a cancelled calling task.
