@@ -158,12 +158,15 @@ workflows:
       vars:
         REACH_VALIDATION_COMMIT: 8e41fb3f24263cc5c4ea1dec6a82b58270285c76
     scripts:
-      - name: Select the exact approved application source
+      - name: Verify the exact approved application source
         script: |
           set -euo pipefail
           test "$CM_BRANCH" = native-reach
-          git checkout --detach "$REACH_VALIDATION_COMMIT"
-          test "$(git rev-parse HEAD)" = "$REACH_VALIDATION_COMMIT"
+          # Retain current CI fixes; require app, tests and project bytes to match approval.
+          git cat-file -e "$REACH_VALIDATION_COMMIT^{commit}"
+          git diff --exit-code "$REACH_VALIDATION_COMMIT" -- native/REACH native/REACHTests native/project.yml
+          git rev-parse HEAD
+          printf 'Application source verified against %s\n' "$REACH_VALIDATION_COMMIT"
           python3 - <<'PY'
           from pathlib import Path
           assert not list(Path('native/REACH').rglob('GoogleService-Info.plist')), 'Validation must have no live Firebase client configuration'

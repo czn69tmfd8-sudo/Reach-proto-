@@ -7,9 +7,10 @@ The owner approved a validation-only macOS run of application commit
 
 In Codemagic choose branch `native-reach`, then workflow
 **REACH validation only (8e41fb3, no upload)** (`reach-ios-validation`).
-The workflow checks out the exact approved application source before executing.
-Its configuration is carried by a later CI-only branch commit; the app source
-under test is still exactly 8e41fb3.
+The workflow keeps the current CI/test-harness fixes and verifies with `git diff`
+that `native/REACH`, `native/REACHTests` and `native/project.yml` are unchanged
+from 8e41fb3. It fails before testing if any app/test/project bytes differ.
+It no longer checks out the old commit and discards the corrected runner.
 
 It has no automatic trigger, Apple integration, signing identities, environment
 variable groups, publisher, archive export or upload step. It does not install a
@@ -26,12 +27,27 @@ The run performs:
 5. Release compilation for generic iPhone with distribution signing disabled.
 6. Log and xcresult artifacts only; no IPA is exported or uploaded.
 
-## Current result
+## Failure and fix
 
-No macOS run has started from this environment. The GitHub connector has no
-workflow-dispatch action, and the cloud browser is signed out of GitHub.
-Local packaging validation passes (31 tests). Workflow schema/shell validation
-must pass before committing this configuration; this is not an iOS build result.
+The owner-supplied Codemagic log shows **31 Python tests and 9 offline web tests
+passed**, then `run-portable-tests.py` failed compiling its generated `main.swift`:
+`error: no such module 'XCTest'`. The direct macOS `swiftc` invocation lacked
+Apple's developer XCTest module/framework search setup. The iOS build and native
+XCTest stages were skipped, not failed.
+
+On macOS, the runner now creates a dependency-free temporary Swift package and
+runs `swift test`. SwiftPM locates the Apple XCTest framework and discovers tests,
+without Linux `XCTMain`/`asyncTest` wrappers. App policy sources remain in Swift 6
+mode and test sources retain Swift 5 compatibility. The existing Linux runner is
+unchanged. Test failures remain fatal and the generated macOS package is retained
+under build logs on failure. No tests are skipped to suppress this error.
+
+Local checks after the fix: **35 Python tests and 9 web tests passed**. The four
+new regression checks cover exact source/test inclusion, macOS dispatch, failure
+propagation/diagnostics and the workflow's source-identity/isolation guard.
+Official Codemagic schema and workflow shell syntax also pass validation.
+There is no local macOS/Swift toolchain, so a successful SwiftPM/Xcode rerun cannot
+be claimed yet. The emulator suite has not been retried.
 
 The next owner action is only to start the manual workflow above in their
 existing Codemagic session and provide its run link/logs. No setup, credentials,
