@@ -39,3 +39,13 @@ class AppPackagingTests(unittest.TestCase):
         self.assertIn('promote-ipa build/testflight-unverified build/testflight',scripts)
         self.assertIn('native/build/testflight/*.ipa',artifacts)
         self.assertNotIn('testflight-unverified',artifacts)
+
+    def test_original_web_sunset_is_bundled_without_reencoding(self):
+        import hashlib
+        source=(ROOT.parent/'staging/Reach back.png').read_bytes()
+        directory=ROOT/'REACH/Assets.xcassets/OriginalSunset.imageset'
+        entry=json.loads((directory/'Contents.json').read_text())['images'][0]
+        bundled=(directory/entry['filename']).read_bytes()
+        self.assertEqual(bundled,source)
+        self.assertEqual(hashlib.sha256(bundled).hexdigest(),'b1b72b03ca4f7d331daec329edf39c67136e7ae09daa180ac11b62a56a3f8efc')
+        self.assertEqual(struct.unpack('>II',bundled[16:24]),(864,1536))

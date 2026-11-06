@@ -6,7 +6,7 @@ struct RootView: View {
     var body: some View {
         TabView(selection: $appState.selectedTab) {
             StagingConnectionView()
-                .tabItem { Label("Staging", systemImage: "network") }
+                .tabItem { Label("REACH", systemImage: "heart.fill") }
                 .tag(AppTab.reach)
 
             ReachHomeView()
@@ -34,6 +34,8 @@ private struct PlaceholderView: View {
 }
 
 private struct StagingConnectionView: View {
+    @EnvironmentObject private var appState: AppState
+
     private enum Action: Equatable, Sendable {
         case refresh, create, accept(String), revoke(String), clearOwnSession
     }
@@ -54,47 +56,63 @@ private struct StagingConnectionView: View {
     @State private var error: String?
 
     var body: some View {
-        Form {
-            StagingCallView(stopID: mediaStopID)
-            Section("REACH Test Zone") {
-                Text(status.message)
-                if let invitation = status.invitation {
-                    Text(invitation).font(.title2.monospaced()).textSelection(.enabled)
-                    Text("Share this native staging code privately with your partner. Existing web pairings are kept separate.")
-                }
-                if let error { Text(error).foregroundStyle(.red) }
-                Button("Refresh status") { action = .refresh }.disabled(action != nil)
-                if status.canCloseOwnSession {
-                    Button("Close my previously open hand", role: .destructive) { action = .clearOwnSession }
-                        .disabled(action != nil)
-                }
-            }
-            if status.canPair {
-                Section("Pair with your partner") {
-                    Button("Create pairing code") { action = .create }.disabled(action != nil)
-                    TextField("Partner’s pairing code", text: $input)
-                        .textInputAutocapitalization(.characters)
-                        .autocorrectionDisabled()
-                    Button("Accept pairing code") {
-                        action = .accept(input.trimmingCharacters(in: .whitespacesAndNewlines).uppercased())
-                    }
-                    .disabled(action != nil || input.trimmingCharacters(in: .whitespacesAndNewlines).count != 12)
-                }
-            }
-            if let code = status.revocableCode {
+        ZStack {
+            ReachHomeBackground(source: appState.homeBackground)
+            Form {
                 Section {
-                    Button("Revoke authorization", role: .destructive) { confirmRevocation = true }
-                        .disabled(action != nil)
-                        .confirmationDialog("Revoke this staging pairing?", isPresented: $confirmRevocation) {
-                            Button("Revoke pairing", role: .destructive) {
-                                mediaStopID = UUID()
-                                action = .revoke(code)
-                            }
-                        } message: {
-                            Text("This pairing and its calls will lose authorization. You can then create or accept a fresh native pairing. Your web pairing stays unchanged.")
+                    ReachHomeIdentityHeader()
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                StagingCallView(stopID: mediaStopID)
+                    .listRowBackground(panelTint)
+                Section("REACH Test Zone") {
+                    Text(status.message)
+                    if let invitation = status.invitation {
+                        Text(invitation).font(.title2.monospaced()).textSelection(.enabled)
+                        Text("Share this native staging code privately with your partner. Existing web pairings are kept separate.")
+                    }
+                    if let error { Text(error).foregroundStyle(.red) }
+                    Button("Refresh status") { action = .refresh }.disabled(action != nil)
+                    if status.canCloseOwnSession {
+                        Button("Close my previously open hand", role: .destructive) { action = .clearOwnSession }
+                            .disabled(action != nil)
+                    }
+                }
+                .listRowBackground(panelTint)
+                if status.canPair {
+                    Section("Pair with your partner") {
+                        Button("Create pairing code") { action = .create }.disabled(action != nil)
+                        TextField("Partner’s pairing code", text: $input)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
+                        Button("Accept pairing code") {
+                            action = .accept(input.trimmingCharacters(in: .whitespacesAndNewlines).uppercased())
                         }
+                        .disabled(action != nil || input.trimmingCharacters(in: .whitespacesAndNewlines).count != 12)
+                    }
+                    .listRowBackground(panelTint)
+                }
+                if let code = status.revocableCode {
+                    Section {
+                        Button("Revoke authorization", role: .destructive) { confirmRevocation = true }
+                            .disabled(action != nil)
+                            .confirmationDialog("Revoke this staging pairing?", isPresented: $confirmRevocation) {
+                                Button("Revoke pairing", role: .destructive) {
+                                    mediaStopID = UUID()
+                                    action = .revoke(code)
+                                }
+                            } message: {
+                                Text("This pairing and its calls will lose authorization. You can then create or accept a fresh native pairing. Your web pairing stays unchanged.")
+                            }
+                    }
+                    .listRowBackground(panelTint)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(.clear)
+            .tint(.pink)
+            .environment(\.colorScheme, .dark)
         }
         .task(id: action) {
             guard let action else { return }
@@ -110,6 +128,10 @@ private struct StagingConnectionView: View {
             }
             self.action = nil
         }
+    }
+
+    private var panelTint: Color {
+        Color(red: 0.16, green: 0.08, blue: 0.25).opacity(0.66)
     }
 
     @MainActor private static func perform(_ action: Action) async throws -> Status {

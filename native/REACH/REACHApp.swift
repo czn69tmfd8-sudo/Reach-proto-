@@ -23,6 +23,9 @@ struct REACHApp: App {
 @MainActor
 final class AppState: ObservableObject {
     @Published var selectedTab: AppTab = .reach
+    // In-memory presentation preference only. Photo selection/storage can be added
+    // later without coupling it to identity, consent, or the native pairing lock.
+    @Published var homeBackground: ReachHomeBackgroundSource = .originalSunset
 }
 
 enum AppTab: Hashable {

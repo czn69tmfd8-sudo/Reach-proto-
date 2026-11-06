@@ -6,12 +6,7 @@ struct ReachHomeView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [.indigo.opacity(0.95), .purple.opacity(0.75), .pink.opacity(0.45)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                ReachHomeBackground()
 
                 VStack(spacing: 24) {
                     Spacer()
