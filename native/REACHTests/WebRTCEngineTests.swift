@@ -44,6 +44,29 @@ final class WebRTCEngineTests: XCTestCase {
         XCTAssertEqual(joiner.signalingState, .closed)
     }
 
+    func testSetupPrivacyChoicesApplyToRealSDKTracks() async {
+        await MainActor.run {
+            RTCInitializeSSL()
+            let factory = RTCPeerConnectionFactory(
+                encoderFactory: RTCDefaultVideoEncoderFactory(),
+                decoderFactory: RTCDefaultVideoDecoderFactory(),
+                audioDevice: NegotiationAudioDevice())
+            let audio = factory.audioTrack(with: factory.audioSource(with:
+                RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)), trackId: "privacy-audio")
+            let video = factory.videoTrack(with: factory.videoSource(), trackId: "privacy-video")
+            let controls = ReachMediaControls()
+            controls.setMuted(true); controls.setCameraEnabled(false)
+            controls.bindMicrophone { audio.isEnabled = $0 }
+            controls.bindCamera { video.isEnabled = $0 }
+            XCTAssertFalse(audio.isEnabled); XCTAssertFalse(video.isEnabled)
+            controls.setMuted(false); controls.setCameraEnabled(true)
+            XCTAssertTrue(audio.isEnabled); XCTAssertTrue(video.isEnabled)
+            controls.close()
+            controls.setMuted(false); controls.setCameraEnabled(true)
+            XCTAssertFalse(audio.isEnabled); XCTAssertFalse(video.isEnabled)
+        }
+    }
+
     private func makeDescription(peer: RTCPeerConnection, offer: Bool) async throws -> ReachSessionDescription {
         try await withCheckedThrowingContinuation { continuation in
             let deadline = CallbackDeadline(continuation, operation: offer ? "test create offer" : "test create answer")

@@ -21,7 +21,7 @@ sources = [
         'NativePairingPolicy.swift', 'PairSessionInterpreter.swift', 'ReachRoomCoordinator.swift']],
     *[native/'REACH/Media'/name for name in [
         'CallbackDeadline.swift', 'ReachReconnectPolicy.swift', 'ReachSignalingValidation.swift',
-        'SignalingInbox.swift', 'WebRTCSignalingContract.swift', 'ReachTransportWatchdog.swift', 'CameraCaptureLifetime.swift', 'LocalCandidateOutbox.swift']],
+        'SignalingInbox.swift', 'WebRTCSignalingContract.swift', 'ReachTransportWatchdog.swift', 'CameraCaptureLifetime.swift', 'LocalCandidateOutbox.swift', 'ReachMediaControls.swift']],
     *[native/'REACH/Services'/name for name in ['ReachServices.swift', 'MockReachServices.swift', 'SessionCleanupDeadline.swift']],
 ]
 test_names = [
@@ -30,7 +30,7 @@ test_names = [
     'ReachMediaPolicyTests', 'SignalingInboxTests', 'ReachEnvironmentTests',
     'ReachSessionLifecycleTests', 'ReachReconnectPolicyTests', 'SessionContinuityPolicyTests',
     'ReachTransportStateTests', 'MockReachBackendTests', 'PairingAuthorizationTests',
-    'NativePairingPolicyTests', 'IdentityMigrationPolicyTests', 'ReachTransportWatchdogTests', 'CameraCaptureLifetimeTests', 'SessionCleanupDeadlineTests', 'LocalCandidateOutboxTests',
+    'NativePairingPolicyTests', 'IdentityMigrationPolicyTests', 'ReachTransportWatchdogTests', 'CameraCaptureLifetimeTests', 'SessionCleanupDeadlineTests', 'LocalCandidateOutboxTests', 'ReachMediaControlsTests',
 ]
 tests = [native/'REACHTests'/f'{name}.swift' for name in test_names]
 swift = os.environ.get('SWIFTC') or shutil.which('swiftc')

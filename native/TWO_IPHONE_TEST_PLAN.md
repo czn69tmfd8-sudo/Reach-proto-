@@ -23,7 +23,10 @@ is not installation, camera capture, sound delivery, or live pairing evidence.
    permission intentionally. Do not infer connectivity from signaling completion.
 4. Verify moving partner video and intelligible audio in both directions. Each
    person performs a different visible gesture and speaks independently.
-5. Check microphone mute, camera off/on, End from either side, backgrounding and
+5. During initial permission/media setup, mute and switch video off. Confirm neither
+   track transmits when setup finishes until explicitly enabled. Repeat with End
+   during setup: late callbacks must not re-enable either track. Then check
+   microphone mute, video off/on, End from either side, backgrounding and
    leaving the call screen. Capture must stop and the old room must not revive.
 6. Swap opener/joiner roles and repeat. Never attach a new peer to old SDP/ICE.
 7. Interrupt network briefly: recovery may occur within the existing transport's
