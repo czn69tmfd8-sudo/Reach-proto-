@@ -9,12 +9,15 @@ The suite retains the original 12 tests against the historical `8956bb8` fixture
 It additionally runs the same nine web-compatibility tests against both the full
 user-supplied deployed baseline and the exact additive artifact, and 27 native
 security tests against that artifact. Twelve local merge/integrity tests complete
-the 69-test suite. The production hosting configuration is untouched.
+the original 69 cases; 31 lookup-guard regressions bring the suite to **100**.
+The production hosting configuration is untouched.
 
-See `reviews/staging-2026-11-05/COMPARISON.md` for the concrete reviewed update.
-`reviews/staging-2026-11-05/merged.rules` is the complete additive source for
-approval, **not deployed**. The full baseline was supplied by the owner on
-November 5; it has not been independently fetched from Firebase.
+The default candidate is `reviews/staging-2026-11-06-hardened/merged.rules`.
+See that directory's `COMPARISON.md`, `validation.json` and complete
+`published-vs-hardened.patch`. The earlier 929-line d23ac0d8 artifact was manually
+published by the owner; the **new 990-line candidate is not deployed or approved
+for publication**. Published-source evidence is the owner's supplied readback
+and screenshot; it has not been independently downloaded from Firebase.
 
 Native data lives exclusively under `nativeStaging/v1/{pairInvites,memberLocks,rooms}`.
 There is no import, rewrite, deletion, migration, or adoption of web `pairInvites`,

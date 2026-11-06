@@ -38,7 +38,7 @@ before(async()=>{
  const native=await readFile('firestore.rules','utf8');
  const combined=process.env.REACH_RULES_REVIEW_DIR
   ? await readReview(process.env.REACH_RULES_REVIEW_DIR,native)
-  : await readReview('reviews/staging-2026-11-05',native);
+  : await readReview('reviews/staging-2026-11-06-hardened',native);
  env=await initializeTestEnvironment({projectId:'demo-reach-native',firestore:{rules:combined}});
 });
 beforeEach(async()=>env.clearFirestore());

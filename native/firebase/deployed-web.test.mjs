@@ -5,12 +5,13 @@ import {after,before,beforeEach,describe,test} from 'node:test';
 import {initializeTestEnvironment,assertSucceeds,assertFails} from '@firebase/rules-unit-testing';
 import {doc,getDoc,getDocs,collection,setDoc,updateDoc,deleteDoc,writeBatch,serverTimestamp} from 'firebase/firestore';
 import {readReview,sha256} from './prepare-rules-review.mjs';
-const baseline=await readFile('fixtures/deployed-staging-2026-11-05.rules','utf8');
+const reviewDirectory=process.env.REACH_RULES_REVIEW_DIR || 'reviews/staging-2026-11-06-hardened';
+const baseline=await readFile(reviewDirectory+'/baseline.rules','utf8');
 const native=await readFile('firestore.rules','utf8');
-assert.equal(sha256(baseline),'63f06d53574e186e933c8629099439f94d554798322363eaad5edb0d1a1bfeeb');
+assert.equal(sha256(baseline),'437d87ced527f053b807ba7744fc61bb74ed3a3f0e2c93e2aa61a9ca386ef86e');
 const merged=process.env.REACH_RULES_REVIEW_DIR
  ? await readReview(process.env.REACH_RULES_REVIEW_DIR,native)
- : await readReview('reviews/staging-2026-11-05',native);
+ : await readReview('reviews/staging-2026-11-06-hardened',native);
 for(const [label,rules] of [['deployed',baseline],['additive',merged]]) {
  describe(`web compatibility: ${label}`,()=>{
   let env;

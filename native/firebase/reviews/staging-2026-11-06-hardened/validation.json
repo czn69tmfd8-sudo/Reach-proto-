@@ -1,0 +1,35 @@
+{
+  "command": "npm --prefix native/firebase test",
+  "exitCode": 0,
+  "tests": 100,
+  "passed": 100,
+  "failed": 0,
+  "skipped": 0,
+  "cancelled": 0,
+  "groups": {
+    "webBeforeAndAfter": 18,
+    "nativeExisting": 27,
+    "historical8956bb8": 12,
+    "mergeIntegrity": 12,
+    "lookupGuardRegressions": 31
+  },
+  "mergedSHA256": "7e62b5e95f939d56155ce047634ead33023dfd1e6b35a6e20cb3601c7ddc00b8",
+  "logSHA256": "4793dccde5ec576eb40e4685685863fa1bdf62da8fa33d552a1fe38072109466",
+  "runtime": {
+    "node": "24.22.1",
+    "firebaseTools": "14.22.0",
+    "firestoreEmulator": "1.19.8",
+    "java": "17.0.20"
+  },
+  "negativeControl": {
+    "artifactSHA256": "d23ac0d8a31496a10ac0fff6e3d439daf3951d3246ec74154d6e956ef0f7e70a",
+    "case": "missing rooms and orphan ICE deny cleanly for members outsiders and unauthenticated users",
+    "expectedExitCode": 1,
+    "actualExitCode": 1,
+    "diagnostic": "Null value error for authenticated missing-room read"
+  },
+  "firebaseChanged": false,
+  "authenticationChanged": false,
+  "deployed": false,
+  "baselineEvidence": "Owner-supplied published readback and screenshot; no independent authenticated live download."
+}
