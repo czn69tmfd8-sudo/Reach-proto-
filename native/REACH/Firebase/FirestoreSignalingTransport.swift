@@ -58,12 +58,15 @@ final class FirestoreSignalingTransport: ReachSignalingTransport {
         // addDocument's nonisolated async overload. No payload or Firestore object
         // is transferred to a task, and a queued local write is not reported as success.
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            // An offline SDK can keep this callback pending indefinitely. Bound
+            // our wait; a later server result cannot revive a stopped call.
+            let deadline = CallbackDeadline(continuation, operation: "staging ICE acknowledgement")
             _ = db.collection(ReachCollections.rooms).document(roomID).collection(side).addDocument(data: [
                 "candidate": candidate.sdp, "sdpMid": candidate.sdpMid as Any? ?? NSNull(),
                 "sdpMLineIndex": Int(candidate.sdpMLineIndex)
             ], completion: { error in
-                if let error { continuation.resume(throwing: error) }
-                else { continuation.resume(returning: ()) }
+                if let error { deadline.resolve(.failure(error)) }
+                else { deadline.resolve(.success(())) }
             })
         }
     }

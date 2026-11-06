@@ -176,3 +176,24 @@ launch/tests and unsigned physical-device compilation. No new macOS result is
 claimed here; the owner-confirmed last successful build is #11 on 1c60ac1. Firebase
 authentication and rules deployment remain paused; no signed phone install or
 physical audio/video call has been verified.
+
+### Recovered macOS validation and ICE acknowledgement
+
+The GitHub macOS run on adfec0c passed Bluetooth API compilation, then Swift 6.1.2
+rejected the heterogeneous ICE dictionary passed to Firestore's nonisolated async
+addDocument overload. ICE publication now calls the SDK's completion-handler API
+and waits for server acknowledgement through the existing exactly-once deadline.
+Offline waits are bounded to 15 seconds; timeout does not cancel a write already
+queued in Firebase or claim server confirmation. A late callback is ignored, and
+existing room identity/rules and controller generation checks still apply.
+
+GitHub's macOS workflow now uses the same local simulator signing and test-results
+script as the owner-verified Codemagic workflow. It also compiles the device-only
+Release path without signing and preserves build logs and xcresult diagnostics.
+No Apple signing credentials are required for either validation step. These CI
+changes still require a completed macOS run; no new simulator/device result is
+claimed in this note. Firebase account access and deployment remain paused.
+
+Future product requirements and consent boundaries live in ../docs/product/.
+Coaching features are planning only. The first real two-iPhone call remains the
+immediate engineering milestone.
