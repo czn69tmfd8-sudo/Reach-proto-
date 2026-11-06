@@ -59,6 +59,10 @@ with tempfile.TemporaryDirectory(prefix='reach-portable-') as temporary:
     environment = dict(os.environ)
     for variable in ['LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH']:
         environment[variable] = str(out) + os.pathsep + environment.get(variable, '')
+    if sys.platform == 'linux' and os.environ.get('REACH_PORTABLE_LOADER_TRACE') == '1':
+        # Loader mappings permit offline symbolication without ptrace access.
+        environment['LD_DEBUG'] = 'files'
+        environment['LD_DEBUG_OUTPUT'] = str(out/'loader-trace')
     try:
         subprocess.run([str(out/'run-tests')], env=environment, check=True)
     except subprocess.CalledProcessError as failure:

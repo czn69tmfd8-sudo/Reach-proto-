@@ -23,3 +23,6 @@ DeviceDerivedData/
 build/
 scripts/__pycache__/
 *.p8
+
+# Local validation logs and crash reproductions
+build-logs/

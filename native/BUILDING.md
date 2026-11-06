@@ -119,10 +119,37 @@ room's queue. The inbox refuses to mark an absent SDP as applied.
 
 A recurring local Linux harness SIGILL was observed during the initial validation
 cases, before the new inbox cases. A minimal XCTest startup program passed;
-there is not yet evidence establishing the root cause. Syscall tracing was blocked
+loader mappings and offline disassembly now identify the trap as Swift 6.0.3
+libdispatch `_dispatch_workq_monitor_pools.cold.1` (offset 0x212f0). The branch
+reaches that trap when opening a registered worker's `/proc/<tid>/stat` fails.
+This establishes the failing runtime path, but not why that worker stat is
+unavailable. A separate async XCTest with a one-second Task.sleep passed, so a
+blanket async-XCTest failure is not established. Syscall tracing was blocked
 by the environment's ptrace restriction. Portable-runner failures now preserve the
 executable, module/library, generated test entry point and failure metadata under
 ignored build-logs/portable-failure. Failures remain failures; no automatic retry
 or test bypass is introduced. Use Codemagic's native results as the iOS build gate.
 
 See TWO_IPHONE_TEST_PLAN.md for the physical call gates and acceptance scenarios.
+
+For the next Linux reproduction, set `REACH_PORTABLE_LOADER_TRACE=1` on the
+portable runner. On failure it preserves loader mapping files alongside the
+harness. This is diagnostic only: it does not modify dispatch, skip tests or
+retry. Upstream reference: swift-corelibs-libdispatch, swift-6.0.3-RELEASE,
+`src/event/workqueue.c`, `_dispatch_workq_count_runnable_workers`.
+
+### Signed device archive gate
+
+Before ad-hoc export, the verifier decodes the embedded provisioning profile and
+requires a future expiration date, exact app identity, matching team, registered
+devices and distribution entitlements. Store, enterprise, development and
+wildcard profiles are rejected by this ad-hoc workflow. The owner must still
+confirm both phones' UDIDs are included; the repository does not contain them.
+No signed archive or physical-device installation has been verified yet.
+
+Validation on 2026-11-06: 69 Firestore emulator checks, 16 Python configuration/
+archive checks and 9 web recovery checks passed. The portable Swift 6 application
+library compiled, but the full Linux test process reproduced SIGILL at the same
+dispatch offset; this run is failed, not a passing 106-test result. Loader trace
+preservation was verified. Codemagic Build #11 passed on 1c60ac1 according to the
+owner; 18041be and these changes still require macOS validation.
