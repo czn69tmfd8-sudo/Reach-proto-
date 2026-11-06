@@ -72,7 +72,7 @@ final class NativeWebRTCPeer: NSObject, ObservableObject {
         let session = RTCAudioSession.sharedInstance()
         session.lockForConfiguration()
         defer { session.unlockForConfiguration() }
-        try session.setCategory(AVAudioSession.Category.playAndRecord, with: [.defaultToSpeaker, .allowBluetoothHFP])
+        try session.setCategory(AVAudioSession.Category.playAndRecord, with: ReachAudioConfiguration.callOptions)
         try session.setMode(AVAudioSession.Mode.videoChat)
     }
 

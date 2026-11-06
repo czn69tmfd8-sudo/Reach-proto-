@@ -6,7 +6,7 @@ actor NativeAudioSessionController {
         try session.setCategory(
             .playAndRecord,
             mode: .videoChat,
-            options: [.allowBluetoothHFP, .defaultToSpeaker]
+            options: ReachAudioConfiguration.callOptions
         )
         try session.setActive(true)
     }
