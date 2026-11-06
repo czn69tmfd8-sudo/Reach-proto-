@@ -1,0 +1,20 @@
+{
+  "project": "reach-staging-a4745",
+  "database": "(default)",
+  "source": "owner-provided fresh console paste",
+  "publishedVersionAsDisplayed": "October 17, 2026, 2:17 PM",
+  "blankLinesInserted": 13,
+  "nonblankLinesByteIdentical": true,
+  "approvedFinalLFNormalization": true,
+  "baselineSHA256": "437d87ced527f053b807ba7744fc61bb74ed3a3f0e2c93e2aa61a9ca386ef86e",
+  "mergedSHA256": "d23ac0d8a31496a10ac0fff6e3d439daf3951d3246ec74154d6e956ef0f7e70a",
+  "nativeInsertionUnchanged": true,
+  "fullSourcePreserved": true,
+  "testCases": 69,
+  "passed": 69,
+  "failed": 0,
+  "skipped": 0,
+  "testFixtureAdaptation": "isolated fresh fixture plus matching expected hashes; repository test assertions unchanged",
+  "firebaseChangesPerformed": false,
+  "publicationApproved": false
+}

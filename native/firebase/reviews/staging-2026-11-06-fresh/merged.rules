@@ -1,0 +1,929 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function pairPath(code) {
+      return /databases/$(database)/documents/pairInvites/$(code);
+    }
+
+    function pairExists(code) {
+      return exists(pairPath(code));
+    }
+
+    function pairData(code) {
+      return get(pairPath(code)).data;
+    }
+
+    function pairMember(code) {
+      return signedIn()
+        && pairExists(code)
+        && pairData(code).partnerUid != null
+        && pairData(code).get('revoked', false) != true
+        && (
+          pairData(code).hostUid == request.auth.uid
+          || pairData(code).partnerUid == request.auth.uid
+        )
+        && (
+          !exists(lockPath(request.auth.uid))
+          || lockMatches(request.auth.uid, code)
+        );
+    }
+
+    function roomMember() {
+      return signedIn()
+        && resource.data.get('pairCode', '') is string
+        && pairMember(resource.data.pairCode)
+        && (
+          resource.data.hostUid == request.auth.uid
+          || resource.data.partnerUid == request.auth.uid
+        );
+    }
+
+    function lockPath(uid) {
+      return /databases/$(database)/documents/memberLocks/$(uid);
+    }
+
+    function lockMatches(uid, code) {
+      return exists(lockPath(uid))
+        && get(lockPath(uid)).data.pairCode == code;
+    }
+
+    function newPairLock(uid, code) {
+      return !exists(lockPath(uid))
+        && getAfter(lockPath(uid)).data.pairCode == code;
+    }
+
+
+    /* =========================================================
+       PERMANENT MEMBER LOCKS
+       ========================================================= */
+
+    match /memberLocks/{uid} {
+
+      allow get: if signedIn()
+        && request.auth.uid == uid;
+
+      allow list: if false;
+
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && !exists(lockPath(uid))
+        && request.resource.data.keys().hasOnly([
+          'pairCode',
+          'createdAt'
+        ])
+        && request.resource.data.pairCode is string
+        && request.resource.data.createdAt == request.time
+        && (
+          (
+            !exists(pairPath(request.resource.data.pairCode))
+            && getAfter(
+              pairPath(request.resource.data.pairCode)
+            ).data.hostUid == uid
+            && getAfter(
+              pairPath(request.resource.data.pairCode)
+            ).data.partnerUid == null
+          )
+          ||
+          (
+            exists(pairPath(request.resource.data.pairCode))
+            && get(
+              pairPath(request.resource.data.pairCode)
+            ).data.partnerUid == null
+            && get(
+              pairPath(request.resource.data.pairCode)
+            ).data.hostUid != uid
+            && getAfter(
+              pairPath(request.resource.data.pairCode)
+            ).data.partnerUid == uid
+          )
+        );
+
+      allow update, delete: if false;
+    }
+
+
+    /* =========================================================
+       LIVE CONNECTION ROOMS
+       ========================================================= */
+
+    match /rooms/{roomId} {
+
+      allow create: if signedIn()
+        && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.partnerUid is string
+        && request.resource.data.pairCode is string
+        && pairMember(request.resource.data.pairCode)
+        && (
+          (
+            pairData(
+              request.resource.data.pairCode
+            ).hostUid == request.auth.uid
+            && pairData(
+              request.resource.data.pairCode
+            ).partnerUid
+              == request.resource.data.partnerUid
+          )
+          ||
+          (
+            pairData(
+              request.resource.data.pairCode
+            ).partnerUid == request.auth.uid
+            && pairData(
+              request.resource.data.pairCode
+            ).hostUid
+              == request.resource.data.partnerUid
+          )
+        )
+        && request.resource.data.active == true
+        && request.resource.data.expiresAt is int
+        && request.resource.data.expiresAt
+          > request.time.toMillis()
+        && request.resource.data.expiresAt
+          <= request.time.toMillis() + 28800000
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.offer.type == 'offer'
+        && request.resource.data.offer.sdp is string
+        && request.resource.data.offer.sdp.size() < 100000
+        && request.resource.data.keys().hasOnly([
+          'hostUid',
+          'partnerUid',
+          'pairCode',
+          'createdAt',
+          'expiresAt',
+          'active',
+          'offer'
+        ]);
+
+      allow get: if roomMember();
+
+      allow list: if false;
+
+      allow update: if roomMember()
+
+        && request.resource.data.hostUid
+          == resource.data.hostUid
+
+        && request.resource.data.partnerUid
+          == resource.data.partnerUid
+
+        && request.resource.data.pairCode
+          == resource.data.pairCode
+
+        && request.resource.data.createdAt
+          == resource.data.createdAt
+
+        && request.resource.data.offer
+          == resource.data.offer
+
+        && request.resource.data.expiresAt
+          == resource.data.expiresAt
+
+        && (
+          (
+            request.auth.uid == resource.data.hostUid
+
+            && request.resource.data
+              .diff(resource.data)
+              .affectedKeys()
+              .hasOnly([
+                'active',
+                'endedAt'
+              ])
+
+            && resource.data.active == true
+
+            && request.resource.data.active == false
+
+            && request.resource.data.endedAt
+              == request.time
+          )
+
+          ||
+
+          (
+            request.auth.uid
+              == resource.data.partnerUid
+
+            && resource.data.active == true
+
+            && resource.data.expiresAt
+              > request.time.toMillis()
+
+            && pairData(
+              resource.data.pairCode
+            ).activeRoom == roomId
+
+            && pairData(
+              resource.data.pairCode
+            ).openedBy
+              == resource.data.hostUid
+
+            && !resource.data.keys().hasAny([
+              'answer'
+            ])
+
+            && request.resource.data.partnerJoinedAt
+              == request.time
+
+            && request.resource.data
+              .diff(resource.data)
+              .affectedKeys()
+              .hasOnly([
+                'partnerJoinedAt',
+                'answer'
+              ])
+
+            && request.resource.data.answer.type
+              == 'answer'
+
+            && request.resource.data.answer.sdp
+              is string
+
+            && request.resource.data.answer.sdp
+              .size() < 100000
+          )
+        );
+
+      allow delete: if false;
+
+
+      function roomSignalMember() {
+        return signedIn()
+
+          && exists(
+            /databases/$(database)/documents/rooms/$(roomId)
+          )
+
+          && pairMember(
+            get(
+              /databases/$(database)/documents/rooms/$(roomId)
+            ).data.pairCode
+          )
+
+          && (
+            get(
+              /databases/$(database)/documents/rooms/$(roomId)
+            ).data.hostUid == request.auth.uid
+
+            ||
+
+            get(
+              /databases/$(database)/documents/rooms/$(roomId)
+            ).data.partnerUid == request.auth.uid
+          );
+      }
+
+
+      function activeRoomSignal() {
+        return roomSignalMember()
+
+          && get(
+            /databases/$(database)/documents/rooms/$(roomId)
+          ).data.active == true
+
+          && get(
+            /databases/$(database)/documents/rooms/$(roomId)
+          ).data.expiresAt > request.time.toMillis()
+
+          && pairData(
+            get(
+              /databases/$(database)/documents/rooms/$(roomId)
+            ).data.pairCode
+          ).activeRoom == roomId
+
+          && pairData(
+            get(
+              /databases/$(database)/documents/rooms/$(roomId)
+            ).data.pairCode
+          ).openedBy
+
+          == get(
+            /databases/$(database)/documents/rooms/$(roomId)
+          ).data.hostUid;
+      }
+
+
+      function validCandidate() {
+        return request.resource.data.keys().hasOnly([
+            'candidate',
+            'sdpMid',
+            'sdpMLineIndex',
+            'usernameFragment'
+          ])
+
+          && request.resource.data.candidate is string
+
+          && request.resource.data.candidate.size()
+            < 8192;
+      }
+
+
+      match /hostCandidates/{candidateId} {
+
+        allow get, list: if roomSignalMember();
+
+        allow create: if activeRoomSignal()
+          && validCandidate()
+
+          && get(
+            /databases/$(database)/documents/rooms/$(roomId)
+          ).data.hostUid == request.auth.uid;
+
+        allow update, delete: if false;
+      }
+
+
+      match /partnerCandidates/{candidateId} {
+
+        allow get, list: if roomSignalMember();
+
+        allow create: if activeRoomSignal()
+          && validCandidate()
+
+          && get(
+            /databases/$(database)/documents/rooms/$(roomId)
+          ).data.partnerUid == request.auth.uid;
+
+        allow update, delete: if false;
+      }
+    }
+
+
+    /* =========================================================
+       PAIRING RECORDS
+       ========================================================= */
+
+    match /pairInvites/{pairCode} {
+
+      allow create: if signedIn()
+
+        && request.resource.data.hostUid
+          == request.auth.uid
+
+        && request.resource.data.partnerUid
+          == null
+
+        && request.resource.data.createdAt
+          == request.time
+
+        && newPairLock(
+          request.auth.uid,
+          pairCode
+        )
+
+        && request.resource.data.activeRoom
+          == null
+
+        && request.resource.data.openedBy
+          == null
+
+        && request.resource.data.keys().hasOnly([
+          'hostUid',
+          'partnerUid',
+          'activeRoom',
+          'openedBy',
+          'createdAt'
+        ]);
+
+
+      allow get: if signedIn()
+
+        && resource.data.get(
+          'revoked',
+          false
+        ) != true
+
+        && (
+          resource.data.partnerUid == null
+
+          || !exists(
+            lockPath(request.auth.uid)
+          )
+
+          || lockMatches(
+            request.auth.uid,
+            pairCode
+          )
+        )
+
+        && (
+          (
+            resource.data.partnerUid == null
+            && request.auth.uid
+              == resource.data.hostUid
+          )
+
+          || resource.data.hostUid
+            == request.auth.uid
+
+          || resource.data.partnerUid
+            == request.auth.uid
+
+          || (
+            resource.data.partnerUid == null
+            && pairCode.size() == 12
+          )
+        );
+
+
+      allow list: if false;
+
+
+      allow update: if signedIn()
+
+        && resource.data.get(
+          'revoked',
+          false
+        ) != true
+
+        && (
+          !exists(
+            lockPath(request.auth.uid)
+          )
+
+          || lockMatches(
+            request.auth.uid,
+            pairCode
+          )
+        )
+
+        && (
+          /* ---------------------------------------------
+             PARTNER JOINS AN UNUSED INVITE
+             --------------------------------------------- */
+
+          (
+            resource.data.partnerUid == null
+
+            && resource.data.hostUid
+              != request.auth.uid
+
+            && request.resource.data.partnerUid
+              == request.auth.uid
+
+            && newPairLock(
+              request.auth.uid,
+              pairCode
+            )
+
+            && request.resource.data
+              .diff(resource.data)
+              .affectedKeys()
+              .hasOnly([
+                'partnerUid'
+              ])
+          )
+
+          ||
+
+          /* ---------------------------------------------
+             EXISTING PAIR MEMBER UPDATES
+             --------------------------------------------- */
+
+          (
+            resource.data.partnerUid != null
+
+            && (
+              resource.data.hostUid
+                == request.auth.uid
+
+              || resource.data.partnerUid
+                == request.auth.uid
+            )
+
+            && (
+              /* -----------------------------------------
+                 ACTIVE ROOM / OPEN HAND
+                 ----------------------------------------- */
+
+              (
+                request.resource.data
+                  .diff(resource.data)
+                  .affectedKeys()
+                  .hasOnly([
+                    'activeRoom',
+                    'openedBy'
+                  ])
+
+                && (
+                  (
+                    request.resource.data.activeRoom
+                      == null
+
+                    && request.resource.data.openedBy
+                      == null
+
+                    && resource.data.openedBy
+                      == request.auth.uid
+                  )
+
+                  ||
+
+                  (
+                    resource.data.activeRoom
+                      == null
+
+                    && resource.data.openedBy
+                      == null
+
+                    && request.resource.data.activeRoom
+                      is string
+
+                    && request.resource.data.openedBy
+                      == request.auth.uid
+
+                    && exists(
+                      /databases/$(database)/documents/rooms/$(request.resource.data.activeRoom)
+                    )
+
+                    && get(
+                      /databases/$(database)/documents/rooms/$(request.resource.data.activeRoom)
+                    ).data.pairCode == pairCode
+
+                    && get(
+                      /databases/$(database)/documents/rooms/$(request.resource.data.activeRoom)
+                    ).data.hostUid == request.auth.uid
+
+                    && get(
+                      /databases/$(database)/documents/rooms/$(request.resource.data.activeRoom)
+                    ).data.active == true
+
+                    && get(
+                      /databases/$(database)/documents/rooms/$(request.resource.data.activeRoom)
+                    ).data.expiresAt
+                      > request.time.toMillis()
+                  )
+                )
+              )
+
+              ||
+
+              /* -----------------------------------------
+                 REVOKE CONNECTION
+                 ----------------------------------------- */
+
+              (
+                request.resource.data
+                  .diff(resource.data)
+                  .affectedKeys()
+                  .hasOnly([
+                    'revoked'
+                  ])
+
+                && request.resource.data.revoked
+                  == true
+              )
+
+              ||
+
+              /* -----------------------------------------
+                 PROFILE PHOTO
+                 Each member may change only their
+                 own photo entry.
+                 ----------------------------------------- */
+
+              (
+                request.resource.data
+                  .diff(resource.data)
+                  .affectedKeys()
+                  .hasOnly([
+                    'profilePhotos'
+                  ])
+
+                && request.resource.data.profilePhotos
+                  is map
+
+                && request.resource.data.profilePhotos
+                  .diff(
+                    resource.data.get(
+                      'profilePhotos',
+                      {}
+                    )
+                  )
+                  .affectedKeys()
+                  .hasOnly([
+                    request.auth.uid
+                  ])
+
+                && request.resource.data.profilePhotos[
+                  request.auth.uid
+                ] is string
+
+                && request.resource.data.profilePhotos[
+                  request.auth.uid
+                ].size() < 140000
+
+                && request.resource.data.profilePhotos[
+                  request.auth.uid
+                ].matches(
+                  '^data:image/jpeg;base64,[A-Za-z0-9+/=]+$'
+                )
+              )
+
+              ||
+
+              /* =========================================
+                 DAILY QUESTION ANSWERS
+                 TEST MODEL
+
+                 Host may modify only "host".
+                 Partner may modify only "partner".
+                 Neither member can overwrite the
+                 other member's answer.
+                 ========================================= */
+
+              (
+                request.resource.data
+                  .diff(resource.data)
+                  .affectedKeys()
+                  .hasOnly([
+                    'dailyQuestionAnswers'
+                  ])
+
+                && request.resource.data.dailyQuestionAnswers
+                  is map
+
+                && (
+                  /* HOST ANSWER */
+
+                  (
+                    request.auth.uid
+                      == resource.data.hostUid
+
+                    && request.resource.data
+                      .dailyQuestionAnswers
+                      .diff(
+                        resource.data.get(
+                          'dailyQuestionAnswers',
+                          {}
+                        )
+                      )
+                      .affectedKeys()
+                      .hasOnly([
+                        'host'
+                      ])
+
+                    && request.resource.data
+                      .dailyQuestionAnswers.host
+                      is map
+
+                    && request.resource.data
+                      .dailyQuestionAnswers.host
+                      .keys()
+                      .hasOnly([
+                        'uid',
+                        'questionId',
+                        'text',
+                        'submittedAt'
+                      ])
+
+                    && request.resource.data
+                      .dailyQuestionAnswers.host.uid
+                      == request.auth.uid
+
+                    && request.resource.data
+                      .dailyQuestionAnswers.host.questionId
+                      == '2026-10-17-grateful'
+
+                    && request.resource.data
+                      .dailyQuestionAnswers.host.text
+                      is string
+
+                    && request.resource.data
+                      .dailyQuestionAnswers.host.text
+                      .size() > 0
+
+                    && request.resource.data
+                      .dailyQuestionAnswers.host.text
+                      .size() <= 600
+
+                    && request.resource.data
+                      .dailyQuestionAnswers.host.submittedAt
+                      is int
+                  )
+
+                  ||
+
+                  /* PARTNER ANSWER */
+
+                  (
+                    request.auth.uid
+                      == resource.data.partnerUid
+
+                    && request.resource.data
+                      .dailyQuestionAnswers
+                      .diff(
+                        resource.data.get(
+                          'dailyQuestionAnswers',
+                          {}
+                        )
+                      )
+                      .affectedKeys()
+                      .hasOnly([
+                        'partner'
+                      ])
+
+                    && request.resource.data
+                      .dailyQuestionAnswers.partner
+                      is map
+
+                    && request.resource.data
+                      .dailyQuestionAnswers.partner
+                      .keys()
+                      .hasOnly([
+                        'uid',
+                        'questionId',
+                        'text',
+                        'submittedAt'
+                      ])
+
+                    && request.resource.data
+                      .dailyQuestionAnswers.partner.uid
+                      == request.auth.uid
+
+                    && request.resource.data
+                      .dailyQuestionAnswers.partner.questionId
+                      == '2026-10-17-grateful'
+
+                    && request.resource.data
+                      .dailyQuestionAnswers.partner.text
+                      is string
+
+                    && request.resource.data
+                      .dailyQuestionAnswers.partner.text
+                      .size() > 0
+
+                    && request.resource.data
+                      .dailyQuestionAnswers.partner.text
+                      .size() <= 600
+
+                    && request.resource.data
+                      .dailyQuestionAnswers.partner.submittedAt
+                      is int
+                  )
+                )
+              )
+            )
+          )
+        )
+
+        /* ---------------------------------------------
+           IMMUTABLE PAIR IDENTITY
+           --------------------------------------------- */
+
+        && request.resource.data.hostUid
+          == resource.data.hostUid
+
+        && request.resource.data.createdAt
+          == resource.data.createdAt
+
+        && (
+          request.resource.data.partnerUid
+            == resource.data.partnerUid
+
+          ||
+
+          (
+            resource.data.partnerUid == null
+
+            && request.resource.data
+              .diff(resource.data)
+              .affectedKeys()
+              .hasOnly([
+                'partnerUid'
+              ])
+          )
+        )
+
+        && (
+          request.resource.data.get(
+            'revoked',
+            false
+          ) != true
+
+          ||
+
+          request.resource.data
+            .diff(resource.data)
+            .affectedKeys()
+            .hasOnly([
+              'revoked'
+            ])
+        );
+
+
+      allow delete: if false;
+    }
+
+
+    /* =========================================================
+       DEFAULT DENY
+       ========================================================= */
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  
+  // BEGIN REACH native staging v1 — review required; not deployment approval
+  match /nativeStaging/v1 {
+  function signed() { return request.auth != null; }
+  function pp(c) { return /databases/$(database)/documents/nativeStaging/v1/pairInvites/$(c); }
+  function lp(u) { return /databases/$(database)/documents/nativeStaging/v1/memberLocks/$(u); }
+  function rp(r) { return /databases/$(database)/documents/nativeStaging/v1/rooms/$(r); }
+  function member(p) { return signed() && request.auth.uid in [p.hostUid, p.partnerUid]; }
+  function locked(u,c) { return get(lp(u)).data.pairCode == c; }
+  function authorized(p,c) { return member(p) && p.get('revoked',false) == false && p.partnerUid is string && locked(p.hostUid,c) && locked(p.partnerUid,c); }
+  function current(r,id) {
+   let p = get(pp(r.pairCode)).data;
+   return authorized(p,r.pairCode) && r.active == true && r.expiresAt > request.time.toMillis()
+    && p.activeRoom == id && p.openedBy == r.hostUid
+    && ((r.hostUid == p.hostUid && r.partnerUid == p.partnerUid) || (r.hostUid == p.partnerUid && r.partnerUid == p.hostUid));
+  }
+  function description(d,k) { return d.keys().hasOnly(['type','sdp']) && d.type == k && d.sdp is string && d.sdp.size() > 0 && d.sdp.size() <= 256000; }
+  function replaceable(uid) {
+   let old = get(lp(uid)).data;
+   let p = get(pp(old.pairCode)).data;
+   return p.get('revoked',false) == true && request.auth.uid in [p.hostUid,p.partnerUid];
+  }
+  function freshLock(uid) { return !exists(lp(uid)) || replaceable(uid); }
+  match /memberLocks/{uid} {
+   allow get: if signed() && request.auth.uid == uid;
+   allow create: if signed() && request.auth.uid == uid && request.resource.data.keys().hasOnly(['pairCode','createdAt'])
+    && request.resource.data.createdAt == request.time && member(getAfter(pp(request.resource.data.pairCode)).data);
+   allow update: if signed() && request.auth.uid == uid && replaceable(uid)
+    && request.resource.data.keys().hasOnly(['pairCode','createdAt'])
+    && request.resource.data.createdAt == request.time
+    && request.resource.data.pairCode != resource.data.pairCode
+    && member(getAfter(pp(request.resource.data.pairCode)).data);
+   allow delete,list: if false;
+  }
+  match /pairInvites/{code} {
+   allow get: if signed() && (!exists(pp(code)) || member(resource.data) || (resource.data.partnerUid == null && resource.data.get('revoked',false) == false && resource.data.expiresAt > request.time.toMillis()));
+   allow list,delete: if false;
+   allow create: if signed() && code.matches('[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{12}')
+    && request.resource.data.keys().hasOnly(['hostUid','partnerUid','createdAt','activeRoom','openedBy','expiresAt'])
+    && request.resource.data.hostUid == request.auth.uid && request.resource.data.partnerUid == null
+    && request.resource.data.activeRoom == null && request.resource.data.openedBy == null && request.resource.data.createdAt == request.time
+    && request.resource.data.expiresAt is int && request.resource.data.expiresAt > request.time.toMillis()
+    && request.resource.data.expiresAt <= request.time.toMillis()+1800000
+    && freshLock(request.auth.uid) && getAfter(lp(request.auth.uid)).data.pairCode == code;
+   allow update: if signed() && (
+    (resource.data.partnerUid == null && resource.data.get('revoked',false) == false
+     && resource.data.expiresAt > request.time.toMillis() && locked(resource.data.hostUid,code)
+     && request.auth.uid != resource.data.hostUid
+     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['partnerUid']) && request.resource.data.partnerUid == request.auth.uid
+     && freshLock(request.auth.uid) && getAfter(lp(request.auth.uid)).data.pairCode == code)
+    || (member(resource.data) && locked(request.auth.uid,code)
+     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revoked','revokedBy','revokedAt','activeRoom','openedBy'])
+     && resource.data.get('revoked',false) == false
+     && request.resource.data.revokedBy == request.auth.uid && request.resource.data.revokedAt == request.time
+     && request.resource.data.revoked == true && request.resource.data.activeRoom == null && request.resource.data.openedBy == null)
+    || (authorized(resource.data,code) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeRoom','openedBy'])
+     && ((resource.data.activeRoom == null && request.resource.data.openedBy == request.auth.uid
+       && getAfter(rp(request.resource.data.activeRoom)).data.pairCode == code && getAfter(rp(request.resource.data.activeRoom)).data.hostUid == request.auth.uid
+       && getAfter(rp(request.resource.data.activeRoom)).data.active == true)
+      || (request.resource.data.activeRoom == null && request.resource.data.openedBy == null && getAfter(rp(resource.data.activeRoom)).data.active == false
+       && getAfter(rp(resource.data.activeRoom)).data.pairCode == code)))
+   );
+  }
+  match /rooms/{id} {
+   allow get: if current(resource.data,id);
+   allow list,delete: if false;
+   allow create: if signed() && request.resource.data.keys().hasOnly(['hostUid','partnerUid','pairCode','createdAt','expiresAt','active'])
+    && authorized(get(pp(request.resource.data.pairCode)).data,request.resource.data.pairCode)
+    && request.resource.data.hostUid == request.auth.uid && request.resource.data.partnerUid != request.auth.uid
+    && request.resource.data.partnerUid in [get(pp(request.resource.data.pairCode)).data.hostUid,get(pp(request.resource.data.pairCode)).data.partnerUid]
+    && request.resource.data.createdAt == request.time && request.resource.data.active == true
+    && request.resource.data.expiresAt is int && request.resource.data.expiresAt > request.time.toMillis() && request.resource.data.expiresAt <= request.time.toMillis()+28800000
+    && get(pp(request.resource.data.pairCode)).data.activeRoom == null
+    && getAfter(pp(request.resource.data.pairCode)).data.activeRoom == id && getAfter(pp(request.resource.data.pairCode)).data.openedBy == request.auth.uid;
+   allow update: if signed() && (
+    (member(get(pp(resource.data.pairCode)).data) && locked(request.auth.uid,resource.data.pairCode) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active','endedAt'])
+     && request.resource.data.active == false && request.resource.data.endedAt == request.time)
+    || (current(resource.data,id) && resource.data.hostUid == request.auth.uid && !('offer' in resource.data)
+     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['offer']) && description(request.resource.data.offer,'offer'))
+    || (current(resource.data,id) && resource.data.partnerUid == request.auth.uid && 'offer' in resource.data && !('answer' in resource.data)
+     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answer']) && description(request.resource.data.answer,'answer'))
+   );
+   match /{side}/{candidateID} {
+    function validSide() { return side in ['hostCandidates','partnerCandidates']; }
+    allow read: if validSide() && current(get(rp(id)).data,id);
+    allow create: if validSide() && current(get(rp(id)).data,id)
+     && request.auth.uid == (side == 'hostCandidates' ? get(rp(id)).data.hostUid : get(rp(id)).data.partnerUid)
+     && request.resource.data.keys().hasOnly(['candidate','sdpMid','sdpMLineIndex'])
+     && request.resource.data.candidate is string && request.resource.data.candidate.size() > 0 && request.resource.data.candidate.size() <= 8000
+     && (request.resource.data.sdpMid == null || (request.resource.data.sdpMid is string && request.resource.data.sdpMid.size() <= 256))
+     && request.resource.data.sdpMLineIndex is int && request.resource.data.sdpMLineIndex >= 0 && request.resource.data.sdpMLineIndex <= 2147483647;
+    allow update,delete: if false;
+   }
+  }
+  }
+  // END REACH native staging v1
+}
+}
