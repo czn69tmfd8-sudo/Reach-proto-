@@ -53,10 +53,19 @@ final class FirestoreSignalingTransport: ReachSignalingTransport {
     func publishCandidate(_ candidate: ReachIceCandidate, roomID: String, role: ReachMediaRole) async throws {
         try ReachSignalingValidation.validate(candidate)
         let side = role == .opener ? ReachCollections.hostCandidates : ReachCollections.partnerCandidates
-        try await db.collection(ReachCollections.rooms).document(roomID).collection(side).addDocument(data: [
-            "candidate": candidate.sdp, "sdpMid": candidate.sdpMid as Any? ?? NSNull(),
-            "sdpMLineIndex": Int(candidate.sdpMLineIndex)
-        ])
+        // Use the synchronous SDK entry point with its server-acknowledgement
+        // callback. Swift 6.1 rejects sending the heterogeneous dictionary into
+        // addDocument's nonisolated async overload. No payload or Firestore object
+        // is transferred to a task, and a queued local write is not reported as success.
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            _ = db.collection(ReachCollections.rooms).document(roomID).collection(side).addDocument(data: [
+                "candidate": candidate.sdp, "sdpMid": candidate.sdpMid as Any? ?? NSNull(),
+                "sdpMLineIndex": Int(candidate.sdpMLineIndex)
+            ], completion: { error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: ()) }
+            })
+        }
     }
 
     func observeRemoteCandidates(roomID: String, role: ReachMediaRole) -> AsyncThrowingStream<ReachIceCandidate, Error> {
