@@ -147,6 +147,85 @@ workflows:
       - native/build/ios/ipa/*.ipa
       - native/build-logs/device-*.log
 
+  reach-ios-validation:
+    name: REACH validation only (8e41fb3, no upload)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    # Manual only; no signing identities, Firebase variable groups or publisher.
+    environment:
+      xcode: latest
+      node: 22
+      vars:
+        REACH_VALIDATION_COMMIT: 8e41fb3f24263cc5c4ea1dec6a82b58270285c76
+    scripts:
+      - name: Select the exact approved application source
+        script: |
+          set -euo pipefail
+          test "$CM_BRANCH" = native-reach
+          git checkout --detach "$REACH_VALIDATION_COMMIT"
+          test "$(git rev-parse HEAD)" = "$REACH_VALIDATION_COMMIT"
+          python3 - <<'PY'
+          from pathlib import Path
+          assert not list(Path('native/REACH').rglob('GoogleService-Info.plist')), 'Validation must have no live Firebase client configuration'
+          PY
+          xcodebuild -version
+          swift --version
+      - name: Validate packaging and offline policies (no emulator)
+        script: |
+          set -euo pipefail
+          python3 -m unittest discover -s native/scripts -p 'test_*.py'
+          node --test staging/*.test.mjs
+          python3 native/scripts/run-portable-tests.py
+      - name: Generate Xcode project and select simulator
+        script: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
+          cd native
+          xcodegen generate
+          mkdir -p build-logs
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; ids=[x["udid"] for r,xs in d.items() if r.startswith("com.apple.CoreSimulator.SimRuntime.iOS-") for x in xs if x.get("isAvailable") and x["name"].startswith("iPhone")]; sys.exit("No available iPhone simulator") if not ids else print(ids[0])')
+          echo "DEVICE_ID=$DEVICE_ID" >> "$CM_ENV"
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+      - name: Run the complete native XCTest suite
+        script: |
+          set -euo pipefail
+          cd native
+          bash scripts/run-simulator-tests.sh
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          lines = Path('build-logs/tests.log').read_text().splitlines()
+          count = 0
+          for name in ['ReachHomeAvailabilityTests','ReachAppearancePreferencesTests','ReachAppearanceStoreTests']:
+              source = Path('REACHTests', name + '.swift').read_text()
+              for method in re.findall(r'func (test\w+)\(', source):
+                  assert any(name in line and method in line and 'passed' in line for line in lines), f'No passing XCTest result for {name}.{method}'
+                  count += 1
+          assert count == 14, f'Expected 14 new XCTest results, got {count}'
+          Path('build-logs/redesign-tests-verified.txt').write_text(f'All {count} redesign XCTest methods have passing log results.\n')
+          PY
+      - name: Check compiled resources and capture simulator evidence
+        script: |
+          set -euo pipefail
+          cd native
+          APP=DerivedData/Build/Products/Debug-iphonesimulator/REACH.app
+          test -s "$APP/Assets.car"
+          test -s "$APP/PrivacyInfo.xcprivacy"
+          test ! -e "$APP/GoogleService-Info.plist"
+          xcrun simctl install "$DEVICE_ID" "$APP"
+          xcrun simctl launch "$DEVICE_ID" com.reachprototype.app
+          xcrun simctl io "$DEVICE_ID" screenshot build-logs/redesign-launch.png
+      - name: Compile physical iPhone target without distribution signing
+        script: |
+          set -euo pipefail
+          cd native
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath DeviceDerivedData \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build-logs/validation-device-compile.log
+    artifacts:
+      - native/build-logs/**
+      - native/TestResults.xcresult
+
   reach-ios-testflight-archive:
     name: REACH staging TestFlight (manual build, automatic upload)
     instance_type: mac_mini_m2
