@@ -6,6 +6,7 @@ import os
 from pathlib import Path, PurePosixPath
 import plistlib
 import re
+import shutil
 import tempfile
 import zipfile
 
@@ -61,20 +62,37 @@ def verify_ipa(directory,team,number):
             raise ValueError('App icon and required-reason privacy manifest must be bundled.')
 
 
+def promote_ipa(source,destination,team,number):
+    # Only this destination is collected by the App Store Connect publisher.
+    # Verification failure must leave no publishable artifact, even if a failed
+    # workflow proceeds to artifact collection/publishing.
+    destination=Path(destination)
+    if destination.exists():raise ValueError('Publishable IPA directory must not already exist.')
+    verify_ipa(source,team,number)
+    destination.parent.mkdir(parents=True,exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=destination.parent) as folder:
+        ipa=next(Path(source).glob('*.ipa'))
+        shutil.copy2(ipa,Path(folder)/ipa.name)
+        Path(folder).rename(destination)
+        # TemporaryDirectory cleanup tolerates the renamed staging directory.
+
+
 if __name__=='__main__':
     parser=argparse.ArgumentParser()
-    parser.add_argument('action',choices=['inputs','export','verify-ipa'])
+    parser.add_argument('action',choices=['inputs','export','verify-ipa','promote-ipa'])
     parser.add_argument('path',nargs='?')
+    parser.add_argument('destination',nargs='?')
     args=parser.parse_args()
     try:
         team,number=inputs(os.environ)
         if args.action=='export':
             path=Path(args.path);options=plistlib.loads(path.read_bytes())
-            # Force artifact-only behavior even if tool-generated defaults change.
+            # Keep export local; only the separate publisher may upload a verified IPA.
             options['destination']='export';options['uploadSymbols']=False
             validate_export(options,team)
             path.write_bytes(plistlib.dumps(options))
         elif args.action=='verify-ipa':verify_ipa(args.path,team,number)
-        print('TestFlight preparation checks passed; upload remains disabled.')
+        elif args.action=='promote-ipa':promote_ipa(args.path,args.destination,team,number)
+        print('TestFlight preparation checks passed; this script performs no upload.')
     except Exception as error:
         print(str(error));raise SystemExit(1)

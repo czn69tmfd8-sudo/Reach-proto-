@@ -54,8 +54,9 @@ established in Codemagic, not embedded in this repository.
 
 See [TESTFLIGHT.md](TESTFLIGHT.md) for the manual App Store-signed archive workflow,
 secure Codemagic signing setup and the separate upload/invitation approval gate.
-The archive workflow does not upload or publish. No signed IPA has yet been
-verified. TestFlight does not need device UDIDs; the older ad-hoc route above does.
+The manual TestFlight workflow now uploads a verified IPA automatically when
+started; starting it requires explicit build/upload approval. No signed IPA has
+yet been verified. TestFlight does not need device UDIDs; the older ad-hoc route above does.
 
 The published rules review is `firebase/reviews/staging-2026-11-06-hardened/`.
 Authentication remains paused until separately approved. Once installed and

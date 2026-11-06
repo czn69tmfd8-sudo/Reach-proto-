@@ -18,10 +18,24 @@ class AppPackagingTests(unittest.TestCase):
         p=plistlib.loads((ROOT/'REACH/PrivacyInfo.xcprivacy').read_bytes())
         self.assertFalse(p['NSPrivacyTracking'])
         self.assertEqual(p['NSPrivacyAccessedAPITypes'],[{'NSPrivacyAccessedAPIType':'NSPrivacyAccessedAPICategoryUserDefaults','NSPrivacyAccessedAPITypeReasons':['CA92.1']}])
-    def test_archive_workflow_cannot_publish_or_trigger_itself(self):
-        workflow=(ROOT.parent/'codemagic.yaml').read_text().split('  reach-ios-testflight-archive:',1)[1]
-        self.assertNotIn('    publishing:',workflow)
+    def test_store_upload_is_manual_and_scoped_to_testflight_workflow(self):
+        other,workflow=(ROOT.parent/'codemagic.yaml').read_text().split('  reach-ios-testflight-archive:',1)
+        self.assertNotIn('    publishing:',other)
+        self.assertIn('app_store_connect: REACH Codemagic',workflow)
+        self.assertIn('auth: integration',workflow)
+        self.assertIn('submit_to_app_store: false',workflow)
+        self.assertIn('submit_to_testflight: false',workflow)
+        self.assertNotIn('beta_groups:',workflow)
         self.assertNotIn('    triggering:',workflow)
-        self.assertNotIn('app-store-connect publish',workflow)
         self.assertIn('distribution_type: app_store',workflow)
+        self.assertIn('bundle_identifier: com.reachprototype.app',workflow)
+        self.assertIn('test "$CM_BRANCH" = "native-reach"',workflow)
+        self.assertIn('test "$REACH_APPLE_TEAM_ID" = "GFUK853ZT5"',workflow)
         self.assertIn('--expected-team "$REACH_APPLE_TEAM_ID"',workflow)
+    def test_unverified_exports_are_not_publisher_artifacts(self):
+        workflow=(ROOT.parent/'codemagic.yaml').read_text().split('  reach-ios-testflight-archive:',1)[1]
+        scripts,artifacts=workflow.split('    artifacts:',1)
+        self.assertIn('-exportPath build/testflight-unverified ',scripts)
+        self.assertIn('promote-ipa build/testflight-unverified build/testflight',scripts)
+        self.assertIn('native/build/testflight/*.ipa',artifacts)
+        self.assertNotIn('testflight-unverified',artifacts)

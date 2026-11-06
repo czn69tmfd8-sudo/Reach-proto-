@@ -148,22 +148,29 @@ workflows:
       - native/build-logs/device-*.log
 
   reach-ios-testflight-archive:
-    name: REACH staging TestFlight archive (manual, upload disabled)
+    name: REACH staging TestFlight (manual build, automatic upload)
     instance_type: mac_mini_m2
     max_build_duration: 60
+    integrations:
+      app_store_connect: REACH Codemagic
     environment:
       groups:
         - reach-staging
+      vars:
+        REACH_APPLE_TEAM_ID: GFUK853ZT5
       xcode: latest
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.reachprototype.app
-    # Manual archive/export only. No publishing block, upload command or trigger.
+    # Owner starts this workflow only after approval. No automatic build trigger.
+    # Select an existing exact-bundle App Store profile and matching private key.
     scripts:
       - name: Validate branch, staging configuration and Apple build inputs
         script: |
           set -euo pipefail
           test "$CM_BRANCH" = "native-reach"
+          test "$REACH_APPLE_TEAM_ID" = "GFUK853ZT5"
+          rm -rf native/build/testflight native/build/testflight-unverified
           python3 native/scripts/install-staging-config.py --required
           python3 native/scripts/prepare-store-export.py inputs
           python3 -m unittest discover -s native/scripts -p 'test_*.py'
@@ -186,7 +193,7 @@ workflows:
           cd native
           xcode-project use-profiles
           python3 scripts/prepare-store-export.py export "$HOME/export_options.plist"
-      - name: Archive for TestFlight without uploading
+      - name: Archive for TestFlight
         script: |
           set -euo pipefail
           cd native
@@ -203,11 +210,18 @@ workflows:
           set -euo pipefail
           cd native
           xcodebuild -exportArchive -archivePath build/REACH-TestFlight.xcarchive \
-            -exportPath build/testflight -exportOptionsPlist "$HOME/export_options.plist" \
+            -exportPath build/testflight-unverified -exportOptionsPlist "$HOME/export_options.plist" \
             2>&1 | tee build-logs/testflight-export.log
-          python3 scripts/prepare-store-export.py verify-ipa build/testflight
+          python3 scripts/prepare-store-export.py promote-ipa build/testflight-unverified build/testflight
     artifacts:
       - native/build/testflight/*.ipa
       - native/build/REACH-TestFlight.xcarchive/dSYMs/**
       - native/build-logs/**
       - native/TestResults.xcresult
+    publishing:
+      app_store_connect:
+        auth: integration
+        # Upload the verified IPA; beta review and tester assignment remain manual.
+        submit_to_testflight: false
+        # Never submit for public App Store review or release.
+        submit_to_app_store: false

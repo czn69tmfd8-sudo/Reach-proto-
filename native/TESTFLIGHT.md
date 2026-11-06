@@ -18,102 +18,84 @@ provider is enabled or live sign-in initiated by these scripts.
 
 ## Prepared workflow and checks
 
-`reach-ios-testflight-archive` in `codemagic.yaml` is **manual, archive/export only**.
-It requires an existing App Store distribution certificate/private key and exact
-bundle provisioning profile in Codemagic. It does not create signing resources,
-contact App Store Connect, upload a build, distribute to testers or submit to review.
-There is no publishing block or automatic trigger. The existing ad-hoc workflow
-continues to require registered-device signing; its verifier still rejects store
-profiles in ad-hoc mode.
+`reach-ios-testflight-archive` in `codemagic.yaml` is **manual build, automatic
+App Store Connect upload**. Do not start it until the owner explicitly approves
+that build and upload. No automatic trigger is configured for this workflow.
+The simulator and ad-hoc workflows have no publisher and are unchanged.
 
-Before starting the workflow, set these variables in the existing protected
-`reach-staging` Codemagic group:
+The owner confirms the REACH Staging App Store Connect record exists, the
+**REACH Codemagic** API integration is configured and the **REACH Distribution**
+Apple Distribution certificate has been generated. This workflow references that
+integration, selects existing `app_store` signing assets for
+`com.reachprototype.app`, and pins Apple team **GFUK853ZT5**. It does not create
+or revoke certificates/profiles. The matching certificate private key must be
+available in Codemagic, together with a valid App Store Connect provisioning
+profile for this exact bundle and team. A certificate alone is insufficient.
 
-| Variable | Value |
+The publishing block uploads the verified IPA automatically after a successful
+manual build. `submit_to_testflight: false` disables automatic **beta review**,
+not binary upload; the uploaded build appears in App Store Connect/TestFlight
+when Apple finishes processing. No beta groups or invitations are configured.
+`submit_to_app_store: false` disables public App Store review submission. No
+public release, pricing, subscriptions or billing settings are changed.
+
+| Input | Required value |
 | --- | --- |
-| REACH_STAGING_FIREBASE_PLIST_BASE64 | Existing staging iOS client configuration for this exact project and bundle; required, never printed |
-| REACH_APPLE_TEAM_ID | Actual 10-character Team ID from Apple Developer Membership Details |
-| REACH_IOS_BUILD_NUMBER | Next unused integer, 1–9999, for version 0.1.0 in App Store Connect |
+| REACH_STAGING_FIREBASE_PLIST_BASE64 | Existing protected reach-staging group value for the staging iOS client; required and never printed |
+| REACH_APPLE_TEAM_ID | GFUK853ZT5, pinned in this workflow and checked before tests/archive |
+| REACH_IOS_BUILD_NUMBER | Next unused integer, 1–9999, for version 0.1.0; set in reach-staging |
 
-Team ID and build number are not signing secrets. Never paste API private keys,
-.p12 passwords, full signing files or credentials into chat or GitHub.
-No new Firebase iOS app/configuration should be registered without inspecting the
-existing staging registration. If the required plist is missing, stop for account
-access; never substitute production configuration.
+Never paste private keys, passwords or signing files into chat or GitHub.
+No Firebase registration, provider enablement or data changes are performed.
 
-The workflow validates inputs and Python checks, generates the Xcode project,
-runs native simulator tests, applies existing App Store profiles, archives for
-physical iPhone, verifies staging bundle/project and the expected signing team,
-then exports locally. The export verifier rejects upload destinations and other
-bundle profiles. The exported IPA is unpacked and checked again, including its
-signature/profile, build number, icon, privacy manifest and camera/mic descriptions.
-Artifact export is not proof Apple has accepted/processed the IPA.
+The workflow validates branch, team, inputs and Python checks, generates the
+Xcode project, runs native simulator tests, applies existing App Store profiles,
+archives for iPhone and verifies staging bundle/project and signing team. Export
+options must contain only the REACH profile and the exact team. Export remains
+local, with symbol upload disabled. The IPA is initially quarantined outside
+publisher artifacts, then unpacked and verified for signature, profile, staging
+configuration, build number, icon, privacy manifest and camera/mic descriptions.
+Only after verification is it atomically promoted to the publisher's artifact
+path. Old output is removed at preflight. Failed verification leaves no IPA for
+the publisher, even if artifact collection runs after a failed script.
 
-The icon reuses the existing web heart geometry on an opaque background; it is
-staging packaging, not a final branding decision. The app privacy manifest declares
-its observed own-app UserDefaults access (`CA92.1`). This declaration does not
-replace the separate SDK privacy manifests, App Store privacy disclosures or
-export-compliance answers. Those must be reviewed before upload. Encryption uses
-Firebase/WebRTC; no `ITSAppUsesNonExemptEncryption=false` declaration is guessed.
+The icon reuses the web heart geometry on an opaque background. The own-app
+privacy manifest declares UserDefaults access (`CA92.1`). SDK manifests, privacy
+disclosures and encryption/export-compliance answers still require review. No
+`ITSAppUsesNonExemptEncryption=false` answer is guessed for Firebase/WebRTC.
 
-## iPhone-only owner setup (Safari; Request Desktop Website if needed)
+## Remaining owner checks on iPhone — do not start a build yet
 
-1. Open https://developer.apple.com/account/ and Membership Details. Record the
-   **Team ID**. Check the correct developer team is selected.
-2. In Certificates, Identifiers & Profiles → Identifiers, find the explicit iOS
-   App ID **com.reachprototype.app**. If absent, register that exact identifier,
-   description **REACH Staging**, with only capabilities the app actually needs.
-   No push, iCloud, Sign in with Apple or associated domains are required by the
-   current prototype. If the identifier is unavailable, stop; do not change it.
-3. Open https://appstoreconnect.apple.com/ → Apps → + → New App, if no record exists.
-   Platform iOS; name **REACH Staging** (if unavailable, choose a name with the
-   owner); primary language English (Canada) if available; bundle ID
-   **com.reachprototype.app**; SKU **reach-native-staging-1**. Choose Limited Access
-   where offered. Creating a private app record does not publish the app. Record
-   the numeric Apple ID in App Information. Do not configure paid agreements,
-   pricing, subscriptions or public release.
-4. In App Store Connect → Users and Access → Integrations → App Store Connect API,
-   if Request Access appears, the **Account Holder** must review and submit that
-   request. Account access is not the same as API access. Once available, an
-   Account Holder/Admin can create a dedicated team key named **REACH Codemagic**,
-   with App Manager access. A team key applies across the account's apps; Apple
-   does not restrict it to this one app. Approve that access deliberately. If
-   permissions are insufficient for signing, stop rather than silently granting
-   Admin. Download the .p8 once to Files and retain its Issuer ID and Key ID.
-5. In Codemagic Team settings → Team integrations → Developer Portal → Manage keys,
-   add the key using the .p8 from Files plus Issuer ID and Key ID. Store it directly
-   there, not in this repository or conversation. No Apple password is needed in
-   the workflow. Codemagic team-admin access is required for signing identities.
-6. In Codemagic → Team settings → codemagic.yaml settings → Code signing identities
-   → iOS certificates, use an existing valid **Apple Distribution** certificate
-   and its private key, or Generate certificate using the integration. Retain
-   the generated certificate/password securely and follow the UI's upload step.
-   If Apple's certificate limit is reached, stop; do not revoke another certificate.
-7. In Apple Developer → Profiles → +, create an **App Store Connect** distribution
-   profile for com.reachprototype.app and that Apple Distribution certificate.
-   Download to Files; upload it under Codemagic iOS provisioning profiles (or fetch
-   the existing matching profile). Confirm Codemagic shows a matching certificate.
-   **TestFlight needs no device UDIDs or Developer Mode.** Ad-hoc distribution is a
-   different route and still needs UDIDs.
-8. Set the variables above. Run `reach-ios-simulator` on the intended native-reach
-   commit first. When validation passes, manually run
-   **REACH staging TestFlight archive (manual, upload disabled)** on that same
-   commit. Download/retain the IPA and build logs privately. Do not start any
-   upload or distribution until the owner gives that separate approval.
+1. In Codemagic → Team settings → Code signing identities → iOS provisioning
+   profiles (under codemagic.yaml settings where shown), inspect the existing
+   profile. It must show **App Store / App Store Connect**, exact bundle
+   **com.reachprototype.app**, team **GFUK853ZT5**, a future expiry and a matching
+   Apple Distribution certificate/private key. A screenshot of the non-secret
+   profile summary is enough to confirm this; do not share the downloaded file.
+2. If no matching profile exists, use Apple Developer → Certificates, Identifiers
+   & Profiles → Profiles → + → **App Store Connect**, choose the existing explicit
+   identifier and REACH Distribution certificate, download to Files, then upload
+   under Codemagic provisioning profiles. Confirm the certificate matches. Do not
+   revoke or replace unrelated signing assets. TestFlight needs no device UDIDs.
+3. Confirm Codemagic's **REACH Codemagic** integration can access the existing
+   REACH Staging app and has the required App Manager permission. Keep its .p8,
+   Key ID and Issuer ID in Codemagic; do not recreate the key unnecessarily.
+4. Confirm the staging plist variable is available and set the next unused
+   `REACH_IOS_BUILD_NUMBER`. Check version 0.1.0 in App Store Connect/TestFlight
+   before choosing it. Resolve pending Apple agreements if the account reports
+   them; do not configure paid agreements or billing.
+5. Return these non-secret confirmations for review and approve a specific commit,
+   build number and automatic upload. **Do not tap Start new build yet.**
 
-No developer-owned Mac is required for this cloud workflow. Account-holder actions
-that cannot be delegated include the initial API access request and any required
-Apple agreement acceptance. App records and team API keys also require appropriate
-roles; normal App Store Connect access alone may not be sufficient.
+After explicit approval, select branch **native-reach**, the reviewed commit and
+workflow **REACH staging TestFlight (manual build, automatic upload)**. Starting
+that workflow includes upload; it is no longer an archive-only dry run. There is
+no need to start the simulator workflow separately: this workflow runs the native
+simulator suite before archive. Inspect CI and Apple processing results before
+claiming a signed build or install is verified. Tester invitations and beta review
+remain separately approved actions. No developer-owned Mac is required.
 
-## Upload and invitations — separate approval required
-
-After a signed archive/export passes, inspect its exact commit, build number,
-staging config/signature evidence and complete CI results with the owner.
-Only then configure an authorized Codemagic App Store Connect upload, with public
-App Store submission explicitly disabled. Do not upload a .ipa in Files to a public
-file-sharing or hosting service. Normal TestFlight requires an App Store Connect
-upload/processing step; an ad-hoc IPA cannot substitute for it.
+## After an approved upload — invitations require separate approval
 
 The owner completes any encryption/export-compliance answers based on the actual
 SDKs and app behavior. Do not automatically answer legal attestations. Prepare beta
@@ -162,6 +144,19 @@ UIDs and all web pairing/member locks; never reset or reuse a web pairing record
 Record commit/build, both device models/iOS versions, networks, time, consent
 steps, observed audio/video and failure logs (no private SDP/ICE or keys in public
 logs). Stop before any claim of a verified first call until both humans confirm it.
+
+## Configuration validation for automatic upload
+
+The workflow update passed the official Codemagic JSON schema downloaded from
+https://codemagic.io/codemagic-schema.json, all workflow shell scripts passed
+`bash -n`, and all **30 Python distribution/preparation tests passed** locally.
+The simulator and ad-hoc workflow source is byte-for-byte unchanged. The branch
+update uses `[skip ci]` to suppress automatic builds. No new build, signing
+operation, upload, beta review, invitation or Firebase operation is performed.
+
+Schema/local tests cannot verify private Codemagic credentials, profile presence,
+API access, unused build numbers or Apple acceptance. The owner checks above are
+still required; a successful signed macOS build remains unverified.
 
 ## CI evidence at preparation start
 

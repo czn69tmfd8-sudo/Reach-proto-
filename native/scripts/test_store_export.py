@@ -33,3 +33,24 @@ class StoreExportTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as folder:
                 with zipfile.ZipFile(Path(folder)/'app.ipa','w') as package:package.writestr(name,b'bad')
                 with self.subTest(name=name),self.assertRaises(ValueError):store.verify_ipa(folder,'TESTTEAM00','12')
+
+    def test_failed_verification_never_promotes_publishable_ipa(self):
+        import tempfile
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as folder:
+            destination=Path(folder)/'published'
+            with patch.object(store,'verify_ipa',side_effect=ValueError('bad signature')):
+                with self.assertRaises(ValueError):store.promote_ipa(folder,destination,'TESTTEAM00','12')
+            self.assertFalse(destination.exists())
+    def test_verified_ipa_is_promoted_once_and_cannot_overwrite(self):
+        import tempfile
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as folder:
+            source=Path(folder)/'source';source.mkdir()
+            (source/'app.ipa').write_bytes(b'verified archive')
+            destination=Path(folder)/'published'
+            with patch.object(store,'verify_ipa') as verify:
+                store.promote_ipa(source,destination,'TESTTEAM00','12')
+                verify.assert_called_once_with(source,'TESTTEAM00','12')
+                self.assertEqual((destination/'app.ipa').read_bytes(),b'verified archive')
+                with self.assertRaises(ValueError):store.promote_ipa(source,destination,'TESTTEAM00','12')
