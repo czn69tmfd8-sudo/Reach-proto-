@@ -21,15 +21,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Typecheck platform-independent session logic
-        run: |
-          set -euo pipefail
-          swiftc -swift-version 6 -typecheck \
-            native/REACH/Models/ConnectionState.swift \
-            native/REACH/Models/ReachSessionFreshness.swift \
-            native/REACH/Models/ReachJoinPolicy.swift \
-            native/REACH/Models/ReachSessionLifecycle.swift \
-            native/REACH/Models/ReachConnectionMachine.swift
+      - name: Compile Swift 6 policies and run portable tests
+        env:
+          REACH_PORTABLE_LOADER_TRACE: "1"
+        run: python3 native/scripts/run-portable-tests.py
+
+      - name: Preserve portable runtime failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: portable-swift-failure
+          path: native/build-logs/portable-failure/
+          if-no-files-found: ignore
 
   build-and-test:
     runs-on: macos-15

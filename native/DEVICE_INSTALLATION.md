@@ -2,9 +2,9 @@
 
 ## Current verification
 
-Codemagic build **10** on `0a87493` is confirmed by the supplied screenshots as
-successful: simulator build, installation, launch, native test step, and unsigned
-physical-iPhone compilation. The screenshots do not establish an exact simulator
+Codemagic build **11** on `1c60ac1` is owner-confirmed successful, following
+build **10** on `0a87493` shown in the supplied screenshots: simulator build,
+installation, launch, native test step, and unsigned physical-iPhone compilation. These reports do not establish an exact build #11 simulator
 test count or any physical-device runtime result. Local portable tests are
 reported separately and do not replace the Xcode SDK tests.
 
@@ -19,7 +19,7 @@ and compare the live baseline before the existing deployment approval can be use
 
 - `reach-ios-simulator`: automatic native branch validation. It also compiles the
   physical-iPhone source branch without signing credentials, catching code hidden
-  by simulator conditionals. The unsigned device compile passed in build 10; later changes still need CI validation.
+  by simulator conditionals. The unsigned device compile passed in builds 10 and 11; later changes still need CI validation.
 - `reach-ios-device`: **manual**, using existing ad-hoc identities in Codemagic.
   It requires staging config, archives Release for iPhone hardware, verifies bundle,
   project, platform and signature, and exports an IPA artifact. It has no automatic
@@ -28,8 +28,9 @@ and compare the live baseline before the existing deployment approval can be use
 
 ## What the owner must supply for registered-device installation
 
-1. An existing active Apple Developer Program membership and its Team ID.
-   Do not enroll/pay automatically. A free personal account plus local simulator
+1. Activation of the owner's already purchased Apple Developer Program membership,
+   then its Team ID. Do not enroll/pay again or automatically. A free personal
+   account plus local simulator
    ad-hoc signing is not the configured cloud distribution route.
 2. An explicit App ID owned by that team for `com.reachprototype.app`.
    If unavailable under that team, stop for a bundle-ID decision; changing it
@@ -71,9 +72,11 @@ preparation. The owner must explicitly approve the eventual upload/distribution.
 
 The complete staging rules were supplied by the owner on November 5. The additive
 artifact and before/after compatibility tests are in
-`firebase/reviews/staging-2026-11-05/`. Explicit approval is still required before
-deploying that tested artifact to `reach-staging-a4745`; recheck the live baseline
-for intervening changes first. Then use fresh **native**
+`firebase/reviews/staging-2026-11-05/`. The owner approved that exact tested artifact
+for `reach-staging-a4745`, then
+paused authentication and deployment. Keep both paused. Before using the existing
+approval after the pause is lifted, verify the live baseline and artifact hashes
+match the approved review; stop on any difference. Then use fresh **native**
 pairings on the two installed phones, grant camera/microphone intentionally, and
 verify sound and moving video in both directions. Exercise End, backgrounding,
 revocation, re-pairing and expiration. No overnight auto-join is enabled.
