@@ -13,6 +13,8 @@ final class StagingCallController: ObservableObject {
     private var partnership: Partnership?
     private var rooms: (any ReachRoomStore)?
     private var inbox = SignalingInbox()
+    private var outbox = LocalCandidateOutbox()
+    private var drainingCandidates = false
     private var watchdog = ReachTransportWatchdog()
     private var watchdogTask: Task<Void, Never>?
 
@@ -59,9 +61,24 @@ final class StagingCallController: ObservableObject {
             }
             media.onCandidate = { [weak self] candidate in
                 guard let self, self.generation == token else { return }
+                do { try self.outbox.enqueue(candidate) }
+                catch {
+                    self.peer?.close()
+                    self.tasks.append(Task { [weak self] in await self?.fail(error, token: token) })
+                    return
+                }
+                guard !self.drainingCandidates else { return }
+                self.drainingCandidates = true
                 self.tasks.append(Task { [weak self] in
-                    do { try await signaling.publishCandidate(candidate, roomID: session.id, role: role) }
-                    catch { await self?.fail(error, token: token) }
+                    do {
+                        while let self, self.generation == token {
+                            guard let candidate = self.outbox.next() else {
+                                self.drainingCandidates = false
+                                return
+                            }
+                            try await signaling.publishCandidate(candidate, roomID: session.id, role: role)
+                        }
+                    } catch { await self?.fail(error, token: token) }
                 })
             }
             status = join ? "Negotiating media transport…" : "Hand open. Waiting for your partner to take it."
@@ -167,6 +184,7 @@ final class StagingCallController: ObservableObject {
         peer?.close(); peer = nil
         let oldSession = session, oldPartnership = partnership, oldRooms = rooms
         session = nil; partnership = nil; rooms = nil; inbox = SignalingInbox()
+        outbox = LocalCandidateOutbox(); drainingCandidates = false
         busy = true; status = message
         if let oldSession, let oldPartnership, let oldRooms {
             do {

@@ -100,3 +100,12 @@ original room/pair and cannot clear a newer room pointer. A timeout never means
 server cleanup succeeded or that a new call has authorization. Reconnect and
 refresh/close the old hand before retrying. Four portable tests cover success,
 server rejection, timeout with late completion, and a cancelled calling task.
+
+### Local ICE publication
+
+Each one-shot room owns a bounded local candidate outbox. Candidates are validated
+and deduplicated before serial Firestore publication; replayed SDK callbacks do
+not issue duplicate writes. The lifetime cap is 512 unique candidates, including
+already published entries. Overflow stops media instead of accumulating tasks.
+End resets the queue; generation guards prevent an old drain from publishing a
+new room's candidates. This does not implement ICE restart into an old room.
