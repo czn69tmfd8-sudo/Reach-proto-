@@ -39,56 +39,103 @@ struct ReachHomeBackground: View {
     }
 }
 
-/// Real profile images can be supplied later; absent photos stay visibly empty.
-/// This component never reads the web profile or implies an authorized pairing.
+/// The heart is an ambient pairing cue, never proof of a live media connection.
+struct ReachConnectionHeart: View {
+    var active = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    var body: some View {
+        Image(systemName: "heart.fill")
+            .font(.system(size: 46, weight: .light))
+            .foregroundStyle(LinearGradient(colors: [.pink, .purple, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .symbolEffect(.pulse, options: .repeating, isActive: active && !reduceMotion && scenePhase == .active)
+            .shadow(color: .pink.opacity(0.45), radius: 15)
+            .frame(width: 56, height: 78)
+            .accessibilityHidden(true)
+    }
+}
+
 struct ReachHomeIdentityHeader: View {
-    var localPhoto: UIImage? = nil
-    var partnerPhoto: UIImage? = nil
+    @EnvironmentObject private var appearance: ReachAppearanceStore
+    var paired = false
+    @ScaledMetric(relativeTo: .title) private var photoSize: CGFloat = 76
 
     var body: some View {
-        VStack(spacing: 12) {
-            Text("REACH")
-                .font(.system(size: 44, weight: .black, design: .rounded))
-                .foregroundStyle(LinearGradient(
-                    colors: [.pink, Color(red: 0.94, green: 0.64, blue: 0.91), .cyan],
-                    startPoint: .leading, endPoint: .trailing
-                ))
-            Text("Reach for each other, same moment, any distance.")
-                .font(.subheadline)
-                .multilineTextAlignment(.center)
-            HStack(spacing: 28) {
-                portrait(localPhoto, label: "You")
-                Image(systemName: "heart.fill")
-                    .font(.title2)
-                    .foregroundStyle(.pink)
-                    .accessibilityHidden(true)
-                portrait(partnerPhoto, label: "Your partner")
+        VStack(spacing: 16) {
+            HStack(spacing: 8) {
+                portrait(appearance.ownPhoto, label: appearance.preferences.ownLabel, tint: .pink)
+                ReachConnectionHeart(active: paired)
+                portrait(appearance.partnerPhoto, label: appearance.preferences.partnerLabel, tint: .purple)
             }
-            Text("REACH STAGING")
-                .font(.caption2.weight(.semibold))
-                .tracking(2)
+            .frame(maxWidth: .infinity)
+            Text("\(appearance.preferences.ownLabel) & \(appearance.preferences.partnerLabel)")
+                .font(.title2.weight(.semibold))
+                .multilineTextAlignment(.center)
+            Text(paired ? "Paired in REACH" : "Your space to reach each other")
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.85))
         }
         .foregroundStyle(.white)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity)
     }
 
-    private func portrait(_ photo: UIImage?, label: String) -> some View {
-        VStack(spacing: 6) {
+    private func portrait(_ photo: UIImage?, label: String, tint: Color) -> some View {
+        VStack(spacing: 8) {
             ZStack {
                 Circle().fill(.ultraThinMaterial)
                 if let photo {
                     Image(uiImage: photo).resizable().scaledToFill()
                 } else {
                     Image(systemName: "person.crop.circle")
-                        .font(.system(size: 40, weight: .light))
+                        .font(.system(size: 42, weight: .ultraLight))
                 }
             }
-            .frame(width: 68, height: 68)
+            .frame(width: min(photoSize, 76), height: min(photoSize, 76))
             .clipShape(Circle())
-            .overlay(Circle().strokeBorder(.white.opacity(0.7), lineWidth: 1.5))
-            .accessibilityLabel(photo == nil ? "\(label): profile photo not set" : "\(label): profile photo")
-            Text(label).font(.caption.weight(.semibold))
+            .overlay(Circle().strokeBorder(tint.opacity(0.9), lineWidth: 2))
+            .shadow(color: tint.opacity(0.35), radius: 12)
+            .accessibilityLabel(photo == nil ? "\(label): profile photo not set" : "\(label): local profile photo")
+            Text(label).font(.caption.weight(.semibold)).multilineTextAlignment(.center)
+                .frame(width: min(photoSize, 76))
         }
+    }
+}
+
+struct ReachGlassPanel<Content: View>: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @ViewBuilder var content: Content
+    var body: some View {
+        content
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 28)
+                    .fill(.ultraThinMaterial)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 28)
+                            .fill(Color(red: 0.14, green: 0.06, blue: 0.23).opacity(reduceTransparency ? 1 : 0.70))
+                    }
+            }
+            .overlay(RoundedRectangle(cornerRadius: 28).strokeBorder(.pink.opacity(0.48), lineWidth: 1))
+            .shadow(color: .black.opacity(0.22), radius: 14, y: 8)
+            .foregroundStyle(.white)
+    }
+}
+
+struct ReachPage<Content: View>: View {
+    @EnvironmentObject private var appearance: ReachAppearanceStore
+    @ViewBuilder var content: Content
+    var body: some View {
+        ZStack {
+            ReachHomeBackground(source: appearance.background)
+            ScrollView {
+                VStack(spacing: 22) { content }
+                    .padding(.horizontal, 20).padding(.vertical, 24)
+                    .frame(maxWidth: 620)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .foregroundStyle(.white)
+        .tint(.pink)
+        .environment(\.colorScheme, .dark)
     }
 }
