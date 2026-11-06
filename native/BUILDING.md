@@ -109,3 +109,20 @@ not issue duplicate writes. The lifetime cap is 512 unique candidates, including
 already published entries. Overflow stops media instead of accumulating tasks.
 End resets the queue; generation guards prevent an old drain from publishing a
 new room's candidates. This does not implement ICE restart into an old room.
+
+### Remote ICE drain and Linux runtime investigation
+
+The remote inbox now grants only one drain owner per room. Incoming ICE remains
+queued while an SDK add callback is pending. New listeners cannot apply candidates
+concurrently or overtake the buffered queue; stale owners cannot consume a fresh
+room's queue. The inbox refuses to mark an absent SDP as applied.
+
+A recurring local Linux harness SIGILL was observed during the initial validation
+cases, before the new inbox cases. A minimal XCTest startup program passed;
+there is not yet evidence establishing the root cause. Syscall tracing was blocked
+by the environment's ptrace restriction. Portable-runner failures now preserve the
+executable, module/library, generated test entry point and failure metadata under
+ignored build-logs/portable-failure. Failures remain failures; no automatic retry
+or test bypass is introduced. Use Codemagic's native results as the iOS build gate.
+
+See TWO_IPHONE_TEST_PLAN.md for the physical call gates and acceptance scenarios.

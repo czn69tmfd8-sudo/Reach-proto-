@@ -91,7 +91,8 @@ final class StagingCallController: ObservableObject {
                             self.handleTransport(.negotiationStarted, token: token)
                             try await media.apply(description)
                             guard self.generation == token else { return }
-                            for candidate in self.inbox.remoteDescriptionApplied() { try await media.add(candidate) }
+                            try self.inbox.remoteDescriptionApplied()
+                            try await self.drainRemoteCandidates(media: media, token: token)
                             if join {
                                 let answer = try await media.makeDescription(.answer)
                                 guard self.generation == token else { return }
@@ -105,7 +106,8 @@ final class StagingCallController: ObservableObject {
                 do {
                     for try await candidate in signaling.observeRemoteCandidates(roomID: session.id, role: role) {
                         guard let self, self.generation == token else { return }
-                        for value in try self.inbox.accept(candidate) { try await media.add(value) }
+                        try self.inbox.accept(candidate)
+                        try await self.drainRemoteCandidates(media: media, token: token)
                     }
                 } catch { await self?.fail(error, token: token) }
             })
@@ -142,6 +144,14 @@ final class StagingCallController: ObservableObject {
             guard generation == token else { return }
             busy = false
         } catch { await fail(error, token: token) }
+    }
+
+    private func drainRemoteCandidates(media: NativeWebRTCPeer, token: UUID) async throws {
+        guard generation == token, let owner = inbox.beginDrain() else { return }
+        defer { if generation == token { inbox.finishDrain(owner: owner) } }
+        while generation == token, let candidate = inbox.nextCandidate(owner: owner) {
+            try await media.add(candidate)
+        }
     }
 
     func end() async { await stop(message: "Staging call ended.") }

@@ -6,6 +6,7 @@ struct SignalingInbox {
     private var candidates: [ReachIceCandidate] = []
     private var seen: Set<ReachIceCandidate> = []
     private(set) var ready = false
+    private var drainOwner: UUID?
 
     mutating func accept(_ value: ReachSessionDescription) throws -> Bool {
         try ReachSignalingValidation.validate(value)
@@ -17,21 +18,33 @@ struct SignalingInbox {
         return true
     }
 
-    mutating func accept(_ candidate: ReachIceCandidate) throws -> [ReachIceCandidate] {
+    mutating func accept(_ candidate: ReachIceCandidate) throws {
         try ReachSignalingValidation.validate(candidate)
-        guard !seen.contains(candidate) else { return [] }
+        guard !seen.contains(candidate) else { return }
         guard seen.count < 512 else { throw SignalingInboxError.tooManyCandidates }
         seen.insert(candidate)
-        if ready { return [candidate] }
         candidates.append(candidate)
-        return []
     }
 
-    mutating func remoteDescriptionApplied() -> [ReachIceCandidate] {
+    mutating func remoteDescriptionApplied() throws {
+        guard description != nil else { throw SignalingInboxError.missingDescription }
         ready = true
-        defer { candidates.removeAll() }
-        return candidates
+    }
+
+    mutating func beginDrain() -> UUID? {
+        guard ready, drainOwner == nil, !candidates.isEmpty else { return nil }
+        let owner = UUID(); drainOwner = owner
+        return owner
+    }
+
+    mutating func nextCandidate(owner: UUID) -> ReachIceCandidate? {
+        guard drainOwner == owner, !candidates.isEmpty else { return nil }
+        return candidates.removeFirst()
+    }
+
+    mutating func finishDrain(owner: UUID) {
+        if drainOwner == owner { drainOwner = nil }
     }
 }
 
-enum SignalingInboxError: Error { case changedDescription, tooManyCandidates }
+enum SignalingInboxError: Error { case changedDescription, tooManyCandidates, missingDescription }

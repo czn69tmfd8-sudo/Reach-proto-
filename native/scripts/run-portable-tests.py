@@ -5,6 +5,7 @@ Requires Swift with Foundation and XCTest (Linux or macOS). Firebase, UIKit,
 Keychain and real WebRTC SDK tests must still run in the Xcode simulator suite.
 """
 import os
+import json
 from pathlib import Path
 import re
 import shutil
@@ -58,4 +59,20 @@ with tempfile.TemporaryDirectory(prefix='reach-portable-') as temporary:
     environment = dict(os.environ)
     for variable in ['LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH']:
         environment[variable] = str(out) + os.pathsep + environment.get(variable, '')
-    subprocess.run([str(out/'run-tests')], env=environment, check=True)
+    try:
+        subprocess.run([str(out/'run-tests')], env=environment, check=True)
+    except subprocess.CalledProcessError as failure:
+        # Preserve a reproducible harness instead of deleting it on a runtime
+        # crash. No retry and no conversion of a failed run into success.
+        diagnostic = native/'build-logs/portable-failure'
+        diagnostic.mkdir(parents=True, exist_ok=True)
+        for artifact in out.iterdir():
+            if artifact.is_file():
+                shutil.copy2(artifact, diagnostic/artifact.name)
+        (diagnostic/'failure.json').write_text(json.dumps({
+            'platform': sys.platform, 'returnCode': failure.returncode,
+            'swiftVersion': subprocess.check_output([swift, '--version'], text=True).strip(),
+            'note': 'Original process failure retained. No automatic retry performed.'
+        }, indent=2) + '\n')
+        print(f'Portable harness diagnostics saved in {diagnostic}', file=sys.stderr)
+        raise
