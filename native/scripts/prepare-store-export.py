@@ -33,6 +33,10 @@ def validate_export(options,team):
         raise ValueError('Only local export is authorized; upload destination is forbidden.')
     if options.get('uploadSymbols',False) is not False:
         raise ValueError('Export must not upload symbols or other artifacts.')
+    if options.get('testFlightInternalTestingOnly') is not True:
+        raise ValueError('Export must be restricted to TestFlight internal testing.')
+    if options.get('manageAppVersionAndBuildNumber') is not False:
+        raise ValueError('Export must preserve the approved version and build number.')
 
 
 def verify_ipa(directory,team,number):
@@ -99,7 +103,10 @@ if __name__=='__main__':
         if args.action=='export':
             path=Path(args.path);options=plistlib.loads(path.read_bytes())
             # Keep export local; only the separate publisher may upload a verified IPA.
-            options['destination']='export';options['uploadSymbols']=False
+            options['destination'] = 'export'
+            options['uploadSymbols'] = False
+            options['testFlightInternalTestingOnly'] = True
+            options['manageAppVersionAndBuildNumber'] = False
             validate_export(options,team)
             path.write_bytes(plistlib.dumps(options))
         elif args.action=='verify-ipa':verify_ipa(args.path,team,number)
