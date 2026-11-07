@@ -20,9 +20,13 @@ service cloud.firestore {
         && p.get('revoked', false) == false
         && spaceLockMatches(p.hostUid, code) && spaceLockMatches(p.partnerUid, code);
     }
+    function spacePilotEnabled(code) {
+      let path = /databases/$(database)/documents/nativeStaging/v1/relationshipSpace/$(code);
+      return exists(path) && get(path).data.get('enabled', false) == true;
+    }
     function spaceAuthorized(code) {
       return request.auth != null && code.matches('[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{12}')
-        && exists(spacePairPath(code)) && spaceMembers(get(spacePairPath(code)).data, code);
+        && exists(spacePairPath(code)) && spaceMembers(get(spacePairPath(code)).data, code) && spacePilotEnabled(code);
     }
     function spaceEntry(d) {
       return d.keys().hasAll(['kind', 'authorUid', 'title', 'caption', 'eventAt', 'progress'])
@@ -36,7 +40,7 @@ service cloud.firestore {
     }
     match /nativeStaging/v1/relationshipSpace/{code}/entries/{entryID} {
       allow get: if spaceAuthorized(code);
-      allow list: if spaceAuthorized(code) && request.query.limit != null && request.query.limit <= 50;
+      allow list: if spaceAuthorized(code) && request.query.limit != null && request.query.limit <= 12;
       allow create: if spaceAuthorized(code)
         && entryID.matches('[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
         && spaceEntry(request.resource.data);

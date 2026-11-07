@@ -17,10 +17,12 @@ final class RelationshipSpaceTransport {
         var fields: [String: Value]
         var updateTime: String?
     }
-    struct Cursor {
+    struct Cursor: Equatable {
         let eventAt: String
         let documentName: String
     }
+
+    private static let pageSize = 12
 
     private struct QueryResult: Decodable {
         var document: Document?
@@ -41,7 +43,8 @@ final class RelationshipSpaceTransport {
         return Auth.auth()
     }
 
-    func load(uid: String, previousScope: RelationshipScope?, after cursor: Cursor?)
+    func load(uid: String, previousScope: RelationshipScope?, after cursor: Cursor?,
+              knownPage: [SharedRelationshipRecord]?)
         async throws -> (RelationshipScope, [SharedRelationshipRecord], Cursor?) {
         guard SharedContentPolicy.documentID(uid) else { throw RelationshipSpaceError.unauthorized }
         let token = try await credential(for: uid)
@@ -64,25 +67,47 @@ final class RelationshipSpaceTransport {
                 ["field": ["fieldPath": "eventAt"], "direction": "DESCENDING"],
                 ["field": ["fieldPath": "__name__"], "direction": "DESCENDING"]
             ],
-            "limit": 50
+            "limit": Self.pageSize
         ]
         if let cursor {
             query["startAt"] = ["before": false, "values": [
                 ["timestampValue": cursor.eventAt], ["referenceValue": cursor.documentName]
             ]]
         }
-        let body = try JSONSerialization.data(withJSONObject: ["structuredQuery": query])
-        let result = try await request(parent(scope) + ":runQuery", token: token, method: "POST", body: body)
-        let documents = try JSONDecoder().decode([QueryResult].self, from: result).compactMap(\.document)
-        let records = try documents.map { try decode($0, scope: scope) }
+        let documents: [Document]
+        let records: [SharedRelationshipRecord]
+        if let knownPage, scope == previousScope {
+            var metadata = query
+            metadata["select"] = ["fields": [["fieldPath": "eventAt"]]]
+            let projected = try await runQuery(metadata, scope: scope, token: token)
+            if projected.count == knownPage.count && zip(projected, knownPage).allSatisfy({ item in
+                let (document, record) = item
+                return document.name == resourceName(scope, id: record.id) && document.updateTime == record.version
+            }) {
+                documents = projected
+                records = knownPage
+            } else {
+                documents = try await runQuery(query, scope: scope, token: token)
+                records = try documents.map { try decode($0, scope: scope) }
+            }
+        } else {
+            documents = try await runQuery(query, scope: scope, token: token)
+            records = try documents.map { try decode($0, scope: scope) }
+        }
         let next: Cursor?
-        if documents.count == 50, let last = documents.last, let name = last.name,
+        if documents.count == Self.pageSize, let last = documents.last, let name = last.name,
            let eventAt = last.fields["eventAt"]?.timestampValue {
             next = Cursor(eventAt: eventAt, documentName: name)
         } else {
             next = nil
         }
         return (scope, records, next)
+    }
+
+    private func runQuery(_ query: [String: Any], scope: RelationshipScope, token: String) async throws -> [Document] {
+        let body = try JSONSerialization.data(withJSONObject: ["structuredQuery": query])
+        let result = try await request(parent(scope) + ":runQuery", token: token, method: "POST", body: body)
+        return try JSONDecoder().decode([QueryResult].self, from: result).compactMap(\.document)
     }
 
     func save(_ consent: SharedRelationshipConsent, in scope: RelationshipScope) async throws {
@@ -149,6 +174,10 @@ final class RelationshipSpaceTransport {
         parent(scope) + "/entries"
     }
 
+    private func resourceName(_ scope: RelationshipScope, id: UUID) -> String {
+        "projects/reach-staging-a4745/databases/(default)/documents/" + path(scope) + "/" + id.uuidString.lowercased()
+    }
+
     private func segment(_ value: String) -> String {
         let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
         return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
@@ -173,8 +202,16 @@ final class RelationshipSpaceTransport {
         request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
-        let (data, response) = try await network.data(for: request)
-        guard let status = (response as? HTTPURLResponse)?.statusCode else { throw RelationshipSpaceError.unavailable }
+        let isMutation = method == "PATCH" || method == "DELETE"
+        let (data, response): (Data, URLResponse)
+        do { (data, response) = try await network.data(for: request) }
+        catch {
+            if isMutation { throw RelationshipSpaceError.unconfirmed }
+            throw error
+        }
+        guard let status = (response as? HTTPURLResponse)?.statusCode else {
+            throw isMutation ? RelationshipSpaceError.unconfirmed : RelationshipSpaceError.unavailable
+        }
         switch status {
         case 200...299: return data
         case 401, 403: throw RelationshipSpaceError.unauthorized
@@ -189,7 +226,7 @@ final class RelationshipSpaceTransport {
                 throw RelationshipSpaceError.conflict
             }
             throw RelationshipSpaceError.invalid
-        default: throw RelationshipSpaceError.unavailable
+        default: throw isMutation ? RelationshipSpaceError.unconfirmed : RelationshipSpaceError.unavailable
         }
     }
 

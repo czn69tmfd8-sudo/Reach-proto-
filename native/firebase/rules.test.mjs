@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {readReview,sha256} from './prepare-rules-review.mjs';
+import {readReview,rulesForRegression,sha256} from './prepare-rules-review.mjs';
 import {readFile} from 'node:fs/promises';
 import {after, before, beforeEach, test} from 'node:test';
 import {initializeTestEnvironment, assertSucceeds, assertFails} from '@firebase/rules-unit-testing';
@@ -39,7 +39,7 @@ before(async()=>{
  const combined=process.env.REACH_RULES_REVIEW_DIR
   ? await readReview(process.env.REACH_RULES_REVIEW_DIR,native)
   : await readReview('reviews/staging-2026-11-06-hardened',native);
- env=await initializeTestEnvironment({projectId:'demo-reach-native',firestore:{rules:combined}});
+ env=await initializeTestEnvironment({projectId:'demo-reach-native',firestore:{rules:await rulesForRegression(combined)}});
 });
 beforeEach(async()=>env.clearFirestore());
 after(async()=>env?.cleanup());

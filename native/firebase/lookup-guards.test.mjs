@@ -3,7 +3,7 @@ import {readFile} from 'node:fs/promises';
 import {after,before,beforeEach,test} from 'node:test';
 import {initializeTestEnvironment,assertSucceeds} from '@firebase/rules-unit-testing';
 import {doc,getDoc,getDocs,collection,setDoc,updateDoc,deleteDoc,writeBatch,serverTimestamp} from 'firebase/firestore';
-import {readReview,sha256} from './prepare-rules-review.mjs';
+import {readReview,rulesForRegression,sha256} from './prepare-rules-review.mjs';
 const review=process.env.REACH_RULES_REVIEW_DIR || 'reviews/staging-2026-11-06-hardened';
 const root='nativeStaging/v1/',code='ABCDEFGHJKLM';let env;
 const db=uid=>uid ? env.authenticatedContext(uid).firestore() : env.unauthenticatedContext().firestore();
@@ -33,7 +33,7 @@ async function deny(uid,id='r1') {
   await cleanDenied(setDoc(ref(d,`rooms/${id}/${side}/late`),candidate));
  }
 }
-before(async()=>{env=await initializeTestEnvironment({projectId:'demo-reach-lookup-guards',firestore:{rules:await readReview(review,await readFile('firestore.rules','utf8'))}});});
+before(async()=>{env=await initializeTestEnvironment({projectId:'demo-reach-lookup-guards',firestore:{rules:await rulesForRegression(await readReview(review,await readFile('firestore.rules','utf8')))}});});
 beforeEach(async()=>env.clearFirestore());after(async()=>env?.cleanup());
 test('exact unauthenticated Playground probe denies without evaluation errors',async()=>{await cleanDenied(getDoc(ref(db(),'rooms/reach-readonly-probe')));});
 test('missing rooms and orphan ICE deny cleanly for members outsiders and unauthenticated users',async()=>{

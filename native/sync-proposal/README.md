@@ -80,7 +80,8 @@ replace the older draft or any existing rules. No application or deployment
 configuration points at this file. Build 5 does not use the new path.
 
 - Each server read and write checks the existing authenticated UID, an unrevoked
-  pair, and both current member locks. Only the author can edit or delete an
+  pair, both current member locks, and a pair-specific administrator pilot
+  flag. Only the author can edit or delete an
   entry. The kind and author cannot be changed. An edit and delete are conditional
   on the reviewed document update time. If that version has changed, the client
   prompts for a refresh. A create requires a new UUID and a missing document.
@@ -96,8 +97,9 @@ configuration points at this file. Build 5 does not use the new path.
   responses and profile settings remain private unless a separate shared
   response is explicitly written and confirmed. No share queue runs unattended.
 - Shared snapshots are memory-only. The foreground view refreshes every 15
-  seconds and supports manual refresh. It loads up to 50 entries per page across
-  the shared space, with cursor-based older/newer navigation. A transient
+  seconds and supports manual refresh. It loads up to 12 entries per page across
+  the shared space. On an unchanged page, the refresh transfers only the
+  projected dates and document metadata. A transient
   outage can show a recently verified snapshot for up to 45 seconds; a denied
   request, account change, backgrounding, or expiry clears it. Retrying a draft
   requires another explicit tap. No shared data is available offline after
@@ -108,9 +110,9 @@ configuration points at this file. Build 5 does not use the new path.
   retention/deletion policy is required before rollout. REACH cannot retract
   content a recipient previously copied or captured.
 
-Before a staging rollout, run the standalone emulator tests and verify an additive
-merge against the current published staging rules and the Build 5 regression
-suite. Approval is required for any rule release or administrative cleanup.
+Before a staging rollout, execute the emulator suite against the exact additive
+candidate and compare the current published staging rules with the recorded
+baseline. See the [deployment and rollback plan](../firebase/reviews/staging-relationship-space/PLAN.md). Approval is required for any rule release or administrative cleanup.
 There are no new project, Storage, or composite-index requirements in this draft.
 Validate native compilation and the full UI against two authorized staging
 installations before preparing a release.

@@ -107,12 +107,13 @@ struct RelationshipOfflineWindow: Sendable {
 }
 
 enum RelationshipSpaceError: LocalizedError, Equatable {
-    case unauthorized, unavailable, conflict, invalid, malformed, missing
+    case unauthorized, unavailable, unconfirmed, conflict, invalid, malformed, missing
 
     var errorDescription: String? {
         switch self {
         case .unauthorized: "Shared access is unavailable. Check pairing and staging access."
         case .unavailable: "Couldn’t reach the shared space. Try again when you’re online."
+        case .unconfirmed: "The server may have received this change. Refresh to check, or retry this same draft when you’re online."
         case .conflict: "This entry changed or was removed. Refresh and reopen it before editing again."
         case .invalid: "Add a title. Use up to 120 bytes for the title, 6,000 for the text, and 250 KB for a shared photo."
         case .missing: "This shared entry was removed."

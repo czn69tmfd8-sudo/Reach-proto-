@@ -71,7 +71,8 @@ final class RelationshipSpaceStore: ObservableObject {
         if let scope, scope.uid != uid { clear(status: .loading) }
         let pages = scope == nil ? [] : requestedPages
         do {
-            let (scope, records, next) = try await transport.load(uid: uid, previousScope: scope, after: pages.last)
+            let (scope, records, next) = try await transport.load(uid: uid, previousScope: scope,
+                after: pages.last, knownPage: scope != nil && pages == pageStarts ? records : nil)
             guard self.session == session, !Task.isCancelled, auth.currentUser?.uid == uid else { return }
             self.scope = scope
             self.records = records
@@ -91,12 +92,19 @@ final class RelationshipSpaceStore: ObservableObject {
             guard self.session == session, !Task.isCancelled else { return }
             if (error as? RelationshipSpaceError) == .unauthorized || auth.currentUser?.uid != uid {
                 clear(status: .unavailable)
-            } else if (error is URLError || (error as? RelationshipSpaceError) == .unavailable), canRead(at: Date()) {
+            } else if Self.isTransient(error), canRead(at: Date()) {
                 status = .offline
             } else {
                 clear(status: .unavailable)
             }
         }
+    }
+
+    private static func isTransient(_ error: Error) -> Bool {
+        if (error as? RelationshipSpaceError) == .unavailable { return true }
+        guard let networkError = error as? URLError else { return false }
+        return [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotConnectToHost,
+                .cannotFindHost, .dnsLookupFailed].contains(networkError.code)
     }
 
     func canRead(at date: Date) -> Bool { verified?.permitsReading(at: date) == true }
@@ -123,11 +131,13 @@ final class RelationshipSpaceStore: ObservableObject {
             if let failure = error as? RelationshipSpaceError { throw failure }
             throw RelationshipSpaceError.unavailable
         }
-        guard self.session == session else { throw RelationshipSpaceError.unauthorized }
+        // Firestore acknowledged the write. If the view or account changed, discard
+        // the local result without telling the user an acknowledged write failed.
+        guard self.session == session else { return }
         isWriting = false
         guard scope == expectedScope, (try? transport.authenticate().currentUser?.uid) == expectedScope.uid else {
             clear(status: .unavailable)
-            throw RelationshipSpaceError.unauthorized
+            return
         }
         await refresh()
     }

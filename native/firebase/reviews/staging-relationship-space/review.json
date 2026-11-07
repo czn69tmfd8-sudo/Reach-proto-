@@ -1,0 +1,9 @@
+{
+  "project": "reach-staging-a4745",
+  "database": "(default)",
+  "baselineSHA256": "7e62b5e95f939d56155ce047634ead33023dfd1e6b35a6e20cb3601c7ddc00b8",
+  "proposalSHA256": "219c86e0872c248df6aecefe68c7d5043cdd61dd71d469145d7b5f529d300570",
+  "mergedSHA256": "ee7ee0ed97e3611aa41eeb7ebf9ba3f0d03fe5754de0171e3e88a3f64b588732",
+  "liveBaselineVerified": false,
+  "deploymentApproved": false
+}

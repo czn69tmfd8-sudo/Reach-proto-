@@ -86,6 +86,60 @@ export function buildAdditiveRules(baseline,nativeRules,{project,expectedBaselin
  if(merged.slice(0,base.root.close)+merged.slice(base.root.close+insertion.length)!==baseline)throw Error('Baseline preservation failed');
  return {merged,insertion,manifest:{project,baselineSHA256:sha256(baseline),nativeSHA256:sha256(nativeRules),mergedSHA256:sha256(merged),deploymentApproved:false,liveBaselineVerified:false}};
 }
+export function buildRelationshipReview(baseline, proposal) {
+ const baselineSHA256 = '7e62b5e95f939d56155ce047634ead33023dfd1e6b35a6e20cb3601c7ddc00b8';
+ if(sha256(baseline)!==baselineSHA256)throw Error('Staging reference changed; review the new baseline before merging');
+ const base=parse(baseline), sharing=parse(proposal);
+ const path='/nativeStaging/v1/relationshipSpace/{code}/entries/{entryID}';
+ const [match,...extra]=sharing.matches.filter(m=>m!==sharing.root);
+ if(match?.path!==path || extra.length)throw Error('Expected only the isolated relationshipSpace match');
+ const helperCode=sharing.code.slice(sharing.root.open+1,match.start);
+ if(/\ballow\b/.test(helperCode) || sharing.code.slice(match.close+1,sharing.root.close).trim())throw Error('Unexpected code outside the sharing match');
+ for(const helper of helperCode.matchAll(/\bfunction\s+(\w+)/g)) {
+  if(!helper[1].startsWith('space') || new RegExp('\\bfunction\\s+'+helper[1]+'\\b').test(base.code)) {
+   throw Error('Unexpected or colliding sharing helper: '+helper[1]);
+  }
+ }
+ const insertion='\n  // BEGIN REACH relationship space pilot — review only\n'
+  +proposal.slice(sharing.root.open+1,sharing.root.close).trimEnd()
+  +'\n  // END REACH relationship space pilot\n';
+ const merged=baseline.slice(0,base.root.close)+insertion+baseline.slice(base.root.close);
+ parse(merged);
+ return {merged,insertion,manifest:{
+  project:stagingProject,database:'(default)',baselineSHA256,proposalSHA256:sha256(proposal),
+  mergedSHA256:sha256(merged),liveBaselineVerified:false,deploymentApproved:false
+ }};
+}
+
+const relationshipReviewDir=new URL('./reviews/staging-relationship-space/',import.meta.url);
+export async function relationshipReview() {
+ const [baseline,proposal]=await Promise.all([
+  readFile(new URL('./reviews/staging-2026-11-06-hardened/merged.rules',import.meta.url),'utf8'),
+  readFile(new URL('../sync-proposal/relationship-space.proposed.rules',import.meta.url),'utf8')
+ ]);
+ return buildRelationshipReview(baseline,proposal);
+}
+export async function readRelationshipReview() {
+ const expected=await relationshipReview();
+ const [merged,manifest]=await Promise.all([
+  readFile(new URL('merged.rules',relationshipReviewDir),'utf8'),
+  readFile(new URL('review.json',relationshipReviewDir),'utf8').then(JSON.parse)
+ ]);
+ if(merged!==expected.merged || JSON.stringify(manifest)!==JSON.stringify(expected.manifest)) {
+  throw Error('Relationship review artifact does not match the exact additive merge');
+ }
+ return merged;
+}
+export async function rulesForRegression(baseline) {
+ return process.env.REACH_SHARED_MERGED==='1' ? readRelationshipReview() : baseline;
+}
+async function writeRelationshipReview() {
+ const {merged,manifest}=await relationshipReview();
+ await mkdir(relationshipReviewDir,{recursive:true});
+ await writeFile(new URL('merged.rules',relationshipReviewDir),merged);
+ await writeFile(new URL('review.json',relationshipReviewDir),JSON.stringify(manifest,null,2)+'\n');
+ return manifest;
+}
 export async function prepareReview({baselinePath,nativePath,outputDirectory,project,expectedBaselineSHA}) {
  const baseline=await readFile(baselinePath,'utf8'),native=await readFile(nativePath,'utf8');
  const review=buildAdditiveRules(baseline,native,{project,expectedBaselineSHA});
@@ -115,8 +169,12 @@ export async function readReview(directory,nativeRules) {
 if(process.argv[1] && import.meta.url===pathToFileURL(resolve(process.argv[1])).href) {
  try {
   const args=process.argv.slice(2);
-  if(args.length!==6)throw Error('Usage: node prepare-rules-review.mjs BASELINE NATIVE OUTPUT_DIR PROJECT EXPECTED_SHA256 --review-only');
-  if(args[5]!=='--review-only')throw Error('Only review-only mode is supported');
-  console.log(JSON.stringify(await prepareReview({baselinePath:args[0],nativePath:args[1],outputDirectory:args[2],project:args[3],expectedBaselineSHA:args[4]}),null,2));
+  if(args.length===1 && args[0]==='--prepare-relationship-review') {
+   console.log(JSON.stringify(await writeRelationshipReview(),null,2));
+  } else {
+   if(args.length!==6)throw Error('Usage: node prepare-rules-review.mjs BASELINE NATIVE OUTPUT_DIR PROJECT EXPECTED_SHA256 --review-only');
+   if(args[5]!=='--review-only')throw Error('Only review-only mode is supported');
+   console.log(JSON.stringify(await prepareReview({baselinePath:args[0],nativePath:args[1],outputDirectory:args[2],project:args[3],expectedBaselineSHA:args[4]}),null,2));
+  }
  } catch(error){console.error(error.message);process.exitCode=1}
 }
