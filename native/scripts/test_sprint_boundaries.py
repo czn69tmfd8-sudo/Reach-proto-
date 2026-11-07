@@ -44,6 +44,25 @@ class SprintBoundaryTests(unittest.TestCase):
             self.assertNotIn('firestore.proposed.rules', path.read_text())
         self.assertNotIn('firestore.proposed.rules', (ROOT / 'codemagic.yaml').read_text())
 
+    def test_build_five_legacy_paths_and_release_workflow_are_untouched(self):
+        baseline = '641cc0debc41f3e60517ab1880d8444ab9c5dc94'
+        protected = [
+            'codemagic.yaml', 'firebase.json', '.firebaserc', 'index.html', 'staging',
+            'native/firebase/firestore.rules', 'native/firebase/firebase.json',
+            'native/REACH/Firebase/FirebaseBootstrap.swift',
+            'native/REACH/Firebase/FirebaseDependencyFactory.swift',
+            'native/REACH/Firebase/FirebaseAuthProvider.swift',
+            'native/REACH/Services/LocalRelationshipFile.swift',
+            'native/REACH/Services/RelationshipJournalStore.swift',
+            'native/REACH/Models/RelationshipJournal.swift',
+            'native/REACH/Views/RootView.swift',
+        ]
+        diff = subprocess.check_output(['git', 'diff', '--name-only', baseline, '--', *protected], cwd=ROOT)
+        self.assertEqual(diff, b'')
+        candidate = 'relationship-space.proposed.rules'
+        for path in [ROOT/'firebase.json', ROOT/'native/firebase/firebase.json', ROOT/'codemagic.yaml']:
+            self.assertNotIn(candidate, path.read_text())
+
     def test_new_validation_workflow_has_no_publisher_credentials_or_trigger(self):
         workflow = (ROOT / 'codemagic.yaml').read_text().split('  reach-ios-sprint-validation:',1)[1].split('  reach-ios-testflight-archive:',1)[0]
         for forbidden in ['publishing:', 'triggering:', 'groups:', 'ios_signing:', 'integrations:', 'emulators:exec', 'npm test', 'build-ipa', '-exportArchive']:

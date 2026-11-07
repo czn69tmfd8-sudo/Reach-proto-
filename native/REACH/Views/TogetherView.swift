@@ -10,6 +10,8 @@ struct TogetherView: View {
     @State private var error: String?
     @State private var search = ""
     @State private var onlyPlanned = false
+    @State private var shared = false
+    @State private var copyToShare: RelationshipEntry?
 
     private var visibleEntries: [RelationshipEntry] {
         store.entries(selected).filter { entry in
@@ -21,54 +23,88 @@ struct TogetherView: View {
     var body: some View {
         ReachPage {
             Text("Together").font(.largeTitle.bold())
-            Text("PRIVATE ON THIS IPHONE · Not shared or synchronized")
+            Picker("Scrapbook visibility", selection: $shared) {
+                Text("Private").tag(false)
+                Text("Shared").tag(true)
+            }.pickerStyle(.segmented)
+            Text(shared ? "Shared scrapbook · visible to both authorized partners" : "Private on this iPhone")
                 .font(.caption.weight(.semibold)).multilineTextAlignment(.center)
-            if appearance.preferences.showMessage && !appearance.preferences.personalMessage.isEmpty {
-                Text(appearance.preferences.personalMessage).italic().multilineTextAlignment(.center)
-            }
-            JournalStorageNotice()
-            Picker("Together section", selection: $selected) {
-                Text("Memories").tag(RelationshipEntry.Kind.memory)
-                Text("Questions").tag(RelationshipEntry.Kind.question)
-                Text("Date ideas").tag(RelationshipEntry.Kind.dateIdea)
-                Text("Reminders").tag(RelationshipEntry.Kind.reminder)
-            }.pickerStyle(.menu).font(.headline)
-            TextField("Search your local entries", text: $search)
-                .textFieldStyle(.roundedBorder).submitLabel(.done).onSubmit { ReachKeyboard.dismiss() }
-                .accessibilityLabel("Search private Together entries")
-            if selected == .dateIdea { Toggle("Planned dates only", isOn: $onlyPlanned) }
-            suggestions
-            Button { editing = RelationshipEntry(kind: selected) } label: {
-                Label("Add \(selected.label.lowercased())", systemImage: "plus")
-                    .frame(minHeight: 44)
-            }.buttonStyle(.borderedProminent).disabled(store.loadError != nil)
-            if let error { Text(error).font(.footnote).accessibilityLabel("Save error: " + error) }
-            if visibleEntries.isEmpty {
-                ReachGlassPanel {
-                    VStack(spacing: 12) {
-                        Image(systemName: "heart.text.square").font(.largeTitle)
-                        Text("A little space for the two of you").font(.headline)
-                        Text(store.entries(selected).isEmpty ? "Add your first \(selected.label.lowercased()). Only you can see it on this iPhone." : "No entries match these filters. Try another search.")
-                            .multilineTextAlignment(.center)
-                    }.frame(maxWidth: .infinity)
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass").accessibilityHidden(true)
+                TextField(shared ? "Search shared memories" : "Search private entries", text: $search)
+                    .submitLabel(.done).onSubmit { ReachKeyboard.dismiss() }
+                if !search.isEmpty {
+                    Button { search = "" } label: { Image(systemName: "xmark.circle.fill") }
+                        .accessibilityLabel("Clear search")
                 }
             }
-            ForEach(visibleEntries) { entry in
-                RelationshipEntryCard(entry: entry, edit: { editing = entry }, delete: { deleting = entry })
-            }
-            NavigationLink {
-                ReachHomeView()
-            } label: {
-                Label("Development demo · simulated connections", systemImage: "hammer")
-                    .font(.footnote).padding(16).background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 16))
+            .padding(.horizontal, 16).frame(minHeight: 48)
+            .background(.black.opacity(0.45), in: Capsule())
+            .overlay { Capsule().strokeBorder(.white.opacity(0.2)).allowsHitTesting(false) }
+
+            if shared {
+                SharedRelationshipShelf(kind: .memory, search: search, privateCopy: $copyToShare)
+            } else {
+                privateScrapbook
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .onChange(of: shared) { _, value in
+            search = ""
+            if !value { copyToShare = nil }
+        }
         .sheet(item: $editing) { RelationshipEntryEditor(entry: $0) }
         .alert("Delete this local entry?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), presenting: deleting) { entry in
             Button("Delete", role: .destructive) { perform { try store.delete(entry) } }
             Button("Cancel", role: .cancel) {}
-        } message: { _ in Text("This removes it from this iPhone. There is no shared copy or undo.") }
+        } message: { _ in Text("This removes it from this iPhone. It does not remove a separately shared copy.") }
+    }
+
+    @ViewBuilder private var privateScrapbook: some View {
+        if appearance.preferences.showMessage && !appearance.preferences.personalMessage.isEmpty {
+            Text(appearance.preferences.personalMessage).italic().multilineTextAlignment(.center)
+        }
+        JournalStorageNotice()
+        Picker("Together section", selection: $selected) {
+            Text("Memories").tag(RelationshipEntry.Kind.memory)
+            Text("Questions").tag(RelationshipEntry.Kind.question)
+            Text("Date ideas").tag(RelationshipEntry.Kind.dateIdea)
+            Text("Reminders").tag(RelationshipEntry.Kind.reminder)
+        }.pickerStyle(.menu).font(.headline)
+        if selected == .dateIdea { Toggle("Planned dates only", isOn: $onlyPlanned) }
+        suggestions
+        Button { editing = RelationshipEntry(kind: selected) } label: {
+            Label("Add \(selected.label.lowercased())", systemImage: "plus")
+                .frame(minHeight: 44)
+        }.buttonStyle(.borderedProminent).disabled(store.loadError != nil)
+        if let error { Text(error).font(.footnote).accessibilityLabel("Save error: " + error) }
+        if visibleEntries.isEmpty {
+            ReachGlassPanel {
+                VStack(spacing: 12) {
+                    Image(systemName: "heart.text.square").font(.largeTitle)
+                    Text("A little space for the two of you").font(.headline)
+                    Text(store.entries(selected).isEmpty ? "Add your first \(selected.label.lowercased()). Only you can see it on this iPhone." : "No entries match these filters. Try another search.")
+                        .multilineTextAlignment(.center)
+                }.frame(maxWidth: .infinity)
+            }
+        }
+        ForEach(visibleEntries) { entry in
+            RelationshipEntryCard(entry: entry, edit: { editing = entry }, delete: { deleting = entry }) {
+                if entry.kind == .memory {
+                    Button("Share a copy…") {
+                        copyToShare = entry
+                        shared = true
+                    }.frame(minHeight: 44)
+                }
+            }
+        }
+        NavigationLink {
+            ReachHomeView()
+        } label: {
+            Label("Development demo · simulated connections", systemImage: "hammer")
+                .font(.footnote).padding(16).background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 16))
+        }
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder private var suggestions: some View {
@@ -142,21 +178,23 @@ struct JournalStorageNotice: View {
     }
 }
 
-struct RelationshipEntryCard: View {
+struct RelationshipEntryCard<Actions: View>: View {
     let entry: RelationshipEntry
     let edit: () -> Void
     let delete: () -> Void
+    @ViewBuilder var extraActions: Actions
     var body: some View {
         ReachGlassPanel {
             VStack(alignment: .leading, spacing: 12) {
+                if let data = entry.photo, let image = UIImage(data: data) {
+                    Image(uiImage: image).resizable().scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: 300)
+                        .clipShape(RoundedRectangle(cornerRadius: 16)).accessibilityLabel("Your selected memory photograph")
+                }
                 Text(entry.title).font(.title3.weight(.semibold))
                 Text(entry.date, style: .date).font(.caption)
                 if !entry.category.isEmpty { Text(entry.category).font(.caption).bold() }
                 if !entry.body.isEmpty { Text(entry.body).textSelection(.enabled) }
-                if let data = entry.photo, let image = UIImage(data: data) {
-                    Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 280)
-                        .clipShape(RoundedRectangle(cornerRadius: 16)).accessibilityLabel("Your selected memory photograph")
-                }
                 if entry.kind == .dateIdea || entry.kind == .reminder {
                     Text(entry.status.rawValue.capitalized).font(.caption.weight(.medium))
                 }
@@ -165,8 +203,15 @@ struct RelationshipEntryCard: View {
                     Spacer()
                     Button("Delete", role: .destructive, action: delete).frame(minHeight: 44)
                 }.buttonStyle(.bordered)
+                extraActions.buttonStyle(.bordered)
             }
         }
+    }
+}
+
+extension RelationshipEntryCard where Actions == EmptyView {
+    init(entry: RelationshipEntry, edit: @escaping () -> Void, delete: @escaping () -> Void) {
+        self.init(entry: entry, edit: edit, delete: delete) { EmptyView() }
     }
 }
 

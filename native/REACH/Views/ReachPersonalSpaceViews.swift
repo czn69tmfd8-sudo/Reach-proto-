@@ -2,6 +2,59 @@ import SwiftUI
 import PhotosUI
 
 struct ReachUsView: View {
+    private enum Space: String, CaseIterable, Identifiable {
+        case story = "Our Story", goals = "Our Goals", questions = "Our Questions", plans = "Our Plans", profile = "Our Profile"
+        var id: Self { self }
+    }
+    @State private var space: Space = .story
+    @State private var privateStory = false
+    @State private var editingQuestion: RelationshipEntry?
+    @EnvironmentObject private var journal: RelationshipJournalStore
+
+    var body: some View {
+        ReachPage {
+            Text("Us").font(.largeTitle.bold())
+            Text("A little space to grow together.").font(.subheadline)
+            Picker("Relationship space", selection: $space) {
+                ForEach(Space.allCases) { Text($0.rawValue).tag($0) }
+            }.pickerStyle(.menu).font(.headline)
+            switch space {
+            case .story:
+                Picker("Story visibility", selection: $privateStory) {
+                    Text("Shared timeline").tag(false)
+                    Text("Private dates").tag(true)
+                }.pickerStyle(.segmented)
+                if privateStory { RelationshipMilestonesView() }
+                else { SharedRelationshipShelf(kind: .milestone, privateCopy: .constant(nil)) }
+            case .goals:
+                SharedRelationshipShelf(kind: .goal, privateCopy: .constant(nil))
+            case .questions:
+                let prompt = RelationshipPrompts.daily(RelationshipPrompts.questions, on: Date())
+                ReachGlassPanel {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Today’s question").font(.headline)
+                        Text(prompt).font(.title3)
+                        Button("Answer privately") {
+                            editingQuestion = journal.entries(.question).first {
+                                $0.title == prompt && Calendar.current.isDateInToday($0.date)
+                            } ?? RelationshipEntry(kind: .question, title: prompt)
+                        }.buttonStyle(.bordered).disabled(journal.loadError != nil)
+                    }
+                }
+                JournalStorageNotice()
+                SharedRelationshipShelf(kind: .response, privateCopy: .constant(nil), suggestedTitle: prompt)
+            case .plans:
+                SharedRelationshipShelf(kind: .plan, privateCopy: .constant(nil), ideas: RelationshipPrompts.dateIdeas)
+            case .profile:
+                ReachProfilePanel()
+            }
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .sheet(item: $editingQuestion) { RelationshipEntryEditor(entry: $0) }
+    }
+}
+
+private struct ReachProfilePanel: View {
     @EnvironmentObject private var appearance: ReachAppearanceStore
     @State private var selection: PhotosPickerItem?
     @State private var slot: ReachAppearanceStore.Photo = .own
@@ -9,8 +62,7 @@ struct ReachUsView: View {
     @State private var loading = false
 
     var body: some View {
-        ReachPage {
-            Text("Us").font(.largeTitle.bold())
+        VStack(spacing: 16) {
             ReachGlassPanel {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Make this space yours").font(.title2.weight(.semibold))
@@ -36,7 +88,6 @@ struct ReachUsView: View {
                 .textFieldStyle(.roundedBorder)
                 .submitLabel(.done).onSubmit { ReachKeyboard.dismiss() }
             }
-            RelationshipMilestonesView()
             ReachGlassPanel {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Your photographs").font(.headline)
@@ -58,7 +109,6 @@ struct ReachUsView: View {
                 }
             }
         }
-        .toolbar(.hidden, for: .navigationBar)
         .onChange(of: slot) { _, _ in selection = nil; imageError = nil }
         .task(id: selection) {
             guard let selection else { return }

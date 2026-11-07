@@ -71,3 +71,46 @@ has NOT been executed here. Existing emulator access was blocked by automatic
 approval review; no retry or bypass was attempted. Node syntax checks are not rules
 execution. Swift pure-policy tests cover exact-snapshot consent, field/path bounds,
 membership, both locks and owner-only edits/deletion; they also await a Swift runner.
+
+## Together and Us relationship space
+
+`relationship-space.proposed.rules` is a standalone emulator input for the new
+`nativeStaging/v1/relationshipSpace/{pairCode}/entries/{entryID}` path. It does not
+replace the older draft or any existing rules. No application or deployment
+configuration points at this file. Build 5 does not use the new path.
+
+- Each server read and write checks the existing authenticated UID, an unrevoked
+  pair, and both current member locks. Only the author can edit or delete an
+  entry. The kind and author cannot be changed. An edit and delete are conditional
+  on the reviewed document update time. If that version has changed, the client
+  prompts for a refresh. A create requires a new UUID and a missing document.
+  Retrying an identical committed write recognizes the existing payload.
+- Memory photos are re-encoded as JPEG without source metadata (960-pixel longest
+  side, 250 KB maximum) and stored inline with the entry as bounded Firestore
+  bytes. There are no public URLs or separate Storage rules. The server limits
+  the bytes, field shape and entry kind. The client uses bounded thumbnails when
+  rendering bytes, since Rules cannot verify the image codec.
+- The private v1 journal and appearance files are used as before. Copying a
+  private memory to Shared uses a new ID and explicit review and confirmation.
+  Removing the shared entry leaves its private original intact. Question
+  responses and profile settings remain private unless a separate shared
+  response is explicitly written and confirmed. No share queue runs unattended.
+- Shared snapshots are memory-only. The foreground view refreshes every 15
+  seconds and supports manual refresh. It loads up to 50 entries per page across
+  the shared space, with cursor-based older/newer navigation. A transient
+  outage can show a recently verified snapshot for up to 45 seconds; a denied
+  request, account change, backgrounding, or expiry clears it. Retrying a draft
+  requires another explicit tap. No shared data is available offline after
+  relaunch.
+- Revocation or re-pairing denies server access to the old collection and does
+  not transfer its contents. Author deletion is available while the pair is
+  active. Old documents remain inaccessible after revocation; an administrative
+  retention/deletion policy is required before rollout. REACH cannot retract
+  content a recipient previously copied or captured.
+
+Before a staging rollout, run the standalone emulator tests and verify an additive
+merge against the current published staging rules and the Build 5 regression
+suite. Approval is required for any rule release or administrative cleanup.
+There are no new project, Storage, or composite-index requirements in this draft.
+Validate native compilation and the full UI against two authorized staging
+installations before preparing a release.
