@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 from pathlib import Path
 import subprocess
@@ -9,7 +10,7 @@ guard = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(guard)
 
 ROOT = Path(__file__).resolve().parents[2]
-APPROVED = '7e7ac1d28885f0abb3f409570d1b11566d663058'
+APPROVED = 'c67f05b4440fe2dcdfdd5746779cb176a6f213ea2acb2dbb870a214ebc60eb1e'
 
 
 class SprintSourceTests(unittest.TestCase):
@@ -28,7 +29,8 @@ class SprintSourceTests(unittest.TestCase):
         self.write('.gitignore', 'Ignored.swift\n')
         self.git('init', '-q')
         self.commit()
-        self.approved = self.git('rev-parse', 'HEAD').strip()
+        tree = subprocess.check_output(['git', 'ls-tree', '-rz', 'HEAD', '--', *guard.SOURCE_PATHS], cwd=self.root)
+        self.approved = hashlib.sha256(tree).hexdigest()
 
     def git(self, *args):
         return subprocess.check_output(['git', *args], cwd=self.root, text=True, stderr=subprocess.PIPE)
@@ -88,9 +90,9 @@ class SprintSourceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Unexpected source entry'):
             guard.verify(self.approved, self.root)
 
-    def test_missing_approved_commit_is_rejected(self):
-        with self.assertRaises(subprocess.CalledProcessError):
-            guard.verify('0' * 40, self.root)
+    def test_incorrect_approved_fingerprint_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'Committed sprint source differs'):
+            guard.verify('0' * 64, self.root)
 
     def test_sprint_workflow_enforces_fixed_pin_before_build_steps(self):
         workflow = (ROOT / 'codemagic.yaml').read_text()

@@ -49,15 +49,33 @@ final class RelationshipJournalStoreTests: XCTestCase {
         XCTAssertThrowsError(try store.save(RelationshipEntry(kind: .memory, title: "Not committed")))
         XCTAssertTrue(store.journal.entries.isEmpty)
     }
+    func testJournalWriterRequestsAtomicCompleteProtection() {
+        XCTAssertEqual(LocalRelationshipFile.writingOptions, [.atomic, .completeFileProtection])
+    }
+
     @MainActor func testJournalFileIsProtectedAndExcludedFromBackup() async throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let folder = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                                 appropriateFor: nil, create: true)
+            .appendingPathComponent("ReachJournalTest-\(UUID())", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("journal.json")
         let store = RelationshipJournalStore(url: url)
-        try store.save(RelationshipEntry(kind: .memory, title: "Private"))
-        XCTAssertEqual(try folder.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup, true)
-        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-        XCTAssertEqual(attributes[.protectionKey] as? FileProtectionType, .complete)
+
+        for (index, title) in ["Private", "Second entry"].enumerated() {
+            try store.save(RelationshipEntry(kind: .memory, title: title))
+            let savedFolder = URL(fileURLWithPath: folder.path, isDirectory: true)
+            let backupExclusion = try savedFolder.resourceValues(forKeys: [.isExcludedFromBackupKey])
+            XCTAssertEqual(backupExclusion.isExcludedFromBackup, true)
+            XCTAssertEqual(RelationshipJournalStore(url: url).entries(.memory).count, index + 1)
+
+            #if !targetEnvironment(simulator)
+            // Read fresh metadata after each write, including the atomic replacement.
+            // Simulator tests verify the requested policy without relying on this attribute.
+            let savedFile = URL(fileURLWithPath: url.path)
+            let attributes = try savedFile.resourceValues(forKeys: [.fileProtectionKey])
+            XCTAssertEqual(attributes.fileProtection, .complete)
+            #endif
+        }
     }
     @MainActor func testOriginalSunsetIsAvailableFromTheCompiledAssetCatalog() async {
         XCTAssertNotNil(UIImage(named: "OriginalSunset", in: Bundle.main, compatibleWith: nil))

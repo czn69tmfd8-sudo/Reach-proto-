@@ -4,6 +4,12 @@ import Foundation
 struct LocalRelationshipFile {
     let url: URL
     static let maximumFileBytes = 12_000_000
+    #if os(iOS)
+    static let writingOptions: Data.WritingOptions = [.atomic, .completeFileProtection]
+    #else
+    static let writingOptions: Data.WritingOptions = .atomic
+    #endif
+
     func load() throws -> RelationshipJournal {
         guard FileManager.default.fileExists(atPath: url.path) else { return RelationshipJournal() }
         do {
@@ -25,10 +31,6 @@ struct LocalRelationshipFile {
         var folder = directory
         var values = URLResourceValues(); values.isExcludedFromBackup = true
         try folder.setResourceValues(values)
-        #if os(iOS)
-        try data.write(to: url, options: [.atomic, .completeFileProtection])
-        #else
-        try data.write(to: url, options: .atomic)
-        #endif
+        try data.write(to: url, options: Self.writingOptions)
     }
 }

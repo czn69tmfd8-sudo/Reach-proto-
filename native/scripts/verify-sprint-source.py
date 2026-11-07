@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Verify the sprint build inputs against an approved Git commit."""
+"""Verify the sprint build inputs against an approved Git tree fingerprint."""
+import hashlib
 import os
 from pathlib import Path
 import stat
@@ -14,15 +15,15 @@ SOURCE_PATHS = (
 )
 
 
-def verify(commit, repository):
+def verify(fingerprint, repository):
     repository = Path(repository)
 
     def git(*args):
         return subprocess.check_output(['git', *args], cwd=repository, stderr=subprocess.PIPE)
 
-    approved = git('ls-tree', '-rz', commit, '--', *SOURCE_PATHS)
-    if git('ls-tree', '-rz', 'HEAD', '--', *SOURCE_PATHS) != approved:
-        raise ValueError('Committed sprint source differs from the approved commit.')
+    approved = git('ls-tree', '-rz', 'HEAD', '--', *SOURCE_PATHS)
+    if hashlib.sha256(approved).hexdigest() != fingerprint:
+        raise ValueError('Committed sprint source differs from the approved fingerprint.')
 
     expected = {}
     for entry in approved.split(b'\0'):
@@ -63,4 +64,4 @@ if __name__ == '__main__':
         raise SystemExit(f'Sprint source verification failed: {error.stderr.decode(errors="replace").strip()}')
     except (IndexError, OSError, ValueError) as error:
         raise SystemExit(f'Sprint source verification failed: {error}')
-    print(f'Sprint build inputs match approved commit {sys.argv[1]}.')
+    print(f'Sprint build inputs match approved fingerprint {sys.argv[1]}.')
