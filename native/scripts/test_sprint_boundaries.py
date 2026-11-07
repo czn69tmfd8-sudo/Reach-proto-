@@ -1,5 +1,6 @@
 """Offline regression checks for staging, release baseline and private-content isolation."""
 from pathlib import Path
+import plistlib
 import subprocess
 import unittest
 
@@ -63,7 +64,7 @@ class SprintBoundaryTests(unittest.TestCase):
         for path in [ROOT/'firebase.json', ROOT/'native/firebase/firebase.json', ROOT/'codemagic.yaml']:
             self.assertNotIn(candidate, path.read_text())
 
-    def test_relationship_validation_is_an_unsigned_addition_to_build_five_workflows(self):
+    def test_relationship_validation_signs_only_the_simulator_and_preserves_build_five_workflows(self):
         baseline = '641cc0debc41f3e60517ab1880d8444ab9c5dc94'
         original = subprocess.check_output(['git', 'show', f'{baseline}:codemagic.yaml'], cwd=ROOT).decode()
         current = (ROOT / 'codemagic.yaml').read_text()
@@ -73,9 +74,24 @@ class SprintBoundaryTests(unittest.TestCase):
         self.assertTrue(prefix.startswith('workflows:\n  reach-ios-relationship-validation:'))
         for forbidden in ['publishing:', 'triggering:', 'artifacts:', 'groups:', 'ios_signing:',
                           'integrations:', 'archive', 'upload-symbols', 'firebase deploy', 'use-profiles',
-                          'CODE_SIGNING_ALLOWED=YES']:
+                          'skip-testing', 'continue-on-error']:
             self.assertNotIn(forbidden, prefix)
-        self.assertEqual(prefix.count('CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""'), 2)
+        _, simulator = prefix.split('      - name: Run simulator XCTest', 1)
+        simulator, device = simulator.split('      - name: Compile unsigned physical iPhone target', 1)
+        self.assertIn('-destination "platform=iOS Simulator,id=$DEVICE_ID"', simulator)
+        self.assertIn('CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY="-" test || TEST_EXIT=$?', simulator)
+        self.assertIn('exit "$TEST_EXIT"', simulator)
+        self.assertNotIn('CODE_SIGNING_ALLOWED=NO', simulator)
+        self.assertIn("-destination 'generic/platform=iOS'", device)
+        self.assertIn('CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build', device)
+        self.assertEqual(prefix.count('CODE_SIGNING_ALLOWED=YES'), 1)
+        self.assertEqual(prefix.count('CODE_SIGNING_ALLOWED=NO'), 1)
+        project = (ROOT / 'native/project.yml').read_text()
+        self.assertIn('"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": Configuration/Simulator.entitlements', project)
+        entitlements = plistlib.loads((ROOT / 'native/Configuration/Simulator.entitlements').read_bytes())
+        app_id = 'REACHSIM00.com.reachprototype.app'
+        self.assertEqual(entitlements['application-identifier'], app_id)
+        self.assertEqual(entitlements['keychain-access-groups'], [app_id])
         self.assertIn('verify-sprint-source.py', prefix)
         self.assertIn('GoogleService-Info.plist', prefix)
         self.assertIn('xcresulttool get test-results summary', prefix)

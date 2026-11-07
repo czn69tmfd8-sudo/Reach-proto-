@@ -1,6 +1,6 @@
 workflows:
   reach-ios-relationship-validation:
-    name: REACH relationship validation only (unsigned, no uploads)
+    name: REACH relationship validation only (simulator signing, no uploads)
     instance_type: mac_mini_m2
     max_build_duration: 60
     environment:
@@ -16,7 +16,7 @@ workflows:
           xcodebuild -version
           python3 -m unittest discover -s native/scripts -p 'test_*.py'
           python3 native/scripts/run-portable-tests.py
-      - name: Run unsigned simulator XCTest
+      - name: Run simulator XCTest with local ad-hoc signing
         script: |
           set -euo pipefail
           if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
@@ -24,15 +24,20 @@ workflows:
           xcodegen generate
           DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; devices=json.load(sys.stdin)["devices"]; ids=[d["udid"] for runtime, items in devices.items() if runtime.startswith("com.apple.CoreSimulator.SimRuntime.iOS-") for d in items if d.get("isAvailable") and d["name"].startswith("iPhone")]; sys.exit("No available iPhone simulator") if not ids else print(ids[0])')
           xcrun simctl bootstatus "$DEVICE_ID" -b
-          set +e
+          TEST_EXIT=0
           xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Debug \
             -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath DerivedData \
             -resultBundlePath RelationshipValidation.xcresult -parallel-testing-enabled NO \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" test
-          TEST_EXIT=$?
-          set -e
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY="-" test || TEST_EXIT=$?
+          if [ "$TEST_EXIT" -ne 0 ]; then
+            HOST_APP=DerivedData/Build/Products/Debug-iphonesimulator/REACH.app
+            if [ -d "$HOST_APP" ]; then
+              codesign -d --entitlements :- "$HOST_APP" || true
+            fi
+          fi
           if test -d RelationshipValidation.xcresult; then
-            xcrun xcresulttool get test-results summary --path RelationshipValidation.xcresult
+            xcrun xcresulttool get test-results summary --path RelationshipValidation.xcresult \
+              || echo "Could not read simulator XCTest summary." >&2
           fi
           exit "$TEST_EXIT"
       - name: Compile unsigned physical iPhone target

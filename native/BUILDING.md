@@ -33,6 +33,17 @@ reported Firebase `SecItemCopyMatching (-34018)` and could not persist identity.
 These settings are conditional on the simulator SDK and do not authorize device
 installation or TestFlight. `KeychainAccessTests` verifies actual local credential I/O.
 
+For relationship validation, manually select `reach-ios-relationship-validation`
+on `native-reach`. It uses that same simulator-only signing and runs the full
+suite, followed by an unsigned iPhone compile. If XCTest fails, the workflow
+prints the built host's entitlements when available and preserves the test exit
+status. If Keychain still fails on hosted CI, rerun the same test in the REACH
+scheme on an iPhone simulator on a trusted Mac, with local ad-hoc signing and no
+`GoogleService-Info.plist`. A simulator pass covers the test credential's
+insert, read and deletion, including confirming it is absent after deletion.
+Physical-device Keychain behavior requires a separate test on a registered
+development iPhone with approved Apple Development signing and synthetic data.
+
 The WebRTC regression test uses the SDK's injectable audio-device API to isolate
 SDP negotiation from the hosted simulator's unavailable CoreAudio backend. Both
 real peers still create audio/video tracks, generate/apply offer/answer, check
