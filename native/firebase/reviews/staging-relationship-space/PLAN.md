@@ -21,8 +21,15 @@ standalone proposal must never be published on its own.
 
 1. Run the complete suite with a locally installed, approved emulator. Confirm
    its executable and runtime are present before invoking the Firebase CLI so
-   there is no implicit dependency download. From `native/firebase`, use
-   `REACH_SHARED_MERGED=1 npm test`. This runs existing native/web regressions
+   there is no implicit dependency download. From `native/firebase`, with the
+   approved emulator already running, use:
+
+   ```sh
+   printf '%s\n' "${FIRESTORE_EMULATOR_HOST:-}" | grep -Eq '^127[.]0[.]0[.]1:[0-9]+$' &&
+     REACH_SHARED_MERGED=1 node --test --test-concurrency=1 *.test.mjs
+   ```
+
+   This uses the installed Node packages directly and runs existing native/web regressions
    and the new auth, expired-invite, re-pair, revocation, pilot-flag, photo and
    REST concurrency tests. The new suite loads and verifies the exact checked-in
    candidate by default. Use an approved macOS validation runner for native
@@ -49,6 +56,18 @@ standalone proposal must never be published on its own.
    and deletes, a 250 KB photo on weak Wi-Fi, concurrent edits, offline/online
    transitions, revocation, and re-pairing. Keep real couple data out of the pilot
    until an administrative retention and deletion process has been approved.
+
+## Validation record
+
+| Check | Result or blocker |
+| --- | --- |
+| Local Python and offline JavaScript tests | 58 Python and 23 JavaScript tests passed, including exact artifact, tamper and additive-merge checks. |
+| Build 5 regression boundary | Original release source guard passed on a reconstructed Build 5 tree. Pairing, auth, signaling, calls, release workflow, and current rules remain unchanged. Installed-device smoke tests are pending. |
+| Merged Firestore rule execution | Pending. No approved local emulator was running or installed. The exact-candidate suite includes revocation, cross-couple isolation, expired invitations, accepted pairs after the invite deadline, unauthorized edits/deletes, concurrent writes, photo size limits and legacy native/web regressions. |
+| Native compilation and XCTest | Pending. Local Xcode and Swift were unavailable. The existing GitHub Actions native CI installs XcodeGen and resolves Swift packages. The Codemagic validation-only workflow is pinned to an earlier app fingerprint and also needs dependencies. Use a preprovisioned macOS runner or explicitly approve required downloads and an exact-source validation-only run. |
+| Together and Us review | Source inspection verified separate visibility labels, initial and retry loading indicators, bounded photo previews, and blocked shared mutations while offline. Simulator/device interaction, accessibility, reconnect behavior, and photo timing remain unverified. |
+| Live Firestore release | Pending authenticated readback of the complete staging rules and release ID. No live staging changes were made. |
+| Two-device pilot | Pending validated native build, reviewed staging publication, and separate approval for one synthetic test pair. No real couple data is needed. |
 
 ## Rollback
 

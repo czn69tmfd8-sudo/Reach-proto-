@@ -27,8 +27,10 @@ struct TogetherView: View {
                 Text("Private").tag(false)
                 Text("Shared").tag(true)
             }.pickerStyle(.segmented)
-            Text(shared ? "Shared scrapbook · visible to both authorized partners" : "Private on this iPhone")
-                .font(.caption.weight(.semibold)).multilineTextAlignment(.center)
+            if !shared {
+                Label("Private on this iPhone", systemImage: "lock")
+                    .font(.caption.weight(.semibold)).multilineTextAlignment(.center)
+            }
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass").accessibilityHidden(true)
                 TextField(shared ? "Search shared memories" : "Search private entries", text: $search)

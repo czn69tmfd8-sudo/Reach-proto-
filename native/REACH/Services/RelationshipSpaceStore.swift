@@ -5,7 +5,7 @@ import Foundation
 @MainActor
 final class RelationshipSpaceStore: ObservableObject {
     enum Status: Equatable {
-        case loading, ready, offline, unavailable
+        case loading, ready, offline, connectionUnavailable, unavailable
     }
 
     @Published private(set) var scope: RelationshipScope?
@@ -14,10 +14,10 @@ final class RelationshipSpaceStore: ObservableObject {
     @Published private(set) var pageNumber = 1
     @Published private(set) var hasOlderEntries = false
     @Published private(set) var isWriting = false
+    @Published private(set) var isRefreshing = false
     private let transport = RelationshipSpaceTransport()
     private var session = UUID()
     private var verified: RelationshipOfflineWindow?
-    private var refreshing = false
     private var expiry: Task<Void, Never>?
     private var pageStarts: [RelationshipSpaceTransport.Cursor] = []
     private var nextPage: RelationshipSpaceTransport.Cursor?
@@ -42,7 +42,7 @@ final class RelationshipSpaceStore: ObservableObject {
 
     func reset() {
         session = UUID()
-        refreshing = false
+        isRefreshing = false
         isWriting = false
         clear(status: .loading)
     }
@@ -60,10 +60,10 @@ final class RelationshipSpaceStore: ObservableObject {
     }
 
     private func load(_ requestedPages: [RelationshipSpaceTransport.Cursor]) async {
-        guard !refreshing, !isWriting else { return }
+        guard !isRefreshing, !isWriting else { return }
         let session = self.session
-        refreshing = true
-        defer { if self.session == session { refreshing = false } }
+        isRefreshing = true
+        defer { if self.session == session { isRefreshing = false } }
         guard let auth = try? transport.authenticate(), let uid = auth.currentUser?.uid else {
             clear(status: .unavailable)
             return
@@ -92,8 +92,9 @@ final class RelationshipSpaceStore: ObservableObject {
             guard self.session == session, !Task.isCancelled else { return }
             if (error as? RelationshipSpaceError) == .unauthorized || auth.currentUser?.uid != uid {
                 clear(status: .unavailable)
-            } else if Self.isTransient(error), canRead(at: Date()) {
-                status = .offline
+            } else if Self.isTransient(error) {
+                if canRead(at: Date()) { status = .offline }
+                else { clear(status: .connectionUnavailable) }
             } else {
                 clear(status: .unavailable)
             }
@@ -109,6 +110,10 @@ final class RelationshipSpaceStore: ObservableObject {
 
     func canRead(at date: Date) -> Bool { verified?.permitsReading(at: date) == true }
 
+    var canWrite: Bool {
+        status == .ready && !isRefreshing && !isWriting && scope != nil && canRead(at: Date())
+    }
+
     func save(_ consent: SharedRelationshipConsent) async throws {
         try await write(in: consent.scope) { try await transport.save(consent, in: consent.scope) }
     }
@@ -119,7 +124,7 @@ final class RelationshipSpaceStore: ObservableObject {
 
     private func write(in expectedScope: RelationshipScope, operation: () async throws -> Void) async throws {
         guard scope == expectedScope, canRead(at: Date()) else { throw RelationshipSpaceError.unauthorized }
-        guard !isWriting, !refreshing else { throw RelationshipSpaceError.unavailable }
+        guard canWrite else { throw RelationshipSpaceError.unavailable }
         let session = self.session
         isWriting = true
         do {
