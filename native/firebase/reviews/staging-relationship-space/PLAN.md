@@ -61,13 +61,23 @@ standalone proposal must never be published on its own.
 
 | Check | Result or blocker |
 | --- | --- |
-| Local Python and offline JavaScript tests | 58 Python and 23 JavaScript tests passed, including exact artifact, tamper and additive-merge checks. |
+| Local Python and JavaScript tests | 59 Python and 9 staging JavaScript tests passed. The emulator run includes the exact artifact, tamper and additive-merge checks. |
 | Build 5 regression boundary | Original release source guard passed on a reconstructed Build 5 tree. Pairing, auth, signaling, calls, release workflow, and current rules remain unchanged. Installed-device smoke tests are pending. |
-| Merged Firestore rule execution | Pending. No approved local emulator was running or installed. The exact-candidate suite includes revocation, cross-couple isolation, expired invitations, accepted pairs after the invite deadline, unauthorized edits/deletes, concurrent writes, photo size limits and legacy native/web regressions. |
-| Native compilation and XCTest | Pending. Local Xcode and Swift were unavailable. The existing GitHub Actions native CI installs XcodeGen and resolves Swift packages. The Codemagic validation-only workflow is pinned to an earlier app fingerprint and also needs dependencies. Use a preprovisioned macOS runner or explicitly approve required downloads and an exact-source validation-only run. |
-| Together and Us review | Source inspection verified separate visibility labels, initial and retry loading indicators, bounded photo previews, and blocked shared mutations while offline. Simulator/device interaction, accessibility, reconnect behavior, and photo timing remain unverified. |
+| Merged Firestore rule execution | Passed 117/117 with Firebase CLI 14.22.0, Firestore emulator 1.19.8 and Java 17. The exact-candidate suite covered revocation, cross-couple isolation, expired invitations, accepted pairs after the invite deadline, unauthorized edits/deletes, concurrent writes, photo size limits and legacy native/web regressions. |
+| Portable Swift XCTest | Passed 152/152 on Linux with official Swift 6.0.3. Includes offline snapshot expiry and clock rollback, reconnect policy, pairing authorization, and shared write precondition encoding. |
+| Native compilation and XCTest | Pending an authenticated macOS run. The manual `reach-ios-relationship-validation` workflow checks the reviewed source fingerprint, runs portable and simulator XCTest, and compiles the iPhone target. Signing is disabled. It has no triggers, credentials, artifact exports, or publisher. |
+| Together and Us review | Source inspection verified separate visibility labels, initial and retry loading indicators, bounded photo previews, and blocked shared mutations while offline. Simulator/device interaction, VoiceOver and Dynamic Type, actual network reconnect behavior, and photo timing remain unverified. The unsigned iOS XCTest run includes synthetic photo resize and invalid-input checks. |
 | Live Firestore release | Pending authenticated readback of the complete staging rules and release ID. No live staging changes were made. |
 | Two-device pilot | Pending validated native build, reviewed staging publication, and separate approval for one synthetic test pair. No real couple data is needed. |
+
+### Runtime finding
+
+On the initial run both concurrent REST PATCH requests were rejected. The
+emulator interpreted the version passed in the URL as zero. The client now
+sends the version or existence condition in the Firestore Commit JSON payload.
+The focused REST test confirms one concurrent update wins, a stale update and
+delete fail, and a duplicate create is rejected. The rules checksum did not
+change. The suite ran with only synthetic accounts in demo projects.
 
 ## Rollback
 

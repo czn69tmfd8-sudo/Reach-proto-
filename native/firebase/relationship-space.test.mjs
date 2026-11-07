@@ -140,9 +140,9 @@ test('sharing grants no outsider access to legacy paths', async () => {
 
 test('REST sync uses scoped queries and rejects a stale edit or duplicate create', async () => {
   const host = process.env.FIRESTORE_EMULATOR_HOST;
-  const root = `http://${host}/v1/projects/${project}/databases/(default)/documents/`;
+  const root = `http://${host}/v1/projects/${project}/databases/(default)/documents`;
   const path = entries(code) + '/' + id(1);
-  const call = (uid, resource, method, body) => fetch(root + resource, {
+  const call = (uid, resource, method, body) => fetch(root + (resource === ':commit' ? resource : '/' + resource), {
     method,
     headers: {
       Authorization: 'Bearer ' + createMockUserToken({sub: uid}, project),
@@ -150,15 +150,16 @@ test('REST sync uses scoped queries and rejects a stale edit or duplicate create
     },
     body: body == null ? undefined : JSON.stringify(body),
   });
-  const document = {fields: {
+  const name = `projects/${project}/databases/(default)/documents/${path}`;
+  const commit = (uid, write) => call(uid, ':commit', 'POST', {writes: [write]});
+  const document = {name, fields: {
     kind: {stringValue: 'memory'}, authorUid: {stringValue: 'a'}, title: {stringValue: 'Original'},
     caption: {stringValue: ''}, eventAt: {timestampValue: '2026-11-07T00:00:00Z'},
     progress: {integerValue: '0'},
   }};
-  const create = await call('a', path + '?currentDocument.exists=false', 'PATCH', document);
+  const create = await commit('a', {update: document, currentDocument: {exists: false}});
   assert(create.ok, await create.clone().text());
-  const created = await create.json();
-  const version = encodeURIComponent(created.updateTime);
+  const {writeResults: [{updateTime: version}]} = await create.json();
   const queryBody = {structuredQuery: {
     from: [{collectionId: 'entries'}],
     orderBy: [
@@ -176,22 +177,23 @@ test('REST sync uses scoped queries and rejects a stale edit or duplicate create
   }});
   assert(projection.ok, await projection.clone().text());
   const [row] = await projection.json();
-  assert.equal(row.document.updateTime, created.updateTime);
+  assert.equal(row.document.updateTime, version);
   assert.deepEqual(Object.keys(row.document.fields), ['eventAt']);
 
   document.fields.title.stringValue = 'New title';
   const competing = structuredClone(document);
   competing.fields.title.stringValue = 'Concurrent edit';
   const writes = await Promise.all([document, competing].map(body =>
-    call('a', path + '?currentDocument.updateTime=' + version, 'PATCH', body)));
-  assert.equal(writes.filter(response => response.ok).length, 1);
+    commit('a', {update: body, currentDocument: {updateTime: version}})));
+  const details = await Promise.all(writes.map(async response => [response.status, await response.clone().text()]));
+  assert.equal(writes.filter(response => response.ok).length, 1, JSON.stringify(details));
   const winningTitle = writes[0].ok ? 'New title' : 'Concurrent edit';
-  const staleDelete = await call('a', path + '?currentDocument.updateTime=' + version, 'DELETE');
+  const staleDelete = await commit('a', {delete: name, currentDocument: {updateTime: version}});
   assert(!staleDelete.ok);
   document.fields.title.stringValue = 'Stale overwrite';
-  const stale = await call('a', path + '?currentDocument.updateTime=' + version, 'PATCH', document);
+  const stale = await commit('a', {update: document, currentDocument: {updateTime: version}});
   assert.equal((await stale.json()).error.status, 'FAILED_PRECONDITION');
-  const duplicate = await call('a', path + '?currentDocument.exists=false', 'PATCH', document);
+  const duplicate = await commit('a', {update: document, currentDocument: {exists: false}});
   assert(!duplicate.ok);
   assert.equal((await getDoc(entry('b'))).data().title, winningTitle);
 });

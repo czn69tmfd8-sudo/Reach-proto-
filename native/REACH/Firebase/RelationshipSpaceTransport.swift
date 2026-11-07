@@ -17,6 +17,16 @@ final class RelationshipSpaceTransport {
         var fields: [String: Value]
         var updateTime: String?
     }
+    private struct Write: Encodable {
+        var update: Document?
+        var delete: String?
+        let currentDocument: SharedWritePrecondition
+    }
+
+    private struct Commit: Encodable {
+        let writes: [Write]
+    }
+
     struct Cursor: Equatable {
         let eventAt: String
         let documentName: String
@@ -28,7 +38,7 @@ final class RelationshipSpaceTransport {
         var document: Document?
     }
 
-    private let base = URL(string: "https://firestore.googleapis.com/v1/projects/reach-staging-a4745/databases/(default)/documents/")!
+    private let base = URL(string: "https://firestore.googleapis.com/v1/projects/reach-staging-a4745/databases/(default)/documents")!
     private let network: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.urlCache = nil
@@ -122,11 +132,10 @@ final class RelationshipSpaceTransport {
             "eventAt": Value(timestampValue: format.string(from: entry.date)),
             "progress": Value(integerValue: String(entry.progress))
         ]
-        var document = Document(fields: fields)
+        var document = Document(name: resourceName(scope, id: entry.id), fields: fields)
         if let photo = entry.photo { document.fields["photo"] = Value(bytesValue: photo) }
-        let payload = try JSONEncoder().encode(document)
         do {
-            _ = try await request(resource, token: token, method: "PATCH", query: [consent.precondition], body: payload)
+            try await commit(Write(update: document, currentDocument: consent.precondition), token: token)
         } catch RelationshipSpaceError.conflict {
             // A timed-out write may already have landed. A retry never overwrites a newer version.
             let existing: Document = try await read(resource, token: token, missing: .conflict)
@@ -141,8 +150,8 @@ final class RelationshipSpaceTransport {
         let token = try await credential(for: scope.uid)
         let resource = path(scope) + "/" + record.id.uuidString.lowercased()
         do {
-            _ = try await request(resource, token: token, method: "DELETE",
-                query: [URLQueryItem(name: "currentDocument.updateTime", value: record.version)], missing: .conflict)
+            try await commit(Write(delete: resourceName(scope, id: record.id),
+                currentDocument: .atVersion(record.version)), token: token)
         } catch let error as RelationshipSpaceError where error == .conflict || error == .unauthorized {
             do {
                 _ = try await request(resource, token: token, missing: .missing)
@@ -151,6 +160,11 @@ final class RelationshipSpaceTransport {
             }
             throw error
         }
+    }
+
+    private func commit(_ write: Write, token: String) async throws {
+        let payload = try JSONEncoder().encode(Commit(writes: [write]))
+        _ = try await request(":commit", token: token, method: "POST", body: payload, missing: .conflict)
     }
 
     private func credential(for uid: String) async throws -> String {
@@ -184,25 +198,23 @@ final class RelationshipSpaceTransport {
     }
 
     private func read<T: Decodable>(_ resource: String, token: String,
-                                   query: [URLQueryItem] = [], missing: RelationshipSpaceError = .unauthorized) async throws -> T {
-        let data = try await request(resource, token: token, query: query, missing: missing)
+                                   missing: RelationshipSpaceError = .unauthorized) async throws -> T {
+        let data = try await request(resource, token: token, missing: missing)
         guard let value = try? JSONDecoder().decode(T.self, from: data) else { throw RelationshipSpaceError.malformed }
         return value
     }
 
     private func request(_ resource: String, token: String, method: String = "GET",
-                         query: [URLQueryItem] = [], body: Data? = nil,
-                         missing: RelationshipSpaceError = .unauthorized) async throws -> Data {
-        guard var components = URLComponents(string: base.absoluteString + resource) else { throw RelationshipSpaceError.invalid }
-        if !query.isEmpty { components.queryItems = query }
-        guard let url = components.url else { throw RelationshipSpaceError.invalid }
+                         body: Data? = nil, missing: RelationshipSpaceError = .unauthorized) async throws -> Data {
+        let suffix = resource == ":commit" ? resource : "/" + resource
+        guard let url = URL(string: base.absoluteString + suffix) else { throw RelationshipSpaceError.invalid }
         try Task.checkCancellation()
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
-        let isMutation = method == "PATCH" || method == "DELETE"
+        let isMutation = resource == ":commit"
         let (data, response): (Data, URLResponse)
         do { (data, response) = try await network.data(for: request) }
         catch {

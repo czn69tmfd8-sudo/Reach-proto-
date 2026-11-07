@@ -311,7 +311,7 @@ private struct SharedPhotoPreview: View {
 }
 
 @MainActor
-private enum SharedMemoryPhoto {
+enum SharedMemoryPhoto {
     static func prepare(_ data: Data) throws -> Data {
         guard let image = thumbnail(data) else { throw JournalError.invalidPhoto }
         for quality in [0.72, 0.55, 0.4, 0.25] {

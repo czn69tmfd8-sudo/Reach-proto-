@@ -47,7 +47,7 @@ class SprintBoundaryTests(unittest.TestCase):
     def test_build_five_legacy_paths_and_release_workflow_are_untouched(self):
         baseline = '641cc0debc41f3e60517ab1880d8444ab9c5dc94'
         protected = [
-            'codemagic.yaml', 'firebase.json', '.firebaserc', 'index.html', 'staging',
+            'firebase.json', '.firebaserc', 'index.html', 'staging',
             'native/firebase/firestore.rules', 'native/firebase/firebase.json',
             'native/REACH/Firebase/FirebaseBootstrap.swift',
             'native/REACH/Firebase/FirebaseDependencyFactory.swift',
@@ -62,6 +62,23 @@ class SprintBoundaryTests(unittest.TestCase):
         candidate = 'relationship-space.proposed.rules'
         for path in [ROOT/'firebase.json', ROOT/'native/firebase/firebase.json', ROOT/'codemagic.yaml']:
             self.assertNotIn(candidate, path.read_text())
+
+    def test_relationship_validation_is_an_unsigned_addition_to_build_five_workflows(self):
+        baseline = '641cc0debc41f3e60517ab1880d8444ab9c5dc94'
+        original = subprocess.check_output(['git', 'show', f'{baseline}:codemagic.yaml'], cwd=ROOT).decode()
+        current = (ROOT / 'codemagic.yaml').read_text()
+        marker = '  reach-ios-simulator:'
+        prefix, tail = current.split(marker, 1)
+        self.assertEqual('workflows:\n' + marker + tail, original)
+        self.assertTrue(prefix.startswith('workflows:\n  reach-ios-relationship-validation:'))
+        for forbidden in ['publishing:', 'triggering:', 'artifacts:', 'groups:', 'ios_signing:',
+                          'integrations:', 'archive', 'upload-symbols', 'firebase deploy', 'use-profiles',
+                          'CODE_SIGNING_ALLOWED=YES']:
+            self.assertNotIn(forbidden, prefix)
+        self.assertEqual(prefix.count('CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""'), 2)
+        self.assertIn('verify-sprint-source.py', prefix)
+        self.assertIn('GoogleService-Info.plist', prefix)
+        self.assertIn('xcresulttool get test-results summary', prefix)
 
     def test_new_validation_workflow_has_no_publisher_credentials_or_trigger(self):
         workflow = (ROOT / 'codemagic.yaml').read_text().split('  reach-ios-sprint-validation:',1)[1].split('  reach-ios-testflight-archive:',1)[0]

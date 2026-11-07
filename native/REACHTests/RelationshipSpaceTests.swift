@@ -34,14 +34,14 @@ final class RelationshipSpaceTests: XCTestCase {
     func testNewWriteRequiresAbsenceAndEditRequiresReviewedVersion() throws {
         let entry = SharedRelationshipEntry(kind: .goal, title: "Take a trip", progress: 40)
         let create = SharedRelationshipConsent(scope: scope, entry: entry, previous: nil)
-        XCTAssertEqual(create.precondition.name, "currentDocument.exists")
-        XCTAssertEqual(create.precondition.value, "false")
+        let encodedCreate = try JSONEncoder().encode(create.precondition)
+        XCTAssertEqual(String(decoding: encodedCreate, as: UTF8.self), #"{"exists":false}"#)
         try create.validate(for: scope)
 
         let record = SharedRelationshipRecord(entry: entry, scope: scope, authorUID: "a", version: "reviewed")
         let edit = SharedRelationshipConsent(scope: scope, entry: entry, previous: record)
-        XCTAssertEqual(edit.precondition.name, "currentDocument.updateTime")
-        XCTAssertEqual(edit.precondition.value, "reviewed")
+        let encodedEdit = try JSONEncoder().encode(edit.precondition)
+        XCTAssertEqual(String(decoding: encodedEdit, as: UTF8.self), #"{"updateTime":"reviewed"}"#)
         try edit.validate(for: scope)
         for differentScope in [
             RelationshipScope(uid: "b", pairCode: scope.pairCode),

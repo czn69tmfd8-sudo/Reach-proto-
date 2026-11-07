@@ -83,9 +83,8 @@ struct SharedRelationshipConsent: Equatable, Sendable {
     let entry: SharedRelationshipEntry
     let previous: SharedRelationshipRecord?
 
-    var precondition: URLQueryItem {
-        previous.map { URLQueryItem(name: "currentDocument.updateTime", value: $0.version) }
-            ?? URLQueryItem(name: "currentDocument.exists", value: "false")
+    var precondition: SharedWritePrecondition {
+        previous.map { .atVersion($0.version) } ?? .missing
     }
 
     func validate(for activeScope: RelationshipScope) throws {
@@ -95,6 +94,18 @@ struct SharedRelationshipConsent: Equatable, Sendable {
             guard previous.isOwned(by: scope), previous.id == entry.id,
                   previous.entry.kind == entry.kind else { throw RelationshipSpaceError.unauthorized }
         }
+    }
+}
+
+/// Firestore's Write.currentDocument uses exactly one of these JSON fields.
+struct SharedWritePrecondition: Encodable, Equatable {
+    private let exists: Bool?
+    private let updateTime: String?
+
+    static let missing = Self(exists: false, updateTime: nil)
+
+    static func atVersion(_ version: String) -> Self {
+        Self(exists: nil, updateTime: version)
     }
 }
 

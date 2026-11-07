@@ -1,4 +1,48 @@
 workflows:
+  reach-ios-relationship-validation:
+    name: REACH relationship validation only (unsigned, no uploads)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      xcode: latest
+    scripts:
+      - name: Verify reviewed source and run portable tests
+        script: |
+          set -euo pipefail
+          test "$CM_BRANCH" = "native-reach"
+          python3 native/scripts/verify-sprint-source.py 43af880ce6bc456069b3aafe16c6fd1d62c61b39c6c84a0acd1ed6528fb22671
+          test -z "$(find native -name GoogleService-Info.plist -print -quit)"
+          git rev-parse HEAD
+          xcodebuild -version
+          python3 -m unittest discover -s native/scripts -p 'test_*.py'
+          python3 native/scripts/run-portable-tests.py
+      - name: Run unsigned simulator XCTest
+        script: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
+          cd native
+          xcodegen generate
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; devices=json.load(sys.stdin)["devices"]; ids=[d["udid"] for runtime, items in devices.items() if runtime.startswith("com.apple.CoreSimulator.SimRuntime.iOS-") for d in items if d.get("isAvailable") and d["name"].startswith("iPhone")]; sys.exit("No available iPhone simulator") if not ids else print(ids[0])')
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          set +e
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Debug \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath DerivedData \
+            -resultBundlePath RelationshipValidation.xcresult -parallel-testing-enabled NO \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" test
+          TEST_EXIT=$?
+          set -e
+          if test -d RelationshipValidation.xcresult; then
+            xcrun xcresulttool get test-results summary --path RelationshipValidation.xcresult
+          fi
+          exit "$TEST_EXIT"
+      - name: Compile unsigned physical iPhone target
+        script: |
+          set -euo pipefail
+          cd native
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath DeviceDerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+
   reach-ios-simulator:
     name: REACH iPhone simulator (local signing)
     instance_type: mac_mini_m2
