@@ -5,7 +5,7 @@ import Foundation
 @MainActor
 final class StagingCallController: ObservableObject {
     @Published private(set) var peer: NativeWebRTCPeer?
-    @Published private(set) var status = "No live staging call."
+    @Published private(set) var phase = ReachCallPhase.idle
     @Published private(set) var busy = false
     @Published private(set) var diagnostics = ReachPrivateDiagnostics()
     private var generation = UUID()
@@ -19,9 +19,11 @@ final class StagingCallController: ObservableObject {
     private var watchdog = ReachTransportWatchdog()
     private var watchdogTask: Task<Void, Never>?
 
-    func start(join: Bool) async {
-        guard !busy, peer == nil else { return }
+    func start(joining expectedRoomID: String? = nil) async {
+        guard !busy, !phase.hasStarted else { return }
+        let join = expectedRoomID != nil
         busy = true
+        phase = .preparing
         diagnostics.record(.preparing)
         watchdog = ReachTransportWatchdog()
         let token = UUID(); generation = token
@@ -36,13 +38,36 @@ final class StagingCallController: ObservableObject {
             guard generation == token else { throw CancellationError() }
             // Rooms are one-shot: never attach a new peer to an old offer or its ICE.
             if !join, pair.activeRoom != nil { throw ReachRoomCoordinatorError.partnerAlreadyOpen }
+            if let expectedRoomID {
+                guard pair.activeRoom == expectedRoomID,
+                      ReachHandControls.verifiedAvailability(
+                        partnership: partnership, pair: pair,
+                        room: try await dependencies.rooms.room(id: expectedRoomID), now: Date()
+                      ).canTake(at: Date()) else {
+                    throw ReachRoomCoordinatorError.partnerHandUnavailable
+                }
+            }
+            guard generation == token else { return }
             let media = NativeWebRTCPeer()
             peer = media
-            status = "Preparing camera and microphone…"
             try await media.prepare()
             guard generation == token else { media.close(); throw CancellationError() }
             let coordinator = ReachRoomCoordinator(rooms: dependencies.rooms)
-            let session = try await (join ? coordinator.sessionToTake(partnership: partnership, pair: pair) : coordinator.openHand(partnership: partnership, existingPair: pair))
+            let session: ReachSession
+            if let expectedRoomID {
+                // Permission prompts can outlast an invitation. Recheck before subscribing to signaling.
+                guard let currentPair = try await dependencies.pairs.pair(code: partnership.id),
+                      currentPair.activeRoom == expectedRoomID,
+                      ReachHandControls.verifiedAvailability(
+                        partnership: partnership, pair: currentPair,
+                        room: try await dependencies.rooms.room(id: expectedRoomID), now: Date()
+                      ).canTake(at: Date()) else {
+                    throw ReachRoomCoordinatorError.partnerHandUnavailable
+                }
+                session = try await coordinator.sessionToTake(partnership: partnership, pair: currentPair)
+            } else {
+                session = try await coordinator.openHand(partnership: partnership, existingPair: pair)
+            }
             guard generation == token else {
                 media.close()
                 // Opening may have committed while End was pressed.
@@ -54,10 +79,6 @@ final class StagingCallController: ObservableObject {
             inbox = SignalingInbox()
             let role: ReachMediaRole = join ? .joiner : .opener
             let signaling = try FirestoreSignalingTransport()
-            media.onState = { [weak self] value in
-                guard let self, self.generation == token else { return }
-                self.status = value
-            }
             media.onTransportEvent = { [weak self] event in
                 guard let self, self.generation == token else { return }
                 self.handleTransport(event, token: token)
@@ -84,7 +105,7 @@ final class StagingCallController: ObservableObject {
                     } catch { await self?.fail(error, token: token) }
                 })
             }
-            status = join ? "Negotiating media transport…" : "Hand open. Waiting for your partner to take it."
+            if join { phase = .connecting }
             // Snapshot listeners emit existing messages, so late joiners receive the offer and all ICE.
             tasks.append(Task { [weak self] in
                 do {
@@ -134,6 +155,7 @@ final class StagingCallController: ObservableObject {
                 } catch { await self?.fail(error, token: token) }
             })
             guard let room = try await dependencies.rooms.room(id: session.id) else { throw SignalingError.ended }
+            guard generation == token else { return }
             tasks.append(Task { [weak self] in
                 do { try await Task.sleep(for: .seconds(max(0, room.expiresAt.timeIntervalSinceNow))) }
                 catch { return }
@@ -145,6 +167,7 @@ final class StagingCallController: ObservableObject {
                 try await signaling.publishDescription(offer, roomID: session.id, role: role)
             }
             guard generation == token else { return }
+            if phase == .preparing { phase = .outgoing }
             busy = false
         } catch { await fail(error, token: token) }
     }
@@ -157,9 +180,14 @@ final class StagingCallController: ObservableObject {
         }
     }
 
-    func end() async { await stop(message: "Staging call ended.") }
+    func end() async {
+        guard phase.hasStarted else { return }
+        await stop(message: nil)
+    }
 
     private func handleTransport(_ event: ReachTransportWatchdog.Event, token: UUID) {
+        guard generation == token, !watchdog.finished else { return }
+        phase = phase.receiving(event)
         switch event {
         case .connected: diagnostics.record(.connected)
         case .disconnected: diagnostics.record(.interrupted)
@@ -181,6 +209,7 @@ final class StagingCallController: ObservableObject {
                 self.applyWatchdog(self.watchdog.deadlineExpired(id), token: token)
             }
         case .stop:
+            phase = .interrupted
             // Stop capture synchronously, before any Firebase cleanup awaits.
             peer?.close()
             tasks.append(Task { [weak self] in
@@ -195,7 +224,7 @@ final class StagingCallController: ObservableObject {
         await stop(message: ReachErrorPresentation.message(error))
     }
 
-    private func stop(message: String) async {
+    private func stop(message: String?) async {
         generation = UUID()
         let stopToken = generation
         watchdogTask?.cancel(); watchdogTask = nil
@@ -205,7 +234,9 @@ final class StagingCallController: ObservableObject {
         let oldSession = session, oldPartnership = partnership, oldRooms = rooms
         session = nil; partnership = nil; rooms = nil; inbox = SignalingInbox()
         outbox = LocalCandidateOutbox(); drainingCandidates = false
-        busy = true; status = message
+        phase = .ending
+        busy = true
+        var feedback = message
         if let oldSession, let oldPartnership, let oldRooms {
             do {
                 try await SessionCleanupDeadline.run {
@@ -215,11 +246,12 @@ final class StagingCallController: ObservableObject {
             catch {
                 if generation == stopToken {
                     diagnostics.record(.cleanupUnconfirmed)
-                    status = "Media stopped. Server cleanup could not be confirmed. Check pairing management before opening another hand."
+                    feedback = "Media stopped. Check pairing management to finish closing the hand."
                 }
             }
         }
         guard generation == stopToken else { return }
         busy = false
+        phase = feedback.map(ReachCallPhase.failed) ?? .idle
     }
 }

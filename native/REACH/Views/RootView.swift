@@ -23,14 +23,15 @@ struct RootView: View {
 
 private struct StagingConnectionView: View {
     private enum Action: Equatable, Sendable {
-        case refresh, create, accept(String), revoke(String), clearOwnSession
+        case refresh, create, accept(String), revoke(String), clearOwnSession(String)
     }
     private struct Status: Sendable {
         let message: String
         var invitation: String?
         var revocableCode: String?
         var canPair = false
-        var canCloseOwnSession = false
+        var roomID: String?
+        var ownRoomID: String?
         var isPaired = false
         var availability: ReachHomeAvailability = .unavailable
         var checkedAt = Date()
@@ -48,6 +49,7 @@ private struct StagingConnectionView: View {
             }
         }
     }
+    @StateObject private var call = StagingCallController()
     @State private var menuPage: MenuPage?
     @State private var status = Status(message: "Checking staging pairing…", availability: .checking)
     @State private var input = ""
@@ -65,25 +67,28 @@ private struct StagingConnectionView: View {
                         .foregroundStyle(LinearGradient(colors: [.pink, .purple, .cyan], startPoint: .leading, endPoint: .trailing))
                     Text("Same moment. Any distance.")
                         .font(.subheadline).foregroundStyle(.white.opacity(0.9))
+                        .multilineTextAlignment(.center)
                     Text("PRIVATE STAGING").font(.caption2.weight(.bold)).tracking(2)
                         .padding(.horizontal, 12).padding(.vertical, 6)
                         .background(.black.opacity(0.45), in: Capsule())
                 }
                 ReachHomeIdentityHeader(paired: status.isPaired && status.checkedAt.addingTimeInterval(15) > timeline.date)
                     .shadow(color: .black.opacity(0.7), radius: 5)
-                StagingCallView(stopID: mediaStopID, availability: status.availability,
-                                now: timeline.date, pairingBusy: action != nil)
-                if !status.isPaired {
-                    Button("Manage pairing") { menuPage = .pairing }
-                        .buttonStyle(.borderedProminent).tint(.purple)
+                StagingCallView(call: call, stopID: mediaStopID, availability: status.availability,
+                                roomID: status.roomID, now: timeline.date, pairingBusy: action != nil && action != .refresh) { roomID in
+                    action = .clearOwnSession(roomID)
+                }
+                if call.phase.showsHandCards && (!status.isPaired || status.availability.state == .unavailable) {
+                    Button(status.canPair ? "Set up pairing" : "Manage pairing") { menuPage = .pairing }
+                        .buttonStyle(.bordered).tint(.white).frame(minHeight: 44)
                 }
                 if let error { Text(error).font(.footnote).multilineTextAlignment(.center) }
-                Text("Always an invitation. Always your choice.")
-                    .font(.footnote).multilineTextAlignment(.center)
-                    .shadow(color: .black, radius: 5)
             }
         }
-        .toolbarBackground(.hidden, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarBackground(Color(red: 0.12, green: 0.07, blue: 0.19).opacity(0.85), for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Menu {
@@ -101,7 +106,7 @@ private struct StagingConnectionView: View {
             NavigationStack {
                 ReachPage {
                     if page == .pairing { pairingPanel }
-                    else { ReachConnectionInformation(page: page.rawValue) }
+                    else { ReachConnectionInformation(page: page.rawValue, call: call) }
                 }
                 .navigationTitle(page.title).navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { menuPage = nil } } }
@@ -111,9 +116,12 @@ private struct StagingConnectionView: View {
             guard let action else { return }
             error = nil
             do {
-                status = try await Self.perform(action)
+                let updated = try await Self.perform(action)
+                guard !Task.isCancelled else { return }
+                status = updated
                 if case .accept = action { input = "" }
             } catch {
+                guard !Task.isCancelled else { return }
                 self.error = ReachErrorPresentation.message(error)
                 status.availability = .unavailable
                 status.isPaired = false
@@ -125,6 +133,12 @@ private struct StagingConnectionView: View {
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .seconds(5)) } catch { return }
                 if scenePhase == .active && action == nil { action = .refresh }
+            }
+        }
+        .onChange(of: call.phase) { previous, phase in
+            if phase == .ending || previous == .ending {
+                status.availability = .checking
+                if previous == .ending && action == nil { action = .refresh }
             }
         }
         .onChange(of: scenePhase) { _, phase in
@@ -161,8 +175,10 @@ private struct StagingConnectionView: View {
                 DisclosureGroup("Manage connection") {
                     VStack(alignment: .leading, spacing: 14) {
                         Button("Refresh availability") { action = .refresh }.frame(minHeight: 44)
-                        if status.canCloseOwnSession {
-                            Button("Close my previously open hand", role: .destructive) { action = .clearOwnSession }.frame(minHeight: 44)
+                        if let roomID = status.ownRoomID, !call.phase.hasStarted, !call.busy {
+                            Button("Close my previously open hand", role: .destructive) {
+                                action = .clearOwnSession(roomID)
+                            }.frame(minHeight: 44)
                         }
                         if let code = status.revocableCode {
                             Button("Revoke authorization", role: .destructive) { confirmRevocation = true }
@@ -199,10 +215,13 @@ private struct StagingConnectionView: View {
 
         switch action {
         case .refresh: break
-        case .clearOwnSession:
+        case .clearOwnSession(let roomID):
             guard let lock = try await pairs.memberLock(uid: uid),
                   let pair = try await pairs.pair(code: lock.pairCode),
-                  pair.openedBy == uid, let roomID = pair.activeRoom else { throw ReachRoomCoordinatorError.unauthorized }
+                  case .authorized(let partnership) = PairingAuthorization.resolve(uid: uid, memberLock: lock, pairCode: lock.pairCode, pair: pair),
+                  ReachHandControls.canWithdraw(roomID: roomID, partnership: partnership, pair: pair) else {
+                throw ReachRoomCoordinatorError.unauthorized
+            }
             try await dependencies.rooms.clearPairSessionIfCurrent(pairCode: lock.pairCode, roomID: roomID)
         case .create:
             let code = try await pairs.createInvitation()
@@ -228,9 +247,9 @@ private struct StagingConnectionView: View {
             if let roomID = pair.activeRoom { room = try? await dependencies.rooms.room(id: roomID) }
             else { room = nil }
             return Status(message: "Paired and authorized in staging.", revocableCode: lock.pairCode,
-                          canCloseOwnSession: pair.openedBy == uid && pair.activeRoom != nil,
+                          roomID: pair.activeRoom, ownRoomID: pair.openedBy == uid ? pair.activeRoom : nil,
                           isPaired: true,
-                          availability: ReachHomeAvailability.resolve(partnership: partnership, pair: pair, room: room, now: Date()))
+                          availability: ReachHandControls.verifiedAvailability(partnership: partnership, pair: pair, room: room, now: Date()))
         case .pairRevoked:
             return Status(message: "Native pairing revoked. You can pair again.", canPair: true, availability: .unpaired)
         case .pairIncomplete:

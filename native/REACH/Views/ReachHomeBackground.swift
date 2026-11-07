@@ -61,19 +61,19 @@ struct ReachHomeIdentityHeader: View {
     @ScaledMetric(relativeTo: .title) private var photoSize: CGFloat = 92
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 10) {
             HStack(spacing: 8) {
                 portrait(appearance.ownPhoto, label: appearance.preferences.ownLabel, tint: .pink)
                 ReachConnectionHeart(active: paired)
                 portrait(appearance.partnerPhoto, label: appearance.preferences.partnerLabel, tint: .purple)
             }
             .frame(maxWidth: .infinity)
-            Text("\(appearance.preferences.ownLabel) & \(appearance.preferences.partnerLabel)")
-                .font(.title2.weight(.semibold))
-                .multilineTextAlignment(.center)
-            Text(paired ? "Paired in REACH" : "Your space to reach each other")
-                .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.85))
+            if paired {
+                Label("Pairing verified", systemImage: "checkmark.circle")
+                    .font(.caption.weight(.medium))
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(.black.opacity(0.54), in: Capsule())
+            }
         }
         .foregroundStyle(.white)
     }
@@ -96,6 +96,7 @@ struct ReachHomeIdentityHeader: View {
             .accessibilityLabel(photo == nil ? "\(label): profile photo not set" : "\(label): local profile photo")
             Text(label).font(.caption.weight(.semibold)).multilineTextAlignment(.center)
                 .frame(width: min(photoSize, 92))
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -125,16 +126,19 @@ struct ReachPage<Content: View>: View {
     @EnvironmentObject private var appearance: ReachAppearanceStore
     @ViewBuilder var content: Content
     var body: some View {
-        ZStack {
-            ReachHomeBackground(source: appearance.background)
-            ScrollView {
-                VStack(spacing: 22) { content }
-                    .padding(.horizontal, 20).padding(.vertical, 24)
-                    .frame(maxWidth: 620)
-                    .frame(maxWidth: .infinity)
-            }
-            .scrollDismissesKeyboard(.interactively)
+        ScrollView {
+            VStack(spacing: 20) { content }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 24)
+                .frame(maxWidth: 620)
+                .frame(maxWidth: .infinity)
         }
+        .background { ReachHomeBackground(source: appearance.background) }
+        .scrollDismissesKeyboard(.interactively)
+        .toolbarBackground(.visible, for: .tabBar)
+        .toolbarBackground(Color(red: 0.12, green: 0.07, blue: 0.19), for: .tabBar)
+        .toolbarColorScheme(.dark, for: .tabBar)
         .reachKeyboardToolbar()
         .foregroundStyle(.white)
         .tint(.pink)

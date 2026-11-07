@@ -3,6 +3,7 @@ import UIKit
 
 struct ReachConnectionInformation: View {
     let page: String
+    @ObservedObject var call: StagingCallController
     @Environment(\.openURL) private var openURL
     var body: some View {
         ReachGlassPanel {
@@ -29,6 +30,21 @@ struct ReachConnectionInformation: View {
                     Button("Open iPhone app settings") {
                         if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                     }.buttonStyle(.bordered).frame(minHeight: 44)
+                    DisclosureGroup("Call troubleshooting") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(call.phase.title ?? "No active call")
+                                .font(.subheadline.weight(.semibold))
+                            if call.diagnostics.events.isEmpty { Text("No call events yet.") }
+                            ForEach(call.diagnostics.events) { sample in
+                                LabeledContent(sample.event.rawValue) {
+                                    Text(sample.date, style: .time)
+                                }
+                            }
+                            Text("Only the latest 20 event labels and times are kept in memory. No identifiers, signaling payloads, audio or video are included.")
+                                .font(.footnote)
+                        }
+                        .padding(.top, 10)
+                    }
                 }
             }
         }

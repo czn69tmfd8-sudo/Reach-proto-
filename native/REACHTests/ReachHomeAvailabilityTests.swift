@@ -62,4 +62,86 @@ final class ReachHomeAvailabilityTests: XCTestCase {
         var answered = room(); answered.answer = SessionDescriptionRecord(type: "answer", sdp: "existing")
         XCTAssertEqual(ReachHomeAvailability.resolve(partnership: partnership, pair: pair(), room: answered, now: now), .unavailable)
     }
+
+    func testHomeCardsRespectPairingBusyStateAndExpiry() {
+        for hint in [ReachHomeAvailability.unpaired, .checking, .invitation, .unavailable] {
+            let controls = ReachHandControls(availability: hint, now: now, phase: .idle, roomID: nil, busy: false)
+            XCTAssertFalse(controls.canOpen)
+            XCTAssertFalse(controls.canTake)
+            XCTAssertFalse(controls.canWithdraw)
+        }
+        let ready = ReachHomeAvailability(state: .ready, verifiedUntil: now.addingTimeInterval(2))
+        XCTAssertTrue(ReachHandControls(availability: ready, now: now, phase: .idle, roomID: nil, busy: false).canOpen)
+        XCTAssertFalse(ReachHandControls(availability: ready, now: now, phase: .idle, roomID: nil, busy: false).canTake)
+        XCTAssertFalse(ReachHandControls(availability: ready, now: now, phase: .idle, roomID: nil, busy: true).canOpen)
+        XCTAssertFalse(ReachHandControls(availability: ready, now: now.addingTimeInterval(2), phase: .idle, roomID: nil, busy: false).canOpen)
+    }
+
+    func testTakeCardRequiresAnUnansweredValidOfferAndSpecificRoom() {
+        var candidate = room(expiry: 2)
+        func controls(at time: Date, roomID: String? = "room", phase: ReachCallPhase = .idle, busy: Bool = false) -> ReachHandControls {
+            let hint = ReachHandControls.verifiedAvailability(partnership: partnership, pair: pair(), room: candidate, now: now)
+            return ReachHandControls(availability: hint, now: time, phase: phase, roomID: roomID, busy: busy)
+        }
+
+        XCTAssertFalse(controls(at: now).canTake)
+        candidate.offer = SessionDescriptionRecord(type: "offer", sdp: "   ")
+        XCTAssertFalse(controls(at: now).canTake)
+        candidate.offer = SessionDescriptionRecord(type: "answer", sdp: "v=0")
+        XCTAssertFalse(controls(at: now).canTake)
+        candidate.offer = SessionDescriptionRecord(type: "offer", sdp: "v=0")
+        XCTAssertTrue(controls(at: now).canTake)
+        XCTAssertFalse(controls(at: now).canOpen)
+        XCTAssertFalse(controls(at: now, roomID: nil).canTake)
+        XCTAssertFalse(controls(at: now, phase: .connecting).canTake)
+        XCTAssertFalse(controls(at: now, busy: true).canTake)
+        XCTAssertFalse(controls(at: now.addingTimeInterval(2)).canTake)
+        candidate.answer = SessionDescriptionRecord(type: "answer", sdp: "v=0")
+        XCTAssertFalse(controls(at: now).canTake)
+    }
+
+    func testWithdrawalTargetsOnlyTheVerifiedOwnedInvitation() {
+        let ownPair = pair(opener: "local")
+        let ownRoom = room(host: "local", partner: "partner")
+        let hint = ReachHandControls.verifiedAvailability(partnership: partnership, pair: ownPair, room: ownRoom, now: now)
+        let controls = ReachHandControls(availability: hint, now: now, phase: .idle, roomID: "room", busy: false)
+        XCTAssertTrue(controls.showsOutgoing)
+        XCTAssertTrue(controls.canWithdraw)
+        XCTAssertFalse(controls.canOpen)
+        XCTAssertFalse(controls.canTake)
+        XCTAssertFalse(ReachHandControls(availability: hint, now: now.addingTimeInterval(15), phase: .idle, roomID: "room", busy: false).canWithdraw)
+        XCTAssertTrue(ReachHandControls(availability: .checking, now: now, phase: .outgoing, roomID: nil, busy: true).canWithdraw)
+
+        XCTAssertTrue(ReachHandControls.canWithdraw(roomID: "room", partnership: partnership, pair: ownPair))
+        XCTAssertFalse(ReachHandControls.canWithdraw(roomID: "older-room", partnership: partnership, pair: ownPair))
+        XCTAssertFalse(ReachHandControls.canWithdraw(roomID: "room", partnership: partnership, pair: pair()))
+        var revoked = ownPair
+        revoked.revoked = true
+        XCTAssertFalse(ReachHandControls.canWithdraw(roomID: "room", partnership: partnership, pair: revoked))
+    }
+
+    func testOnlyTransportConnectionShowsConnectedAndDisconnectClearsIt() {
+        XCTAssertNil(ReachCallPhase.idle.title)
+        XCTAssertEqual(ReachCallPhase.preparing.receiving(.negotiationStarted), .connecting)
+        XCTAssertEqual(ReachCallPhase.outgoing.receiving(.negotiationStarted), .connecting)
+        let connected = ReachCallPhase.connecting.receiving(.connected)
+        XCTAssertEqual(connected, .connected)
+        XCTAssertEqual(connected.receiving(.negotiationStarted), .connected)
+        let interrupted = connected.receiving(.disconnected)
+        XCTAssertEqual(interrupted, .interrupted)
+        XCTAssertNotEqual(interrupted.title, connected.title)
+        XCTAssertEqual(interrupted.receiving(.connected), .connected)
+        XCTAssertEqual(connected.receiving(.failed), .interrupted)
+        XCTAssertEqual(connected.receiving(.closed), .interrupted)
+        XCTAssertEqual(ReachCallPhase.ending.receiving(.connected), .ending)
+        XCTAssertEqual(ReachCallPhase.idle.receiving(.connected), .idle)
+
+        let ready = ReachHomeAvailability(state: .ready, verifiedUntil: now.addingTimeInterval(2))
+        for phase in [ReachCallPhase.preparing, .connecting, connected, interrupted, .ending] {
+            let controls = ReachHandControls(availability: ready, now: now, phase: phase, roomID: nil, busy: false)
+            XCTAssertFalse(controls.canOpen)
+            XCTAssertFalse(controls.canTake)
+            XCTAssertFalse(controls.canWithdraw)
+        }
+    }
 }
