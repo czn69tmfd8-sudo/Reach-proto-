@@ -238,10 +238,11 @@ workflows:
       xcode: latest
       node: 22
     scripts:
-      - name: Check branch and protected staging baseline
+      - name: Verify approved sprint source and staging boundaries
         script: |
           set -euo pipefail
           test "$CM_BRANCH" = "native-reach"
+          python3 native/scripts/verify-sprint-source.py 7e7ac1d28885f0abb3f409570d1b11566d663058
           git cat-file -e e7591c7c3ebd4c73c35a606de019859df60f9f48^{commit}
           mkdir -p native/build-logs
           git rev-parse HEAD > native/build-logs/sprint-source-commit.txt
