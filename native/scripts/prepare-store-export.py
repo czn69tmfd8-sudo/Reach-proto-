@@ -2,6 +2,7 @@
 """Validate manual TestFlight archive/export inputs. Never contacts Apple or uploads."""
 import argparse
 import importlib.util
+import json
 import os
 from pathlib import Path, PurePosixPath
 import plistlib
@@ -19,6 +20,21 @@ def inputs(environment):
     if not re.fullmatch(r'[1-9][0-9]{0,3}',number):
         raise ValueError('Set REACH_IOS_BUILD_NUMBER to an unused integer from 1 through 9999.')
     return team,number
+
+
+def validate_test_results(summary):
+    # Build 3 had 164 tests. The approved home-screen commit adds four more.
+    passed = summary.get('passedTests')
+    if (
+        summary.get('result') != 'Passed'
+        or type(passed) is not int
+        or passed < 168
+        or summary.get('totalTestCount') != passed
+        or summary.get('failedTests') != 0
+        or summary.get('skippedTests') != 0
+        or summary.get('expectedFailures') != 0
+    ):
+        raise ValueError('Archive requires at least 168 passing native tests and no failures or skips.')
 
 
 def validate_export(options,team):
@@ -94,13 +110,15 @@ def promote_ipa(source,destination,team,number):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser()
-    parser.add_argument('action',choices=['inputs','export','verify-ipa','promote-ipa'])
+    parser.add_argument('action',choices=['inputs','test-results','export','verify-ipa','promote-ipa'])
     parser.add_argument('path',nargs='?')
     parser.add_argument('destination',nargs='?')
     args=parser.parse_args()
     try:
         team,number=inputs(os.environ)
-        if args.action=='export':
+        if args.action=='test-results':
+            validate_test_results(json.loads(Path(args.path).read_text()))
+        elif args.action=='export':
             path=Path(args.path);options=plistlib.loads(path.read_bytes())
             # Keep export local; only the separate publisher may upload a verified IPA.
             options['destination'] = 'export'

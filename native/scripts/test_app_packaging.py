@@ -50,14 +50,30 @@ class AppPackagingTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(bundled).hexdigest(),'b1b72b03ca4f7d331daec329edf39c67136e7ae09daa180ac11b62a56a3f8efc')
         self.assertEqual(struct.unpack('>II',bundled[16:24]),(864,1536))
 
-    def test_build_three_pins_validated_sprint_before_staging_config_install(self):
+    def test_build_four_pins_reviewed_home_source_before_staging_config_install(self):
         workflow=(ROOT.parent/'codemagic.yaml').read_text().split('  reach-ios-testflight-archive:',1)[1]
-        self.assertIn('REACH_IOS_BUILD_NUMBER: "3"',workflow)
-        self.assertIn('test "$REACH_IOS_BUILD_NUMBER" = "3"',workflow)
-        self.assertIn('REACH_APPROVED_APP_COMMIT: 7f47f2dca8ac5704ab154eb62986f0ad2e0020f5',workflow)
-        self.assertIn('test "$REACH_APPROVED_APP_COMMIT" = "7f47f2dca8ac5704ab154eb62986f0ad2e0020f5"',workflow)
+        self.assertIn('REACH_IOS_BUILD_NUMBER: "4"',workflow)
+        self.assertIn('test "$REACH_IOS_BUILD_NUMBER" = "4"',workflow)
+        self.assertIn('REACH_APPROVED_APP_COMMIT: 41999f1663e28f35eb6945983e48d2ade7a26f99',workflow)
+        self.assertIn('test "$REACH_APPROVED_APP_COMMIT" = "41999f1663e28f35eb6945983e48d2ade7a26f99"',workflow)
         self.assertIn('git merge-base --is-ancestor "$REACH_APPROVED_APP_COMMIT" HEAD', workflow)
-        fingerprint = 'c67f05b4440fe2dcdfdd5746779cb176a6f213ea2acb2dbb870a214ebc60eb1e'
+        fingerprint = 'e044a6290c8a4c9eb3a3fd1ceabff3a7e3425b525499a6a9c600ed066daaae6d'
         self.assertIn(f'python3 native/scripts/verify-sprint-source.py {fingerprint}', workflow)
         self.assertLess(workflow.index('verify-sprint-source.py'), workflow.index('install-staging-config.py'))
         self.assertIn('MARKETING_VERSION="0.1.0" CURRENT_PROJECT_VERSION="$REACH_IOS_BUILD_NUMBER" archive',workflow)
+
+
+    def test_native_test_results_gate_runs_before_signing_archive_and_promotion(self):
+        workflow = (ROOT.parent/'codemagic.yaml').read_text().split('  reach-ios-testflight-archive:', 1)[1]
+        steps = [
+            'rm -rf native/build/testflight native/build/testflight-unverified',
+            'verify-sprint-source.py',
+            'rm -f build-logs/test-summary.json',
+            'bash scripts/run-simulator-tests.sh',
+            'prepare-store-export.py test-results build-logs/test-summary.json',
+            'xcode-project use-profiles',
+            'CURRENT_PROJECT_VERSION="$REACH_IOS_BUILD_NUMBER" archive',
+            'promote-ipa build/testflight-unverified build/testflight',
+        ]
+        positions = [workflow.index(step) for step in steps]
+        self.assertEqual(positions, sorted(positions))

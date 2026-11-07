@@ -13,6 +13,20 @@ class StoreExportTests(unittest.TestCase):
         self.assertEqual(store.inputs({'REACH_APPLE_TEAM_ID':'TESTTEAM00','REACH_IOS_BUILD_NUMBER':'12'}),('TESTTEAM00','12'))
         for patch in [{'REACH_APPLE_TEAM_ID':''},{'REACH_APPLE_TEAM_ID':'short'},{'REACH_IOS_BUILD_NUMBER':'0'},{'REACH_IOS_BUILD_NUMBER':'1; upload'},{'REACH_IOS_BUILD_NUMBER':'10000'}]:
             with self.subTest(patch=patch),self.assertRaises(ValueError):store.inputs({'REACH_APPLE_TEAM_ID':'TESTTEAM00','REACH_IOS_BUILD_NUMBER':'12',**patch})
+    def test_native_results_must_report_a_complete_passing_suite(self):
+        summary = dict(result='Passed', passedTests=168, totalTestCount=168,
+                       failedTests=0, skippedTests=0, expectedFailures=0)
+        store.validate_test_results(summary)
+        for patch in (
+            dict(result='Failed'), dict(passedTests=167, totalTestCount=167),
+            dict(failedTests=1), dict(skippedTests=1), dict(expectedFailures=1),
+            dict(totalTestCount=169), dict(passedTests='168'),
+        ):
+            with self.subTest(patch=patch), self.assertRaises(ValueError):
+                store.validate_test_results({**summary, **patch})
+        with self.assertRaises(ValueError):
+            store.validate_test_results({})
+
     def test_store_only_exact_bundle_team_and_local_export(self):
         store.validate_export(self.options(),'TESTTEAM00')
         for patch in [{'method':'ad-hoc'},{'method':'development'},{'teamID':'OTHERTEAM0'},{'destination':'upload'},{'uploadSymbols':True},{'testFlightInternalTestingOnly':False},{'manageAppVersionAndBuildNumber':True},{'provisioningProfiles':{'other.bundle':'profile'}},{'provisioningProfiles':{}}]:
