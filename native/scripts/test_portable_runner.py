@@ -32,18 +32,30 @@ class PortableRunnerTests(unittest.TestCase):
             macos.assert_called_once()
             direct.assert_not_called()
 
+    def assert_macos_failure_preserved(self, root):
+        executable = root / 'toolchain/swift'; executable.parent.mkdir(); executable.write_text('fixture')
+        package = root / 'package'
+        failure = subprocess.CalledProcessError(1, ['swift', 'test'])
+        with patch.object(portable, 'native', root / 'native'), patch.object(portable.subprocess, 'run', side_effect=failure) as run:
+            with self.assertRaises(subprocess.CalledProcessError):
+                portable.run_macos_tests(package, executable.with_name('swiftc'))
+        # The runner resolves the selected compiler's toolchain directory. macOS
+        # temporary paths commonly have symlinked parents (/var -> /private/var).
+        run.assert_called_once_with([str(executable.resolve()), 'test', '--package-path', str(package), '--enable-xctest'], check=True)
+        self.assertTrue((root / 'native/build-logs/portable-macos-failure/Package.swift').is_file())
+        self.assertTrue((root / 'native/build-logs/portable-macos-failure/Tests/REACHTests').is_dir())
+
     def test_macos_test_failures_propagate_and_preserve_package(self):
         with tempfile.TemporaryDirectory() as folder:
+            self.assert_macos_failure_preserved(Path(folder))
+
+    def test_macos_failure_check_accepts_symlinked_temporary_directory(self):
+        with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            executable = root / 'toolchain/swift'; executable.parent.mkdir(); executable.write_text('fixture')
-            package = root / 'package'
-            failure = subprocess.CalledProcessError(1, ['swift', 'test'])
-            with patch.object(portable, 'native', root / 'native'), patch.object(portable.subprocess, 'run', side_effect=failure) as run:
-                with self.assertRaises(subprocess.CalledProcessError):
-                    portable.run_macos_tests(package, executable.with_name('swiftc'))
-            run.assert_called_once_with([str(executable), 'test', '--package-path', str(package), '--enable-xctest'], check=True)
-            self.assertTrue((root / 'native/build-logs/portable-macos-failure/Package.swift').is_file())
-            self.assertTrue((root / 'native/build-logs/portable-macos-failure/Tests/REACHTests').is_dir())
+            real = root / 'real'; real.mkdir()
+            alias = root / 'alias'; alias.symlink_to(real, target_is_directory=True)
+            self.assertNotEqual(str(alias), str(alias.resolve()))
+            self.assert_macos_failure_preserved(alias)
 
     def test_validation_checks_app_identity_without_reverting_runner_fix(self):
         workflow = (Path(__file__).resolve().parents[2] / 'codemagic.yaml').read_text().split('  reach-ios-validation:', 1)[1].split('  reach-ios-testflight-archive:', 1)[0]

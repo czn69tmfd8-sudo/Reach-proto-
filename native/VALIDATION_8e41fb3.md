@@ -57,3 +57,25 @@ archive/upload workflow.
 After a run, record actual compile/test counts, per-method results, screenshot
 review, Xcode/SDK versions and remaining failures before declaring TestFlight
 readiness. Any app fixes require another validation run on the fixed source.
+
+## Follow-up: temporary-path regression reproduced locally
+
+The second run's step log was not available in the supplied files at the time of
+this correction. Its screenshots establish Step 3 exit code 1, not the failing
+command. Do not reuse the first run's XCTest error as evidence for this run.
+
+Independently reproduced a defect in `test_portable_runner.py`:
+`test_macos_test_failures_propagate_and_preserve_package` expected an unresolved
+fixture executable path, while the runner intentionally resolves its compiler
+path. Under a symlinked temporary directory this fails `assert_called_once_with`
+with `AssertionError: expected call not found`, before any real Swift command.
+The expected path is now canonicalized too, preserving all command arguments,
+exit-status checks and diagnostic assertions. A dedicated symlink regression
+covers the same failure on Linux as well as macOS. Production runner logic,
+application/test/project source, workflow source guard and publishing isolation
+are unchanged.
+
+After correction, all 36 Python checks pass both with normal and symlinked
+temporary roots; the 9 offline web tests pass. The new step log is still needed to
+confirm whether this reproduced defect was the second Codemagic run's cause.
+No new build, emulator run or upload was initiated.
