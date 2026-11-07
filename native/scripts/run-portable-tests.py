@@ -27,7 +27,7 @@ sources = [
 ]
 test_names = [
     'ReachSignalingValidationTests', 'ReachRoomCoordinatorTests', 'PairSessionInterpreterTests',
-    'RelationshipJournalTests', 'LocalRelationshipFileTests', 'ReachCallReviewTests',
+    'RelationshipJournalTests', 'LocalRelationshipFileTests', 'SharedContentPolicyTests', 'ReachCallReviewTests',
     'ReachHomeAvailabilityTests', 'ReachAppearancePreferencesTests',
     'ReachConnectionMachineTests', 'ReachJoinPolicyTests', 'CallbackDeadlineTests',
     'ReachMediaPolicyTests', 'SignalingInboxTests', 'ReachEnvironmentTests',

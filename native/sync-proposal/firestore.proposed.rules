@@ -1,0 +1,48 @@
+// REVIEW ONLY. Not referenced by any deployment configuration. Never deploy alone:
+// this proposal intentionally grants NO existing pairing or calling writes.
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  function signed() { return request.auth != null; }
+  function code(c) { return c is string && c.matches('[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{12}'); }
+  function id(v) { return v is string && v.matches('[^/]+') && !(v in ['.','..']) && !v.matches('__.*__') && v.toUtf8().size() <= 1500; }
+  function pp(c) { return /databases/$(database)/documents/nativeStaging/v1/pairInvites/$(c); }
+  function lp(u) { return /databases/$(database)/documents/nativeStaging/v1/memberLocks/$(u); }
+  function item(c,i) { return /databases/$(database)/documents/nativeStaging/v1/coupleContent/$(c)/items/$(i); }
+  function lock(u,c) { return exists(lp(u)) && get(lp(u)).data.get('pairCode',null) == c; }
+  function pairedData(p,c) {
+   return p is map && id(p.get('hostUid',null)) && id(p.get('partnerUid',null))
+    && p.hostUid != p.partnerUid && request.auth.uid in [p.hostUid,p.partnerUid]
+    && p.get('revoked',false) == false && lock(p.hostUid,c) && lock(p.partnerUid,c);
+  }
+  function paired(c) {
+   return signed() && code(c) && exists(pp(c)) && pairedData(get(pp(c)).data,c);
+  }
+  function validQuestion(c,q) {
+   return id(q) && exists(item(c,q)) && get(item(c,q)).data.get('kind',null) == 'question';
+  }
+  function valid(d,c) {
+   return d.keys().hasAll(['kind','authorUid','title','text','eventAt','category','status','questionId','createdAt','updatedAt','consentedAt'])
+    && d.keys().hasOnly(['kind','authorUid','title','text','eventAt','category','status','questionId','createdAt','updatedAt','consentedAt'])
+    && d.kind in ['memory','question','response','dateIdea'] && d.authorUid == request.auth.uid
+    && d.title is string && d.title.size() > 0 && d.title.size() <= 120
+    && d.text is string && d.text.size() <= 6000 && d.eventAt is timestamp
+    && d.category is string && d.category.size() <= 40 && d.status in ['saved','planned','completed','dismissed']
+    && (d.kind == 'response' ? validQuestion(c,d.questionId) : d.questionId == null)
+    && d.updatedAt == request.time && d.consentedAt == request.time;
+  }
+  match /nativeStaging/v1/coupleContent/{pairCode}/items/{entryID} {
+   allow get,list: if paired(pairCode);
+   allow create: if paired(pairCode) && id(entryID) && valid(request.resource.data,pairCode)
+    && request.resource.data.createdAt == request.time;
+   allow update: if paired(pairCode) && valid(request.resource.data,pairCode)
+    && resource.data.authorUid == request.auth.uid
+    && request.resource.data.authorUid == resource.data.authorUid
+    && request.resource.data.kind == resource.data.kind
+    && request.resource.data.questionId == resource.data.questionId
+    && request.resource.data.createdAt == resource.data.createdAt;
+   allow delete: if paired(pairCode) && resource.data.authorUid == request.auth.uid;
+  }
+  match /{document=**} { allow read,write: if false; }
+ }
+}
