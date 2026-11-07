@@ -71,9 +71,10 @@ does not validate rules. Live rules remain byte-identical to the baseline.
   passes bash syntax checking. Existing workflows compare equal to e7591c7.
 - Changed Swift files parse with tree-sitter without new syntax errors. Some unchanged
   Swift 6 constructs exceed that parser's grammar; it is not a compiler/type checker.
-- 26 XCTest methods added: journal model 8, file persistence 3, iOS store/resources 6,
-  sharing policy 6, call review 3. Total declared native tests: 157. These have NOT
-  executed here. Portable runner exits explicitly: `swiftc is required; this script
+- 32 XCTest methods added: journal model 8, file persistence 3, iOS store/resources 6,
+  sharing policy 6, call review 3, UIKit behavior 6. Total declared native tests: 163. These have NOT
+  executed here. UIKit behavior tests cover input hit-testing, observer cleanup
+  and sanitized errors; actual keyboard interaction still needs simulator/device UI checks. Portable runner exits explicitly: `swiftc is required; this script
   does not install a toolchain.` Xcode, iOS SDK and simulator are unavailable here.
 - Seven proposed-rules emulator scenarios added, not executed. The prior automatic
   approval review blocked possible external Firebase access; no emulator retry or
@@ -84,7 +85,7 @@ does not validate rules. Live rules remain byte-identical to the baseline.
   `7e62b5e95f939d56155ce047634ead33023dfd1e6b35a6e20cb3601c7ddc00b8`.
 
 The previous successful run of 131 native tests applies to the release baseline;
-it is not evidence that the additional 26 tests or new UI pass.
+it is not evidence that the additional 32 tests or new UI pass.
 
 ## Next authorized action requires owner approval
 
@@ -106,7 +107,7 @@ reject this sprint's app/test changes before staging configuration installation.
 Do not run that archive for the new sprint. A later release review must approve the
 new application source and an unused build number before updating the release pin.
 
-After approved macOS validation, inspect all 157 test results and any compiler
+After approved macOS validation, inspect all 163 test results and any compiler
 warnings/errors. Verify keyboard dismissal/focus, menu and End/revoke behavior while
 sheets are presented, photo import/cancel/reset, corrupt/full local storage, journal
 CRUD/search/daily rollover, narrow iPhones, large Dynamic Type, VoiceOver, Reduce
