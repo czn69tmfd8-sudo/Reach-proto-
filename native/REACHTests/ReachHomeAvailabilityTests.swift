@@ -47,7 +47,8 @@ final class ReachHomeAvailabilityTests: XCTestCase {
         }
     }
     func testIncompletePointerAndOutsiderMembershipFailClosed() {
-        var outsider = pair(); outsider.hostUid = "outsider"
+        let outsider = PairRecord(hostUid: "outsider", partnerUid: "partner", revoked: false,
+                                  activeRoom: "room", openedBy: "partner")
         for record in [pair(room: nil), pair(opener: nil), pair(opener: "outsider"), outsider] {
             XCTAssertEqual(ReachHomeAvailability.resolve(partnership: partnership, pair: record, room: room(), now: now), .unavailable)
         }

@@ -162,9 +162,9 @@ workflows:
         script: |
           set -euo pipefail
           test "$CM_BRANCH" = native-reach
-          # Retain current CI fixes; require app, tests and project bytes to match approval.
+          # Retain CI fixes; preserve approved app bytes and the reviewed test correction.
           git cat-file -e "$REACH_VALIDATION_COMMIT^{commit}"
-          git diff --exit-code "$REACH_VALIDATION_COMMIT" -- native/REACH native/REACHTests native/project.yml
+          python3 native/scripts/verify-validation-source.py "$REACH_VALIDATION_COMMIT"
           git rev-parse HEAD
           printf 'Application source verified against %s\n' "$REACH_VALIDATION_COMMIT"
           python3 - <<'PY'

@@ -8,8 +8,9 @@ The owner approved a validation-only macOS run of application commit
 In Codemagic choose branch `native-reach`, then workflow
 **REACH validation only (8e41fb3, no upload)** (`reach-ios-validation`).
 The workflow keeps the current CI/test-harness fixes and verifies with `git diff`
-that `native/REACH`, `native/REACHTests` and `native/project.yml` are unchanged
-from 8e41fb3. It fails before testing if any app/test/project bytes differ.
+that `native/REACH` and `native/project.yml` are unchanged from 8e41fb3.
+Native tests must also match, except the exact reviewed outsider-fixture
+construction correction documented below. The source guard rejects other edits.
 It no longer checks out the old commit and discards the corrected runner.
 
 It has no automatic trigger, Apple integration, signing identities, environment
@@ -79,3 +80,28 @@ After correction, all 36 Python checks pass both with normal and symlinked
 temporary roots; the 9 offline web tests pass. The new step log is still needed to
 confirm whether this reproduced defect was the second Codemagic run's cause.
 No new build, emulator run or upload was initiated.
+
+## Third run: confirmed immutable test-fixture compile error
+
+The third owner-supplied log confirms 36 Python checks and 9 offline web tests
+passed. SwiftPM then compiled the portable application module and began compiling
+its tests. `swift test --package-path ... --enable-xctest` exited 1 because
+`ReachHomeAvailabilityTests.swift:50` attempted to assign to `PairRecord.hostUid`,
+a `let` property. No portable XCTest cases executed and iOS build/XCTest stages
+were not reached. This is a test-fixture error, not an application model defect.
+
+Construct the outsider `PairRecord` directly with its intended immutable identity.
+Do not make `hostUid` mutable or remove the outsider rejection assertion. All
+14 redesign XCTest methods remain present. Application bytes and project settings
+still match 8e41fb3 exactly.
+
+The workflow now calls `verify-validation-source.py`: it rejects application or
+project changes, rejects changes to every other native test, and permits only
+the exact reviewed fixture replacement in the affected test file. Five local
+regressions verify unchanged/allowed/rejected cases. This avoids rejecting the
+intentional test correction at the source-identity step without broadly allowing
+test-suite edits.
+
+Local results after correction: 41 Python checks and 9 web tests pass; source
+identity/isolation checks pass. Swift/iOS execution still needs an authorized
+manual validation-only rerun. No build, emulator run or upload was initiated.

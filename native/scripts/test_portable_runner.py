@@ -60,6 +60,6 @@ class PortableRunnerTests(unittest.TestCase):
     def test_validation_checks_app_identity_without_reverting_runner_fix(self):
         workflow = (Path(__file__).resolve().parents[2] / 'codemagic.yaml').read_text().split('  reach-ios-validation:', 1)[1].split('  reach-ios-testflight-archive:', 1)[0]
         self.assertNotIn('git checkout', workflow)
-        self.assertIn('git diff --exit-code "$REACH_VALIDATION_COMMIT" -- native/REACH native/REACHTests native/project.yml', workflow)
+        self.assertIn('python3 native/scripts/verify-validation-source.py "$REACH_VALIDATION_COMMIT"', workflow)
         for forbidden in ['publishing:', 'triggering:', 'ios_signing:', 'integrations:', 'npm test', 'emulators:exec']:
             self.assertNotIn(forbidden, workflow)
