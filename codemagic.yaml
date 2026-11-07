@@ -229,6 +229,66 @@ workflows:
       - native/build-logs/**
       - native/TestResults.xcresult
 
+  reach-ios-sprint-validation:
+    name: REACH next sprint validation only (manual, no upload)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    # No Firebase variable groups, distribution signing, publisher or push trigger.
+    environment:
+      xcode: latest
+      node: 22
+    scripts:
+      - name: Check branch and protected staging baseline
+        script: |
+          set -euo pipefail
+          test "$CM_BRANCH" = "native-reach"
+          git cat-file -e e7591c7c3ebd4c73c35a606de019859df60f9f48^{commit}
+          mkdir -p native/build-logs
+          git rev-parse HEAD > native/build-logs/sprint-source-commit.txt
+          git rev-parse HEAD:native/REACH > native/build-logs/sprint-app-tree.txt
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          assert not list(Path('native/REACH').rglob('GoogleService-Info.plist')), 'Validation requires no live Firebase client configuration'
+          PYCODE
+          python3 -m unittest discover -s native/scripts -p 'test_*.py'
+          node --test staging/*.test.mjs
+          node --check native/firebase/sync-proposal.test.mjs
+          python3 native/scripts/run-portable-tests.py
+      - name: Generate Xcode project and select iPhone simulator
+        script: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
+          cd native
+          xcodegen generate
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; ids=[x["udid"] for r,xs in d.items() if r.startswith("com.apple.CoreSimulator.SimRuntime.iOS-") for x in xs if x.get("isAvailable") and x["name"].startswith("iPhone")]; sys.exit("No available iPhone simulator") if not ids else print(ids[0])')
+          echo "DEVICE_ID=$DEVICE_ID" >> "$CM_ENV"
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+      - name: Run all native tests and verify bundled sunset
+        script: |
+          set -euo pipefail
+          cd native
+          bash scripts/run-simulator-tests.sh
+          test -s DerivedData/Build/Products/Debug-iphonesimulator/REACH.app/Assets.car
+          test -s DerivedData/Build/Products/Debug-iphonesimulator/REACH.app/PrivacyInfo.xcprivacy
+      - name: Launch simulator and capture interface evidence
+        script: |
+          set -euo pipefail
+          cd native
+          xcrun simctl install "$DEVICE_ID" DerivedData/Build/Products/Debug-iphonesimulator/REACH.app
+          xcrun simctl launch --terminate-running-process "$DEVICE_ID" com.reachprototype.app
+          sleep 3
+          xcrun simctl io "$DEVICE_ID" screenshot build-logs/sprint-launch.png
+      - name: Compile unsigned physical iPhone target
+        script: |
+          set -euo pipefail
+          cd native
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath DeviceDerivedData \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build-logs/sprint-device-compile.log
+    artifacts:
+      - native/build-logs/**
+      - native/TestResults.xcresult
+
   reach-ios-testflight-archive:
     name: REACH staging TestFlight (manual build, automatic upload)
     instance_type: mac_mini_m2
