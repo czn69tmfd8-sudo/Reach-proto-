@@ -3,6 +3,7 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var appearance = ReachAppearanceStore()
+    @StateObject private var journal = RelationshipJournalStore()
 
     var body: some View {
         TabView(selection: $appState.selectedTab) {
@@ -13,7 +14,9 @@ struct RootView: View {
             NavigationStack { ReachUsView() }
                 .tabItem { Label("Us", systemImage: "person.2.fill") }.tag(AppTab.us)
         }
+        .background(ReachKeyboardObserver().frame(width: 0, height: 0))
         .environmentObject(appearance)
+        .environmentObject(journal)
         .tint(.pink)
     }
 }
@@ -32,6 +35,20 @@ private struct StagingConnectionView: View {
         var availability: ReachHomeAvailability = .unavailable
         var checkedAt = Date()
     }
+    private enum MenuPage: String, Identifiable {
+        case pairing, connection, privacy, security, about
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .pairing: return "Pairing management"
+            case .connection: return "Connection information"
+            case .privacy: return "Privacy"
+            case .security: return "Security"
+            case .about: return "About REACH"
+            }
+        }
+    }
+    @State private var menuPage: MenuPage?
     @State private var status = Status(message: "Checking staging pairing…", availability: .checking)
     @State private var input = ""
     @State private var action: Action? = .refresh
@@ -52,18 +69,44 @@ private struct StagingConnectionView: View {
                         .padding(.horizontal, 12).padding(.vertical, 6)
                         .background(.black.opacity(0.45), in: Capsule())
                 }
-                ReachGlassPanel {
-                    ReachHomeIdentityHeader(paired: status.isPaired && status.checkedAt.addingTimeInterval(15) > timeline.date)
-                }
+                ReachHomeIdentityHeader(paired: status.isPaired && status.checkedAt.addingTimeInterval(15) > timeline.date)
+                    .shadow(color: .black.opacity(0.7), radius: 5)
                 StagingCallView(stopID: mediaStopID, availability: status.availability,
                                 now: timeline.date, pairingBusy: action != nil)
-                pairingPanel
+                if !status.isPaired {
+                    Button("Manage pairing") { menuPage = .pairing }
+                        .buttonStyle(.borderedProminent).tint(.purple)
+                }
+                if let error { Text(error).font(.footnote).multilineTextAlignment(.center) }
                 Text("Always an invitation. Always your choice.")
                     .font(.footnote).multilineTextAlignment(.center)
                     .shadow(color: .black, radius: 5)
             }
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Menu {
+                    ForEach([MenuPage.pairing, .connection, .privacy, .security, .about]) { page in
+                        Button(page.title) { ReachKeyboard.dismiss(); menuPage = page }
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal").font(.title2)
+                        .frame(width: 44, height: 44).background(.black.opacity(0.4), in: Circle())
+                }
+                .accessibilityLabel("REACH menu")
+            }
+        }
+        .sheet(item: $menuPage) { page in
+            NavigationStack {
+                ReachPage {
+                    if page == .pairing { pairingPanel }
+                    else { ReachConnectionInformation(page: page.rawValue) }
+                }
+                .navigationTitle(page.title).navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { menuPage = nil } } }
+            }
+        }
         .task(id: action) {
             guard let action else { return }
             error = nil
@@ -71,7 +114,7 @@ private struct StagingConnectionView: View {
                 status = try await Self.perform(action)
                 if case .accept = action { input = "" }
             } catch {
-                self.error = error.localizedDescription
+                self.error = ReachErrorPresentation.message(error)
                 status.availability = .unavailable
                 status.isPaired = false
             }
@@ -106,6 +149,7 @@ private struct StagingConnectionView: View {
                         .buttonStyle(.borderedProminent).frame(minHeight: 44)
                     TextField("Partner’s pairing code", text: $input)
                         .textInputAutocapitalization(.characters).autocorrectionDisabled()
+                        .submitLabel(.done).onSubmit { ReachKeyboard.dismiss() }
                         .textFieldStyle(.roundedBorder).frame(minHeight: 44)
                         .accessibilityLabel("Partner’s 12-character native pairing code")
                     Button("Accept pairing code") {

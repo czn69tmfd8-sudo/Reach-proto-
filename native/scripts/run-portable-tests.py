@@ -23,10 +23,11 @@ sources = [
     *[native/'REACH/Media'/name for name in [
         'CallbackDeadline.swift', 'ReachReconnectPolicy.swift', 'ReachSignalingValidation.swift',
         'SignalingInbox.swift', 'WebRTCSignalingContract.swift', 'ReachTransportWatchdog.swift', 'CameraCaptureLifetime.swift', 'LocalCandidateOutbox.swift', 'ReachMediaControls.swift']],
-    *[native/'REACH/Services'/name for name in ['ReachServices.swift', 'MockReachServices.swift', 'SessionCleanupDeadline.swift']],
+    *[native/'REACH/Services'/name for name in ['ReachServices.swift', 'MockReachServices.swift', 'SessionCleanupDeadline.swift', 'LocalRelationshipFile.swift']],
 ]
 test_names = [
     'ReachSignalingValidationTests', 'ReachRoomCoordinatorTests', 'PairSessionInterpreterTests',
+    'RelationshipJournalTests', 'LocalRelationshipFileTests', 'ReachCallReviewTests',
     'ReachHomeAvailabilityTests', 'ReachAppearancePreferencesTests',
     'ReachConnectionMachineTests', 'ReachJoinPolicyTests', 'CallbackDeadlineTests',
     'ReachMediaPolicyTests', 'SignalingInboxTests', 'ReachEnvironmentTests',

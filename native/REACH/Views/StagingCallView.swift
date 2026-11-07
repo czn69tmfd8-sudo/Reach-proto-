@@ -8,6 +8,7 @@ struct StagingCallView: View {
     @StateObject private var call = StagingCallController()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var showDiagnostics = false
     @State private var muted = false
     @State private var cameraEnabled = true
 
@@ -23,7 +24,7 @@ struct StagingCallView: View {
                     StagingVideoPanel(peer: peer)
                     Toggle("Mute microphone", isOn: $muted).onChange(of: muted) { _, value in peer.setMuted(value) }
                     Toggle("Camera enabled", isOn: $cameraEnabled).onChange(of: cameraEnabled) { _, value in peer.setCameraEnabled(value) }
-                    Button("End live call", role: .destructive) { Task { await call.end() } }
+                    Button("End REACH", role: .destructive) { Task { await call.end() } }
                         .buttonStyle(.borderedProminent).tint(.pink)
                         .frame(minHeight: 48)
                 } else {
@@ -36,12 +37,29 @@ struct StagingCallView: View {
                         Text(call.status).font(.footnote).foregroundStyle(.white.opacity(0.85))
                     }
                 }
+                Button("Call troubleshooting") { showDiagnostics = true }
+                    .font(.footnote).frame(minHeight: 44)
                 Text("A hand is an invitation. Camera and microphone start only when you choose to open or take a hand.")
                     .font(.footnote).foregroundStyle(.white.opacity(0.85))
-                DisclosureGroup("About this staging connection") {
-                    Text("Both partners must explicitly join. Keep REACH in the foreground. Direct/STUN connectivity may not work on every network; a TURN relay is not configured.")
-                        .font(.footnote).padding(.top, 8)
-                }.font(.footnote)
+            }
+        }
+        .sheet(isPresented: $showDiagnostics) {
+            NavigationStack {
+                List {
+                    Section("This connection") { Text(call.status) }
+                    Section("Private session events") {
+                        ForEach(call.diagnostics.events) { sample in
+                            VStack(alignment: .leading) {
+                                Text(sample.event.rawValue)
+                                Text(sample.date, style: .time).font(.caption)
+                            }
+                        }
+                        if call.diagnostics.events.isEmpty { Text("No call events yet.") }
+                    }
+                    Section { Text("Only the latest 20 event labels and times are retained in memory. No identifiers, SDP, ICE addresses, audio or video are included. No automatic retry occurs. TURN relay is not configured.") }
+                }
+                .navigationTitle("Call troubleshooting").navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showDiagnostics = false } } }
             }
         }
         .onChange(of: stopID) { _, _ in

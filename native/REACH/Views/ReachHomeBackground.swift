@@ -58,7 +58,7 @@ struct ReachConnectionHeart: View {
 struct ReachHomeIdentityHeader: View {
     @EnvironmentObject private var appearance: ReachAppearanceStore
     var paired = false
-    @ScaledMetric(relativeTo: .title) private var photoSize: CGFloat = 76
+    @ScaledMetric(relativeTo: .title) private var photoSize: CGFloat = 92
 
     var body: some View {
         VStack(spacing: 16) {
@@ -89,13 +89,13 @@ struct ReachHomeIdentityHeader: View {
                         .font(.system(size: 42, weight: .ultraLight))
                 }
             }
-            .frame(width: min(photoSize, 76), height: min(photoSize, 76))
+            .frame(width: min(photoSize, 92), height: min(photoSize, 92))
             .clipShape(Circle())
             .overlay(Circle().strokeBorder(tint.opacity(0.9), lineWidth: 2))
             .shadow(color: tint.opacity(0.35), radius: 12)
             .accessibilityLabel(photo == nil ? "\(label): profile photo not set" : "\(label): local profile photo")
             Text(label).font(.caption.weight(.semibold)).multilineTextAlignment(.center)
-                .frame(width: min(photoSize, 76))
+                .frame(width: min(photoSize, 92))
         }
     }
 }
@@ -109,10 +109,10 @@ struct ReachGlassPanel<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: 28)
-                    .fill(.ultraThinMaterial)
+                    .fill(.ultraThinMaterial).opacity(reduceTransparency ? 1 : 0.45)
                     .overlay {
                         RoundedRectangle(cornerRadius: 28)
-                            .fill(Color(red: 0.14, green: 0.06, blue: 0.23).opacity(reduceTransparency ? 1 : 0.70))
+                            .fill(Color(red: 0.14, green: 0.06, blue: 0.23).opacity(reduceTransparency ? 1 : 0.38))
                     }
             }
             .overlay(RoundedRectangle(cornerRadius: 28).strokeBorder(.pink.opacity(0.48), lineWidth: 1))
@@ -133,7 +133,9 @@ struct ReachPage<Content: View>: View {
                     .frame(maxWidth: 620)
                     .frame(maxWidth: .infinity)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
+        .reachKeyboardToolbar()
         .foregroundStyle(.white)
         .tint(.pink)
         .environment(\.colorScheme, .dark)

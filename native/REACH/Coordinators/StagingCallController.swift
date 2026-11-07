@@ -7,6 +7,7 @@ final class StagingCallController: ObservableObject {
     @Published private(set) var peer: NativeWebRTCPeer?
     @Published private(set) var status = "No live staging call."
     @Published private(set) var busy = false
+    @Published private(set) var diagnostics = ReachPrivateDiagnostics()
     private var generation = UUID()
     private var tasks: [Task<Void, Never>] = []
     private var session: ReachSession?
@@ -21,6 +22,7 @@ final class StagingCallController: ObservableObject {
     func start(join: Bool) async {
         guard !busy, peer == nil else { return }
         busy = true
+        diagnostics.record(.preparing)
         watchdog = ReachTransportWatchdog()
         let token = UUID(); generation = token
         do {
@@ -47,6 +49,7 @@ final class StagingCallController: ObservableObject {
                 if !join { try? await coordinator.end(session: session, partnership: partnership) }
                 throw CancellationError()
             }
+            diagnostics.record(join ? .joining : .opening)
             self.session = session; self.partnership = partnership; rooms = dependencies.rooms
             inbox = SignalingInbox()
             let role: ReachMediaRole = join ? .joiner : .opener
@@ -157,6 +160,11 @@ final class StagingCallController: ObservableObject {
     func end() async { await stop(message: "Staging call ended.") }
 
     private func handleTransport(_ event: ReachTransportWatchdog.Event, token: UUID) {
+        switch event {
+        case .connected: diagnostics.record(.connected)
+        case .disconnected: diagnostics.record(.interrupted)
+        default: break
+        }
         applyWatchdog(watchdog.receive(event), token: token)
     }
 
@@ -183,7 +191,8 @@ final class StagingCallController: ObservableObject {
 
     private func fail(_ error: Error, token: UUID) async {
         guard generation == token else { return }
-        await stop(message: error.localizedDescription)
+        diagnostics.record(.failed)
+        await stop(message: ReachErrorPresentation.message(error))
     }
 
     private func stop(message: String) async {
@@ -192,6 +201,7 @@ final class StagingCallController: ObservableObject {
         watchdogTask?.cancel(); watchdogTask = nil
         tasks.forEach { $0.cancel() }; tasks.removeAll()
         peer?.close(); peer = nil
+        diagnostics.record(.ended)
         let oldSession = session, oldPartnership = partnership, oldRooms = rooms
         session = nil; partnership = nil; rooms = nil; inbox = SignalingInbox()
         outbox = LocalCandidateOutbox(); drainingCandidates = false
@@ -203,7 +213,10 @@ final class StagingCallController: ObservableObject {
                 }
             }
             catch {
-                if generation == stopToken { status = "Media stopped. Session cleanup could not be confirmed: \(error.localizedDescription)" }
+                if generation == stopToken {
+                    diagnostics.record(.cleanupUnconfirmed)
+                    status = "Media stopped. Server cleanup could not be confirmed. Check pairing management before opening another hand."
+                }
             }
         }
         guard generation == stopToken else { return }
