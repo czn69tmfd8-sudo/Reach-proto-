@@ -58,20 +58,12 @@ private struct StagingConnectionView: View {
     @State private var mediaStopID = UUID()
     @State private var error: String?
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
             ReachPage {
-                VStack(spacing: 8) {
-                    Text("REACH").font(.largeTitle.weight(.black)).tracking(5)
-                        .foregroundStyle(LinearGradient(colors: [.pink, .purple, .cyan], startPoint: .leading, endPoint: .trailing))
-                    Text("Same moment. Any distance.")
-                        .font(.subheadline).foregroundStyle(.white.opacity(0.9))
-                        .multilineTextAlignment(.center)
-                    Text("PRIVATE STAGING").font(.caption2.weight(.bold)).tracking(2)
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                        .background(.black.opacity(0.45), in: Capsule())
-                }
+                homeHeader
                 ReachHomeIdentityHeader(paired: status.isPaired && status.checkedAt.addingTimeInterval(15) > timeline.date)
                     .shadow(color: .black.opacity(0.7), radius: 5)
                 StagingCallView(call: call, stopID: mediaStopID, availability: status.availability,
@@ -85,23 +77,7 @@ private struct StagingConnectionView: View {
                 if let error { Text(error).font(.footnote).multilineTextAlignment(.center) }
             }
         }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarBackground(Color(red: 0.12, green: 0.07, blue: 0.19).opacity(0.85), for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Menu {
-                    ForEach([MenuPage.pairing, .connection, .privacy, .security, .about]) { page in
-                        Button(page.title) { ReachKeyboard.dismiss(); menuPage = page }
-                    }
-                } label: {
-                    Image(systemName: "line.3.horizontal").font(.title2)
-                        .frame(width: 44, height: 44).background(.black.opacity(0.4), in: Circle())
-                }
-                .accessibilityLabel("REACH menu")
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(item: $menuPage) { page in
             NavigationStack {
                 ReachPage {
@@ -145,6 +121,59 @@ private struct StagingConnectionView: View {
             status.availability = .checking
             if phase == .active && action == nil { action = .refresh }
         }
+    }
+
+    private var homeHeader: some View {
+        VStack(spacing: 6) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    homeMenu
+                    Spacer(minLength: 0)
+                    wordmark.fixedSize(horizontal: true, vertical: false)
+                    Spacer(minLength: 0)
+                    // Balance the menu so the wordmark stays centered on the page.
+                    Color.clear.frame(width: 44, height: 44).accessibilityHidden(true)
+                }
+                VStack(spacing: 4) {
+                    homeMenu.frame(maxWidth: .infinity, alignment: .leading)
+                    wordmark
+                }
+            }
+            Text("Same moment. Any distance.")
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.9))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("PRIVATE STAGING").font(.caption2.weight(.bold)).tracking(2)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(.black.opacity(0.45), in: Capsule())
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var wordmark: some View {
+        Text("REACH").font(.largeTitle.weight(.black)).tracking(5)
+            .multilineTextAlignment(.center)
+            .foregroundStyle(LinearGradient(colors: [.pink, .purple, .cyan], startPoint: .leading, endPoint: .trailing))
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private var homeMenu: some View {
+        Menu {
+            ForEach([MenuPage.pairing, .connection, .privacy, .security, .about]) { page in
+                Button(page.title) { ReachKeyboard.dismiss(); menuPage = page }
+            }
+        } label: {
+            Image(systemName: "line.3.horizontal")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 44, height: 44)
+                .background(.black.opacity(reduceTransparency ? 0.85 : 0.42), in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("REACH menu")
     }
 
     private var pairingPanel: some View {
