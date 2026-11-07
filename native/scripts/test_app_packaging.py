@@ -49,3 +49,12 @@ class AppPackagingTests(unittest.TestCase):
         self.assertEqual(bundled,source)
         self.assertEqual(hashlib.sha256(bundled).hexdigest(),'b1b72b03ca4f7d331daec329edf39c67136e7ae09daa180ac11b62a56a3f8efc')
         self.assertEqual(struct.unpack('>II',bundled[16:24]),(864,1536))
+
+    def test_build_two_pins_approved_source_before_staging_config_install(self):
+        workflow=(ROOT.parent/'codemagic.yaml').read_text().split('  reach-ios-testflight-archive:',1)[1]
+        self.assertIn('REACH_IOS_BUILD_NUMBER: "2"',workflow)
+        self.assertIn('test "$REACH_IOS_BUILD_NUMBER" = "2"',workflow)
+        self.assertIn('REACH_APPROVED_APP_COMMIT: 8e41fb3f24263cc5c4ea1dec6a82b58270285c76',workflow)
+        self.assertIn('test "$REACH_APPROVED_APP_COMMIT" = "8e41fb3f24263cc5c4ea1dec6a82b58270285c76"',workflow)
+        self.assertLess(workflow.index('verify-validation-source.py'),workflow.index('install-staging-config.py'))
+        self.assertIn('MARKETING_VERSION="0.1.0" CURRENT_PROJECT_VERSION="$REACH_IOS_BUILD_NUMBER" archive',workflow)

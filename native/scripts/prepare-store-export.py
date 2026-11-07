@@ -55,11 +55,22 @@ def verify_ipa(directory,team,number):
         app=apps[0]
         archive.verify(app,distribution='app_store',expected_team=team)
         info=plistlib.loads((app/'Info.plist').read_bytes())
-        if str(info.get('CFBundleVersion')) != number:raise ValueError('Exported build number differs from selected input.')
+        validate_release_resources(app,info,number)
         if not all(info.get(k) for k in ('NSCameraUsageDescription','NSMicrophoneUsageDescription')):
             raise ValueError('Camera and microphone purpose strings are required.')
         if not (app/'PrivacyInfo.xcprivacy').is_file() or not info.get('CFBundleIcons'):
             raise ValueError('App icon and required-reason privacy manifest must be bundled.')
+
+
+
+def validate_release_resources(app,info,number):
+    if str(info.get('CFBundleVersion')) != number:
+        raise ValueError('Exported build number differs from selected input.')
+    if info.get('CFBundleShortVersionString') != '0.1.0':
+        raise ValueError('This preparation requires REACH version 0.1.0.')
+    assets=Path(app)/'Assets.car'
+    if not assets.is_file() or assets.stat().st_size == 0:
+        raise ValueError('Compiled image assets must be present in the exported app.')
 
 
 def promote_ipa(source,destination,team,number):

@@ -54,3 +54,17 @@ class StoreExportTests(unittest.TestCase):
                 verify.assert_called_once_with(source,'TESTTEAM00','12')
                 self.assertEqual((destination/'app.ipa').read_bytes(),b'verified archive')
                 with self.assertRaises(ValueError):store.promote_ipa(source,destination,'TESTTEAM00','12')
+
+    def test_release_version_build_number_and_compiled_images_are_required(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            app=Path(folder)
+            info={'CFBundleVersion':'2','CFBundleShortVersionString':'0.1.0'}
+            with self.assertRaises(ValueError):store.validate_release_resources(app,info,'2')
+            (app/'Assets.car').write_bytes(b'')
+            with self.assertRaises(ValueError):store.validate_release_resources(app,info,'2')
+            (app/'Assets.car').write_bytes(b'compiled assets')
+            store.validate_release_resources(app,info,'2')
+            for patch in [{'CFBundleVersion':'1'},{'CFBundleShortVersionString':'0.2.0'}]:
+                with self.subTest(patch=patch),self.assertRaises(ValueError):
+                    store.validate_release_resources(app,{**info,**patch},'2')
