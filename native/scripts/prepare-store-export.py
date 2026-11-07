@@ -22,19 +22,21 @@ def inputs(environment):
     return team,number
 
 
-def validate_test_results(summary):
+def validate_test_results(summary, expected=None):
     # Build 3 had 164 tests. The approved home-screen commit adds four more.
     passed = summary.get('passedTests')
     if (
         summary.get('result') != 'Passed'
         or type(passed) is not int
         or passed < 168
+        or (expected is not None and passed != expected)
         or summary.get('totalTestCount') != passed
         or summary.get('failedTests') != 0
         or summary.get('skippedTests') != 0
         or summary.get('expectedFailures') != 0
     ):
-        raise ValueError('Archive requires at least 168 passing native tests and no failures or skips.')
+        count = 'at least 168' if expected is None else f'exactly {expected}'
+        raise ValueError(f'Archive requires {count} passing native tests and no failures or skips.')
 
 
 def validate_export(options,team):
@@ -113,11 +115,12 @@ if __name__=='__main__':
     parser.add_argument('action',choices=['inputs','test-results','export','verify-ipa','promote-ipa'])
     parser.add_argument('path',nargs='?')
     parser.add_argument('destination',nargs='?')
+    parser.add_argument('--expected-tests', type=int)
     args=parser.parse_args()
     try:
         team,number=inputs(os.environ)
         if args.action=='test-results':
-            validate_test_results(json.loads(Path(args.path).read_text()))
+            validate_test_results(json.loads(Path(args.path).read_text()), args.expected_tests)
         elif args.action=='export':
             path=Path(args.path);options=plistlib.loads(path.read_bytes())
             # Keep export local; only the separate publisher may upload a verified IPA.

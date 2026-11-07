@@ -27,6 +27,17 @@ class StoreExportTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             store.validate_test_results({})
 
+    def test_build_six_requires_the_exact_complete_native_suite(self):
+        for count in (174, 175, 176):
+            summary = dict(result='Passed', passedTests=count, totalTestCount=count,
+                           failedTests=0, skippedTests=0, expectedFailures=0)
+            with self.subTest(count=count):
+                if count == 175:
+                    store.validate_test_results(summary, expected=175)
+                else:
+                    with self.assertRaisesRegex(ValueError, 'exactly 175'):
+                        store.validate_test_results(summary, expected=175)
+
     def test_store_only_exact_bundle_team_and_local_export(self):
         store.validate_export(self.options(),'TESTTEAM00')
         for patch in [{'method':'ad-hoc'},{'method':'development'},{'teamID':'OTHERTEAM0'},{'destination':'upload'},{'uploadSymbols':True},{'testFlightInternalTestingOnly':False},{'manageAppVersionAndBuildNumber':True},{'provisioningProfiles':{'other.bundle':'profile'}},{'provisioningProfiles':{}}]:

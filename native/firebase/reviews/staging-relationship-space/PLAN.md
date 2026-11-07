@@ -65,7 +65,7 @@ standalone proposal must never be published on its own.
 | Build 5 regression boundary | Original release source guard passed on a reconstructed Build 5 tree. Pairing, auth, signaling, calls, release workflow, and current rules remain unchanged. Installed-device smoke tests are pending. |
 | Merged Firestore rule execution | Passed 117/117 with Firebase CLI 14.22.0, Firestore emulator 1.19.8 and Java 17. The exact-candidate suite covered revocation, cross-couple isolation, expired invitations, accepted pairs after the invite deadline, unauthorized edits/deletes, concurrent writes, photo size limits and legacy native/web regressions. |
 | Portable Swift XCTest | Passed 152/152 on Linux with official Swift 6.0.3. Includes offline snapshot expiry and clock rollback, reconnect policy, pairing authorization, and shared write precondition encoding. |
-| Native compilation and XCTest | Codemagic run `6aef9def24e1ec2375575008` compiled the simulator target and ran 175 tests (174 passed). The sole failure was the unsigned app host returning `errSecMissingEntitlement` from Keychain. The manual `reach-ios-relationship-validation` workflow now uses local ad-hoc signing for the hosted simulator tests and keeps the iPhone compile unsigned. It has no triggers, credentials, artifact exports, or publisher. A clean rerun and the iPhone compile are pending. |
+| Native compilation and XCTest | Codemagic run `6aef9def24e1ec2375575008` compiled the simulator target and ran 175 tests (174 passed). The sole failure was the unsigned app host returning `errSecMissingEntitlement` from Keychain. The manual `reach-ios-relationship-validation` workflow now uses local ad-hoc signing for the hosted simulator tests and keeps the iPhone compile unsigned. It has no triggers, credentials, artifact exports, or publisher. The owner reported that follow-up run `6aefa56224e1ec2375575206` completed successfully. Its complete source, simulator and device logs still need independent readback. |
 | Together and Us review | Source inspection verified separate visibility labels, initial and retry loading indicators, bounded photo previews, and blocked shared mutations while offline. Simulator/device interaction, VoiceOver and Dynamic Type, actual network reconnect behavior, and photo timing remain unverified. The iOS XCTest run passed synthetic photo resize and invalid-input checks. |
 | Live Firestore release | Pending authenticated readback of the complete staging rules and release ID. No live staging changes were made. |
 | Two-device pilot | Pending validated native build, reviewed staging publication, and separate approval for one synthetic test pair. No real couple data is needed. |
@@ -79,6 +79,80 @@ The focused REST test confirms one concurrent update wins, a stale update and
 delete fail, and a duplicate create is rejected. The rules checksum did not
 change. The suite ran with only synthetic accounts in demo projects.
 
+## Build 6 and staging publication procedure
+
+### Read-only preflight
+
+1. Download the complete step logs for Codemagic run
+   `6aefa56224e1ec2375575206`. Verify branch `native-reach`, source commit
+   `a2f05f4494cc3ff6cf21e42dcd3c3e92bec24765`, 175 passing simulator tests
+   with zero failures or skips, the named `KeychainAccessTests` round-trip
+   passing, and `BUILD SUCCEEDED` with device signing disabled.
+2. In Google Cloud Shell signed into the staging account, retrieve the active
+   release and its complete source using read-only API calls. Run the following
+   in a fresh working directory. Keep the three output files together.
+
+   ```sh
+   set -euo pipefail
+   rules_api=https://firebaserules.googleapis.com/v1
+   project=reach-staging-a4745
+   curl -fsS -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+     "$rules_api/projects/$project/releases/cloud.firestore" -o release.json
+   ruleset=$(python3 -c 'import json; print(json.load(open("release.json"))["rulesetName"])')
+   case "$ruleset" in "projects/$project/rulesets/"*) ;; *) exit 1 ;; esac
+   curl -fsS -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+     "$rules_api/$ruleset" -o ruleset.json
+   python3 - <<'PYCODE'
+   import json
+   from pathlib import Path
+
+   release = json.loads(Path("release.json").read_bytes())
+   ruleset = json.loads(Path("ruleset.json").read_bytes())
+   expected = "projects/reach-staging-a4745/releases/cloud.firestore"
+   if release["name"] not in (expected, expected + "/(default)"):
+       raise SystemExit("Unexpected release target")
+   if ruleset["name"] != release["rulesetName"]:
+       raise SystemExit("Unexpected ruleset")
+   files = ruleset["source"]["files"]
+   if len(files) != 1:
+       raise SystemExit("Unexpected multi-file ruleset")
+   Path("active.rules").write_bytes(files[0]["content"].encode("utf-8"))
+   print(release["name"], release["rulesetName"], release.get("updateTime"))
+   PYCODE
+   sha256sum active.rules
+   ```
+
+3. Compare to the baseline checksum in this plan. Stop on any difference.
+   Record the stable release name, the referenced ruleset ID, and its update
+   time. Preserve the raw source as the rollback baseline. Have a staging
+   administrator confirm there are no enabled or unexplained pilot flag
+   documents in `nativeStaging/v1/relationshipSpace` before publication.
+   Existing enabled flags would take effect as soon as the new rules apply.
+4. In App Store Connect, confirm version `0.1.0` build `6` is unused in REACH
+   Staging. Confirm the existing signing assets match `com.reachprototype.app`
+   and the staging Firebase group is available in Codemagic. With owner go-ahead,
+   manually select `native-reach` and `reach-ios-build6-archive-only` at the
+   reviewed preparation commit. The workflow reruns the source and XCTest
+   gates before exporting a verified internal-testing-only IPA to private CI
+   artifacts. It has no App Store Connect integration or publishing action.
+   Uploading that IPA and assigning REACH Internal are separate decisions.
+
+### Publication and verification
+
+1. In Firebase Console, select `reach-staging-a4745` and Firestore `(default)`.
+   Confirm the editor has no unexpected unpublished changes. Replace its
+   contents with the entire candidate `merged.rules` in this directory.
+   Read back the complete editor content and verify the candidate SHA.
+2. Recheck the active release still points to the recorded baseline ruleset.
+   Obtain explicit owner approval for this project, database and candidate SHA
+   before pressing Publish.
+3. Use the read-only procedure in a separate directory to record the new
+   ruleset ID and verify the active candidate SHA. With all pilot flags off,
+   test shared read/write denial and smoke-test installed Build 5 with
+   synthetic staging accounts. Check pairing, authentication, explicit call
+   consent, offer/answer, ICE, and termination. Stop and evaluate rollback if
+   either gate fails. Any later pilot activation requires separate approval.
+
 ## Rollback
 
 For a single pilot pair, obtain authorization to set its flag to
@@ -86,9 +160,12 @@ For a single pilot pair, obtain authorization to set its flag to
 It does not delete any entry or photo. If authorization or legacy behavior fails
 more broadly, restore the exact recorded pre-pilot complete source as a **new**
 Firestore rules release for the same database after explicit rollback approval.
-Confirm the live release is still the candidate first. If another release
-intervened, stop and review before overwriting it. Verify the restored checksum,
-shared denial, and Build 5 smoke tests. After disabling sharing, account for
+Read back the active rules first and confirm the ruleset and checksum still
+match the published candidate. If another release intervened, stop and review.
+In the same Rules editor paste the preserved pre-pilot source, verify its full
+editor readback hash, then publish only with rollback approval. Repeat the
+read-only retrieval, record the restored ruleset ID, and verify the baseline
+checksum, shared denial, and Build 5 smoke tests. After disabling sharing, account for
 already delivered responses and an open app's short foreground cache. Do not
 delete any documents as part of rules rollback.
 
