@@ -11,7 +11,8 @@ struct ReachConnectionInformation: View {
                 switch page {
                 case "privacy":
                     Text("Your space, your choice").font(.title2.bold())
-                    Text("Together entries, milestones, display names and selected photographs stay on this iPhone. They are not synchronized with your partner. Deleting the app removes this local content.")
+                    Text("Private entries, display names, and profile photos stay on this iPhone. Deleting the app removes that local content.")
+                    Text("When shared access is enabled, only entries you explicitly confirm are visible to your authorized partner. Removing a shared entry removes it from the shared space. A private original stays on your iPhone.")
                     Text("Pairing and call signaling use the isolated REACH staging project. Camera and microphone begin only after an explicit open or take action. No call recording feature is included.")
                 case "security":
                     Text("Consent comes first").font(.title2.bold())
