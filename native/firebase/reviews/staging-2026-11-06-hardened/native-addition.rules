@@ -1,0 +1,157 @@
+
+  // BEGIN REACH native staging v1 — review required; not deployment approval
+  match /nativeStaging/v1 {
+  function signed() { return request.auth != null; }
+  function pp(c) { return /databases/$(database)/documents/nativeStaging/v1/pairInvites/$(c); }
+  function lp(u) { return /databases/$(database)/documents/nativeStaging/v1/memberLocks/$(u); }
+  function rp(r) { return /databases/$(database)/documents/nativeStaging/v1/rooms/$(r); }
+  // Guard before calling any helper that constructs a dependent document path.
+  function documentID(v) { return v is string && v.matches('[^/]+') && !(v in ['.','..']) && !v.matches('__.*__') && v.toUtf8().size() <= 1500; }
+  function pairCode(v) { return v is string && v.matches('[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{12}'); }
+  function pairExists(c) { return pairCode(c) && exists(pp(c)); }
+  function lockExists(u) { return documentID(u) && exists(lp(u)); }
+  function roomExists(id) { return documentID(id) && exists(rp(id)); }
+  function pairAfter(c) { return pairCode(c) && existsAfter(pp(c)); }
+  function roomAfter(id) { return documentID(id) && existsAfter(rp(id)); }
+  function memberShape(p) {
+   return p is map && p.keys().hasAll(['hostUid','partnerUid']) && documentID(p.hostUid)
+    && (p.partnerUid == null || documentID(p.partnerUid));
+  }
+  function member(p) {
+   return signed() && memberShape(p) && request.auth.uid in [p.hostUid,p.partnerUid];
+  }
+  function locked(u,c) {
+   return signed() && pairCode(c) && lockExists(u) && get(lp(u)).data.get('pairCode',null) == c;
+  }
+  function lockAfter(u,c) {
+   return documentID(u) && pairCode(c) && existsAfter(lp(u))
+    && getAfter(lp(u)).data.get('pairCode',null) == c;
+  }
+  function authorized(p,c) {
+   return member(p) && pairCode(c) && p.get('revoked',false) == false && p.partnerUid is string
+    && memberLock(p.hostUid,c) && memberLock(p.partnerUid,c);
+  }
+  // Only authorized() calls this helper, after both UIDs and the code are validated.
+  function memberLock(u,c) { return exists(lp(u)) && get(lp(u)).data.get('pairCode',null) == c; }
+  function roomShape(r) {
+   return r is map && pairCode(r.get('pairCode',null))
+    && documentID(r.get('hostUid',null)) && documentID(r.get('partnerUid',null))
+    && r.get('active',null) is bool && r.get('expiresAt',null) is int;
+  }
+  function current(r,id) {
+   return signed() && documentID(id) && roomShape(r) && pairExists(r.pairCode) && currentPair(r,id);
+  }
+  // This lookup is reached only after authentication, shape and existence checks.
+  function currentPair(r,id) {
+   let p = get(pp(r.pairCode)).data;
+   return authorized(p,r.pairCode) && r.active == true && r.expiresAt > request.time.toMillis()
+    && p.get('activeRoom',null) == id && p.get('openedBy',null) == r.hostUid
+    && ((r.hostUid == p.hostUid && r.partnerUid == p.partnerUid) || (r.hostUid == p.partnerUid && r.partnerUid == p.hostUid));
+  }
+  function currentRoom(id) { return signed() && roomExists(id) && current(get(rp(id)).data,id); }
+  function description(d,k) { return d is map && d.keys().hasAll(['type','sdp']) && d.keys().hasOnly(['type','sdp']) && d.type == k && d.sdp is string && d.sdp.size() > 0 && d.sdp.size() <= 256000; }
+  function replaceable(uid) {
+   return signed() && request.auth.uid == uid && lockExists(uid)
+    && pairCode(get(lp(uid)).data.get('pairCode',null)) && replaceablePair(get(lp(uid)).data.pairCode);
+  }
+  function replaceablePair(c) {
+   return pairExists(c) && member(get(pp(c)).data) && get(pp(c)).data.get('revoked',false) == true;
+  }
+  function freshLock(uid) { return signed() && documentID(uid) && (!exists(lp(uid)) || replaceable(uid)); }
+  match /memberLocks/{uid} {
+   allow get: if signed() && request.auth.uid == uid;
+   allow create: if signed() && request.auth.uid == uid && request.resource.data.keys().hasOnly(['pairCode','createdAt'])
+    && pairCode(request.resource.data.get('pairCode',null)) && pairAfter(request.resource.data.pairCode)
+    && request.resource.data.createdAt == request.time && member(getAfter(pp(request.resource.data.pairCode)).data);
+   allow update: if signed() && request.auth.uid == uid && lockExists(uid) && replaceable(uid)
+    && request.resource.data.keys().hasOnly(['pairCode','createdAt'])
+    && request.resource.data.createdAt == request.time
+    && pairCode(request.resource.data.get('pairCode',null)) && pairAfter(request.resource.data.pairCode)
+    && request.resource.data.pairCode != resource.data.pairCode
+    && member(getAfter(pp(request.resource.data.pairCode)).data);
+   allow delete,list: if false;
+  }
+  match /pairInvites/{code} {
+   allow get: if signed() && pairCode(code) && (!exists(pp(code)) || member(resource.data) || (memberShape(resource.data) && resource.data.partnerUid == null && resource.data.get('revoked',false) == false && resource.data.get('expiresAt',null) is int && resource.data.expiresAt > request.time.toMillis()));
+   allow list,delete: if false;
+   allow create: if signed() && code.matches('[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{12}')
+    && request.resource.data.keys().hasOnly(['hostUid','partnerUid','createdAt','activeRoom','openedBy','expiresAt'])
+    && request.resource.data.keys().hasAll(['hostUid','partnerUid','createdAt','activeRoom','openedBy','expiresAt'])
+    && request.resource.data.hostUid == request.auth.uid && request.resource.data.partnerUid == null
+    && request.resource.data.activeRoom == null && request.resource.data.openedBy == null && request.resource.data.createdAt == request.time
+    && request.resource.data.expiresAt is int && request.resource.data.expiresAt > request.time.toMillis()
+    && request.resource.data.expiresAt <= request.time.toMillis()+1800000
+    && freshLock(request.auth.uid) && lockAfter(request.auth.uid,code);
+   // Dispatch on the fields being changed so a denied operation cannot evaluate
+   // unrelated join/revoke/room branches and exhaust the expression budget.
+   function updatePair(code) {
+    let changed = request.resource.data.diff(resource.data).affectedKeys();
+    return changed.hasOnly(['partnerUid']) ? join(code)
+     : changed.hasAny(['revoked','revokedBy','revokedAt']) ? revoke(code) : roomPointer(code);
+   }
+   function join(code) {
+    return resource.data.partnerUid == null && resource.data.get('revoked',false) == false
+     && resource.data.get('expiresAt',null) is int && resource.data.expiresAt > request.time.toMillis()
+     && request.auth.uid != resource.data.hostUid && request.resource.data.partnerUid == request.auth.uid
+     && locked(resource.data.hostUid,code) && freshLock(request.auth.uid) && lockAfter(request.auth.uid,code);
+   }
+   function revoke(code) {
+    return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revoked','revokedBy','revokedAt','activeRoom','openedBy'])
+     && request.resource.data.get('revoked',false) == true && resource.data.get('revoked',false) == false
+     && request.resource.data.get('revokedBy',null) == request.auth.uid && request.resource.data.get('revokedAt',null) == request.time
+     && request.resource.data.get('activeRoom',false) == null && request.resource.data.get('openedBy',false) == null
+     && member(resource.data) && locked(request.auth.uid,code);
+   }
+   function roomPointer(code) {
+    return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeRoom','openedBy'])
+     && (request.resource.data.get('activeRoom',false) == null
+      ? (request.resource.data.get('openedBy',false) == null && documentID(resource.data.get('activeRoom',null))
+       && authorized(resource.data,code) && roomAfter(resource.data.activeRoom)
+       && getAfter(rp(resource.data.activeRoom)).data.get('active',null) == false
+       && getAfter(rp(resource.data.activeRoom)).data.get('pairCode',null) == code)
+      : (documentID(request.resource.data.get('activeRoom',null)) && request.resource.data.get('openedBy',null) == request.auth.uid
+       && resource.data.get('activeRoom',false) == null && authorized(resource.data,code)
+       && roomAfter(request.resource.data.activeRoom)
+       && getAfter(rp(request.resource.data.activeRoom)).data.get('pairCode',null) == code
+       && getAfter(rp(request.resource.data.activeRoom)).data.get('hostUid',null) == request.auth.uid
+       && getAfter(rp(request.resource.data.activeRoom)).data.get('active',null) == true));
+   }
+   allow update: if signed() && pairExists(code) && memberShape(resource.data) && updatePair(code);
+  }
+  match /rooms/{id} {
+   allow get: if signed() && roomExists(id) && current(resource.data,id);
+   allow list,delete: if false;
+   allow create: if signed() && request.resource.data.keys().hasOnly(['hostUid','partnerUid','pairCode','createdAt','expiresAt','active'])
+    && roomShape(request.resource.data) && pairExists(request.resource.data.pairCode)
+    && authorized(get(pp(request.resource.data.pairCode)).data,request.resource.data.pairCode)
+    && request.resource.data.hostUid == request.auth.uid && request.resource.data.partnerUid != request.auth.uid
+    && request.resource.data.partnerUid in [get(pp(request.resource.data.pairCode)).data.hostUid,get(pp(request.resource.data.pairCode)).data.partnerUid]
+    && request.resource.data.createdAt == request.time && request.resource.data.active == true
+    && request.resource.data.expiresAt is int && request.resource.data.expiresAt > request.time.toMillis() && request.resource.data.expiresAt <= request.time.toMillis()+28800000
+    && get(pp(request.resource.data.pairCode)).data.get('activeRoom',false) == null
+    && pairAfter(request.resource.data.pairCode)
+    && getAfter(pp(request.resource.data.pairCode)).data.get('activeRoom',null) == id && getAfter(pp(request.resource.data.pairCode)).data.get('openedBy',null) == request.auth.uid;
+   allow update: if signed() && roomExists(id) && roomShape(resource.data) && pairExists(resource.data.pairCode) && (
+    (member(get(pp(resource.data.pairCode)).data) && locked(request.auth.uid,resource.data.pairCode) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active','endedAt'])
+     && request.resource.data.active == false && request.resource.data.endedAt == request.time)
+    || (currentPair(resource.data,id) && (
+     (resource.data.hostUid == request.auth.uid && !('offer' in resource.data)
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['offer']) && description(request.resource.data.offer,'offer'))
+     || (resource.data.partnerUid == request.auth.uid && 'offer' in resource.data && !('answer' in resource.data)
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answer']) && description(request.resource.data.answer,'answer'))
+    ))
+   );
+   match /{side}/{candidateID} {
+    function validSide() { return side in ['hostCandidates','partnerCandidates']; }
+    allow read: if signed() && validSide() && currentRoom(id);
+    allow create: if signed() && validSide() && currentRoom(id)
+     && request.auth.uid == (side == 'hostCandidates' ? get(rp(id)).data.hostUid : get(rp(id)).data.partnerUid)
+     && request.resource.data.keys().hasOnly(['candidate','sdpMid','sdpMLineIndex'])
+     && request.resource.data.candidate is string && request.resource.data.candidate.size() > 0 && request.resource.data.candidate.size() <= 8000
+     && (request.resource.data.sdpMid == null || (request.resource.data.sdpMid is string && request.resource.data.sdpMid.size() <= 256))
+     && request.resource.data.sdpMLineIndex is int && request.resource.data.sdpMLineIndex >= 0 && request.resource.data.sdpMLineIndex <= 2147483647;
+    allow update,delete: if false;
+   }
+  }
+  }
+  // END REACH native staging v1

@@ -1,0 +1,159 @@
+import XCTest
+@testable import REACH
+
+final class ReachJoinPolicyTests: XCTestCase {
+    private let now = Date(timeIntervalSince1970: 100_000)
+    private let pair = Partnership(
+        id: "pair",
+        localMemberID: "byron",
+        partnerMemberID: "aaron",
+        partnerDisplayName: "Aaron",
+        isAuthorized: true
+    )
+
+    func testPartnerFreshOpenHandCanBeTaken() {
+        XCTAssertEqual(
+            ReachJoinPolicy.decide(
+                session: ReachSession(
+                    id: "s",
+                    partnershipID: "pair",
+                    openedBy: "aaron",
+                    openedAt: now.addingTimeInterval(-60),
+                    phase: .open
+                ),
+                partnership: pair,
+                now: now
+            ),
+            .allowed
+        )
+    }
+
+    func testOwnHandCannotBeTaken() {
+        XCTAssertEqual(
+            ReachJoinPolicy.decide(
+                session: ReachSession(
+                    id: "s",
+                    partnershipID: "pair",
+                    openedBy: "byron",
+                    openedAt: now.addingTimeInterval(-60),
+                    phase: .open
+                ),
+                partnership: pair,
+                now: now
+            ),
+            .ownHand
+        )
+    }
+
+    func testStaleHandExpires() {
+        XCTAssertEqual(
+            ReachJoinPolicy.decide(
+                session: ReachSession(
+                    id: "s",
+                    partnershipID: "pair",
+                    openedBy: "aaron",
+                    openedAt: now.addingTimeInterval(-(13 * 60 * 60)),
+                    phase: .open
+                ),
+                partnership: pair,
+                now: now
+            ),
+            .expired
+        )
+    }
+
+    func testWrongPairCannotBeJoined() {
+        XCTAssertEqual(
+            ReachJoinPolicy.decide(
+                session: ReachSession(
+                    id: "s",
+                    partnershipID: "other-pair",
+                    openedBy: "aaron",
+                    openedAt: now,
+                    phase: .open
+                ),
+                partnership: pair,
+                now: now
+            ),
+            .wrongPartnership
+        )
+    }
+    func testConnectionStateHidesJoinForExpiredHand() {
+        let stale = ReachSession(
+            id: "stale",
+            partnershipID: "pair",
+            openedBy: "aaron",
+            openedAt: Date().addingTimeInterval(-(ReachSessionContract.maximumAge + 60)),
+            phase: .open
+        )
+        let state = ConnectionState(partnership: pair, session: stale, mediaPermission: .granted)
+        XCTAssertFalse(state.canTakeHand)
+    }
+
+    func testConnectionStateHidesJoinForRevokedPair() {
+        var revoked = pair
+        revoked.isAuthorized = false
+        let session = ReachSession(
+            id: "s",
+            partnershipID: "pair",
+            openedBy: "aaron",
+            openedAt: Date(),
+            phase: .open
+        )
+        XCTAssertFalse(ConnectionState(partnership: revoked, session: session).canTakeHand)
+    }
+
+    func testConnectionStateAllowsCurrentPartnerHand() {
+        let session = ReachSession(
+            id: "s",
+            partnershipID: "pair",
+            openedBy: "aaron",
+            openedAt: Date(),
+            phase: .open
+        )
+        XCTAssertTrue(ConnectionState(partnership: pair, session: session).canTakeHand)
+    }
+
+    func testUnknownMemberCannotOpenJoinableSession() {
+        let session = ReachSession(
+            id: "s",
+            partnershipID: "pair",
+            openedBy: "unknown-user",
+            openedAt: now,
+            phase: .open
+        )
+        XCTAssertEqual(
+            ReachJoinPolicy.decide(session: session, partnership: pair, now: now),
+            .unauthorizedPair
+        )
+    }
+
+    func testFutureDatedSessionCannotBeJoined() {
+        let session = ReachSession(
+            id: "future",
+            partnershipID: "pair",
+            openedBy: "aaron",
+            openedAt: now.addingTimeInterval(300),
+            phase: .open
+        )
+        XCTAssertNotEqual(
+            ReachJoinPolicy.decide(session: session, partnership: pair, now: now),
+            .allowed
+        )
+    }
+
+    func testAlreadyLiveSessionCannotBeJoinedAgain() {
+        let session = ReachSession(
+            id: "live",
+            partnershipID: "pair",
+            openedBy: "aaron",
+            openedAt: now,
+            phase: .live
+        )
+        XCTAssertEqual(
+            ReachJoinPolicy.decide(session: session, partnership: pair, now: now),
+            .unavailable
+        )
+    }
+
+}

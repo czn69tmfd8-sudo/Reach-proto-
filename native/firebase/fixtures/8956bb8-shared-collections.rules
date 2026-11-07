@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  function signed() { return request.auth != null; }
+  function pp(c) { return /databases/$(database)/documents/pairInvites/$(c); }
+  function lp(u) { return /databases/$(database)/documents/memberLocks/$(u); }
+  function rp(r) { return /databases/$(database)/documents/rooms/$(r); }
+  function member(p) { return signed() && request.auth.uid in [p.hostUid, p.partnerUid]; }
+  function locked(u,c) { return get(lp(u)).data.pairCode == c; }
+  function authorized(p,c) { return member(p) && p.get('revoked',false) == false && p.partnerUid is string && locked(p.hostUid,c) && locked(p.partnerUid,c); }
+  function current(r,id) {
+   let p = get(pp(r.pairCode)).data;
+   return authorized(p,r.pairCode) && r.active == true && r.expiresAt > request.time.toMillis()
+    && p.activeRoom == id && p.openedBy == r.hostUid
+    && ((r.hostUid == p.hostUid && r.partnerUid == p.partnerUid) || (r.hostUid == p.partnerUid && r.partnerUid == p.hostUid));
+  }
+  function description(d,k) { return d.keys().hasOnly(['type','sdp']) && d.type == k && d.sdp is string && d.sdp.size() > 0 && d.sdp.size() <= 256000; }
+  match /memberLocks/{uid} {
+   allow get: if signed() && request.auth.uid == uid;
+   allow create: if signed() && request.auth.uid == uid && request.resource.data.keys().hasOnly(['pairCode','createdAt'])
+    && request.resource.data.createdAt == request.time && member(getAfter(pp(request.resource.data.pairCode)).data);
+   allow update,delete,list: if false;
+  }
+  match /pairInvites/{code} {
+   allow get: if signed() && (!exists(pp(code)) || member(resource.data) || (resource.data.partnerUid == null && resource.data.get('revoked',false) == false));
+   allow list,delete: if false;
+   allow create: if signed() && code.matches('[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{12}')
+    && request.resource.data.keys().hasOnly(['hostUid','partnerUid','createdAt','activeRoom','openedBy'])
+    && request.resource.data.hostUid == request.auth.uid && request.resource.data.partnerUid == null
+    && request.resource.data.activeRoom == null && request.resource.data.openedBy == null && request.resource.data.createdAt == request.time
+    && !exists(lp(request.auth.uid)) && getAfter(lp(request.auth.uid)).data.pairCode == code;
+   allow update: if signed() && (
+    (resource.data.partnerUid == null && resource.data.get('revoked',false) == false && request.auth.uid != resource.data.hostUid
+     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['partnerUid']) && request.resource.data.partnerUid == request.auth.uid
+     && !exists(lp(request.auth.uid)) && getAfter(lp(request.auth.uid)).data.pairCode == code)
+    || (member(resource.data) && locked(request.auth.uid,code)
+     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revoked','activeRoom','openedBy'])
+     && request.resource.data.revoked == true && request.resource.data.activeRoom == null && request.resource.data.openedBy == null)
+    || (authorized(resource.data,code) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeRoom','openedBy'])
+     && ((resource.data.activeRoom == null && request.resource.data.openedBy == request.auth.uid
+       && getAfter(rp(request.resource.data.activeRoom)).data.pairCode == code && getAfter(rp(request.resource.data.activeRoom)).data.hostUid == request.auth.uid
+       && getAfter(rp(request.resource.data.activeRoom)).data.active == true)
+      || (request.resource.data.activeRoom == null && request.resource.data.openedBy == null && getAfter(rp(resource.data.activeRoom)).data.active == false)))
+   );
+  }
+  match /rooms/{id} {
+   allow get: if signed() && member(get(pp(resource.data.pairCode)).data) && get(pp(resource.data.pairCode)).data.get('revoked',false) == false;
+   allow list,delete: if false;
+   allow create: if signed() && request.resource.data.keys().hasOnly(['hostUid','partnerUid','pairCode','createdAt','expiresAt','active'])
+    && authorized(get(pp(request.resource.data.pairCode)).data,request.resource.data.pairCode)
+    && request.resource.data.hostUid == request.auth.uid && request.resource.data.partnerUid != request.auth.uid
+    && request.resource.data.partnerUid in [get(pp(request.resource.data.pairCode)).data.hostUid,get(pp(request.resource.data.pairCode)).data.partnerUid]
+    && request.resource.data.createdAt == request.time && request.resource.data.active == true
+    && request.resource.data.expiresAt is int && request.resource.data.expiresAt > request.time.toMillis() && request.resource.data.expiresAt <= request.time.toMillis()+28800000
+    && get(pp(request.resource.data.pairCode)).data.activeRoom == null
+    && getAfter(pp(request.resource.data.pairCode)).data.activeRoom == id && getAfter(pp(request.resource.data.pairCode)).data.openedBy == request.auth.uid;
+   allow update: if signed() && (
+    (member(get(pp(resource.data.pairCode)).data) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active','endedAt'])
+     && request.resource.data.active == false && request.resource.data.endedAt == request.time)
+    || (current(resource.data,id) && resource.data.hostUid == request.auth.uid && !('offer' in resource.data)
+     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['offer']) && description(request.resource.data.offer,'offer'))
+    || (current(resource.data,id) && resource.data.partnerUid == request.auth.uid && 'offer' in resource.data && !('answer' in resource.data)
+     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answer']) && description(request.resource.data.answer,'answer'))
+   );
+   match /{side}/{candidateID} {
+    function validSide() { return side in ['hostCandidates','partnerCandidates']; }
+    allow read: if validSide() && current(get(rp(id)).data,id);
+    allow create: if validSide() && current(get(rp(id)).data,id)
+     && request.auth.uid == (side == 'hostCandidates' ? get(rp(id)).data.hostUid : get(rp(id)).data.partnerUid)
+     && request.resource.data.keys().hasOnly(['candidate','sdpMid','sdpMLineIndex'])
+     && request.resource.data.candidate is string && request.resource.data.candidate.size() > 0 && request.resource.data.candidate.size() <= 8000
+     && (request.resource.data.sdpMid == null || (request.resource.data.sdpMid is string && request.resource.data.sdpMid.size() <= 256))
+     && request.resource.data.sdpMLineIndex is int && request.resource.data.sdpMLineIndex >= 0 && request.resource.data.sdpMLineIndex <= 2147483647;
+    allow update,delete: if false;
+   }
+  }
+ }
+}

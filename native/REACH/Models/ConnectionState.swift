@@ -1,0 +1,45 @@
+import Foundation
+
+struct ConnectionState: Equatable {
+    var partnership: Partnership?
+    var session: ReachSession?
+    var mediaPermission: MediaPermissionState = .unknown
+
+    var canOpenHand: Bool {
+        partnership?.isAuthorized == true && session == nil
+    }
+
+    var canTakeHand: Bool {
+        guard let session, let partnership else { return false }
+        return ReachJoinPolicy.decide(session: session, partnership: partnership) == .allowed
+    }
+}
+
+struct Partnership: Equatable, Identifiable, Sendable {
+    let id: String
+    let localMemberID: String
+    let partnerMemberID: String
+    var partnerDisplayName: String
+    var isAuthorized: Bool
+}
+
+struct ReachSession: Equatable, Identifiable, Sendable {
+    let id: String
+    let partnershipID: String
+    let openedBy: String
+    let openedAt: Date
+    var phase: ReachSessionPhase
+}
+
+enum ReachSessionPhase: Equatable, Sendable {
+    case open
+    case connecting
+    case live
+    case recovering
+    case ended
+    case failed(String)
+}
+
+enum MediaPermissionState: Equatable {
+    case unknown, requesting, granted, denied
+}

@@ -1,0 +1,52 @@
+"""Offline regression checks for staging, release baseline and private-content isolation."""
+from pathlib import Path
+import subprocess
+import unittest
+
+ROOT = Path(__file__).resolve().parents[2]
+BASELINE = 'e7591c7c3ebd4c73c35a606de019859df60f9f48'
+
+class SprintBoundaryTests(unittest.TestCase):
+    def test_existing_security_and_media_policies_remain_byte_identical(self):
+        protected = [
+            'native/firebase/firestore.rules',
+            'native/firebase/reviews/staging-2026-11-06-hardened/merged.rules',
+            'native/REACH/Firebase/ReachEnvironment.swift',
+            'native/REACH/Firebase/FirestorePairStore.swift',
+            'native/REACH/Firebase/FirestoreRoomStore.swift',
+            'native/REACH/Firebase/FirestoreSignalingTransport.swift',
+            'native/REACH/Models/PairingAuthorization.swift',
+            'native/REACH/Models/ReachHomeAvailability.swift',
+            'native/REACH/Media/NativeWebRTCPeer.swift',
+            'native/REACH/Media/ReachTransportWatchdog.swift',
+            'native/REACH/Services/PermissionService.swift',
+            'native/project.yml',
+        ]
+        for path in protected:
+            with self.subTest(path=path):
+                original = subprocess.check_output(['git', 'show', BASELINE + ':' + path], cwd=ROOT)
+                self.assertEqual((ROOT / path).read_bytes(), original)
+
+    def test_private_content_has_no_backend_import_or_upload_dependency(self):
+        for path in ['native/REACH/Models/RelationshipJournal.swift',
+                     'native/REACH/Services/LocalRelationshipFile.swift',
+                     'native/REACH/Services/RelationshipJournalStore.swift']:
+            source = (ROOT / path).read_text()
+            for forbidden in ['import Firebase', 'URLSession', 'Firestore', 'ReachCollections', 'SharedContentDraft']:
+                with self.subTest(path=path, forbidden=forbidden):
+                    self.assertNotIn(forbidden, source)
+
+    def test_proposed_rules_are_not_a_deployment_target(self):
+        configs = list(ROOT.glob('**/firebase.json'))
+        configs = [p for p in configs if 'node_modules' not in p.parts]
+        self.assertTrue(configs)
+        for path in configs:
+            self.assertNotIn('firestore.proposed.rules', path.read_text())
+        self.assertNotIn('firestore.proposed.rules', (ROOT / 'codemagic.yaml').read_text())
+
+    def test_new_validation_workflow_has_no_publisher_credentials_or_trigger(self):
+        workflow = (ROOT / 'codemagic.yaml').read_text().split('  reach-ios-sprint-validation:',1)[1].split('  reach-ios-testflight-archive:',1)[0]
+        for forbidden in ['publishing:', 'triggering:', 'groups:', 'ios_signing:', 'integrations:', 'emulators:exec', 'npm test', 'build-ipa', '-exportArchive']:
+            self.assertNotIn(forbidden, workflow)
+        self.assertIn('CODE_SIGNING_ALLOWED=NO build', workflow)
+        self.assertIn('bash scripts/run-simulator-tests.sh', workflow)

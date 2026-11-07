@@ -1,0 +1,375 @@
+workflows:
+  reach-ios-simulator:
+    name: REACH iPhone simulator (local signing)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      groups:
+        - reach-staging
+      xcode: latest
+      node: 22
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: native-reach
+          include: true
+          source: true
+      cancel_previous_builds: false
+    scripts:
+      - name: Verify branch and toolchain
+        script: |
+          set -euo pipefail
+          test "$CM_BRANCH" = "native-reach"
+          xcodebuild -version
+          swift --version
+      - name: Install optional staging Firebase configuration
+        script: |
+          set -euo pipefail
+          python3 native/scripts/install-staging-config.py
+      - name: Validate staging authorization rules locally
+        script: |
+          set -euo pipefail
+          if ! java -version >/dev/null 2>&1; then
+            brew install openjdk@21
+            export JAVA_HOME="$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home"
+            export PATH="$JAVA_HOME/bin:$PATH"
+          fi
+          python3 -m unittest discover -s native/scripts -p 'test_*.py'
+          node --test staging/*.test.mjs
+          cd native/firebase
+          npm ci --no-audit --no-fund
+          npm test
+      - name: Generate Xcode project
+        script: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+          cd native
+          xcodegen generate
+      - name: Resolve Firebase packages
+        script: |
+          set -euo pipefail
+          cd native
+          mkdir -p build-logs
+          xcodebuild -resolvePackageDependencies -project REACH.xcodeproj -scheme REACH 2>&1 | tee build-logs/packages.log
+      - name: Select available iPhone simulator
+        script: |
+          set -euo pipefail
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; devices=json.load(sys.stdin)["devices"]; ids=[d["udid"] for runtime, items in devices.items() if runtime.startswith("com.apple.CoreSimulator.SimRuntime.iOS-") for d in items if d.get("isAvailable") and d["name"].startswith("iPhone")]; sys.exit("No available iPhone simulator") if not ids else print(ids[0])')
+          echo "DEVICE_ID=$DEVICE_ID" >> "$CM_ENV"
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+      - name: Build simulator application with local ad-hoc signing
+        script: |
+          set -euo pipefail
+          cd native
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Debug \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
+            -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY="-" \
+            build 2>&1 | tee build-logs/build.log
+      - name: Install and launch REACH
+        script: |
+          set -euo pipefail
+          cd native
+          xcrun simctl install "$DEVICE_ID" DerivedData/Build/Products/Debug-iphonesimulator/REACH.app
+          xcrun simctl launch "$DEVICE_ID" com.reachprototype.app
+          xcrun simctl io "$DEVICE_ID" screenshot build-logs/launch.png
+      - name: Run native unit tests
+        script: |
+          set -euo pipefail
+          cd native
+          bash scripts/run-simulator-tests.sh
+      - name: Compile physical iPhone code without signing credentials
+        script: |
+          set -euo pipefail
+          cd native
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath DeviceDerivedData \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build-logs/device-compile.log
+    artifacts:
+      - native/build-logs/**
+      - native/TestResults.xcresult
+      - native/DerivedData/Build/Products/Debug-iphonesimulator/REACH.app
+
+  reach-ios-device:
+    name: REACH staging registered iPhones (manual, no publishing)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      groups:
+        - reach-staging
+      xcode: latest
+      ios_signing:
+        distribution_type: ad_hoc
+        bundle_identifier: com.reachprototype.app
+    # Intentionally manual. Requires existing signing identities in Codemagic.
+    # No App Store/TestFlight upload, Firebase deployment or billing operation.
+    scripts:
+      - name: Verify native branch and required staging configuration
+        script: |
+          set -euo pipefail
+          test "$CM_BRANCH" = "native-reach"
+          python3 native/scripts/install-staging-config.py --required
+      - name: Generate native Xcode project
+        script: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
+          cd native
+          xcodegen generate
+      - name: Apply existing registered-device signing profiles
+        script: |
+          set -euo pipefail
+          cd native
+          xcode-project use-profiles
+          test -f "$HOME/export_options.plist"
+      - name: Archive staging app for physical iPhones
+        script: |
+          set -euo pipefail
+          cd native
+          mkdir -p build-logs
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build/REACH.xcarchive \
+            CURRENT_PROJECT_VERSION="$CM_BUILD_NUMBER" archive 2>&1 | tee build-logs/device-archive.log
+      - name: Verify archive targets staging and has device signing
+        script: |
+          set -euo pipefail
+          python3 native/scripts/verify-device-archive.py native/build/REACH.xcarchive/Products/Applications/REACH.app
+      - name: Export registered-device IPA without publishing
+        script: |
+          set -euo pipefail
+          cd native
+          xcodebuild -exportArchive -archivePath build/REACH.xcarchive \
+            -exportPath build/ios/ipa -exportOptionsPlist "$HOME/export_options.plist" \
+            2>&1 | tee build-logs/device-export.log
+    artifacts:
+      - native/build/ios/ipa/*.ipa
+      - native/build-logs/device-*.log
+
+  reach-ios-validation:
+    name: REACH validation only (8e41fb3, no upload)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    # Manual only; no signing identities, Firebase variable groups or publisher.
+    environment:
+      xcode: latest
+      node: 22
+      vars:
+        REACH_VALIDATION_COMMIT: 8e41fb3f24263cc5c4ea1dec6a82b58270285c76
+    scripts:
+      - name: Verify the exact approved application source
+        script: |
+          set -euo pipefail
+          test "$CM_BRANCH" = native-reach
+          # Retain CI fixes; preserve approved app bytes and the reviewed test correction.
+          git cat-file -e "$REACH_VALIDATION_COMMIT^{commit}"
+          python3 native/scripts/verify-validation-source.py "$REACH_VALIDATION_COMMIT"
+          git rev-parse HEAD
+          printf 'Application source verified against %s\n' "$REACH_VALIDATION_COMMIT"
+          python3 - <<'PY'
+          from pathlib import Path
+          assert not list(Path('native/REACH').rglob('GoogleService-Info.plist')), 'Validation must have no live Firebase client configuration'
+          PY
+          xcodebuild -version
+          swift --version
+      - name: Validate packaging and offline policies (no emulator)
+        script: |
+          set -euo pipefail
+          python3 -m unittest discover -s native/scripts -p 'test_*.py'
+          node --test staging/*.test.mjs
+          python3 native/scripts/run-portable-tests.py
+      - name: Generate Xcode project and select simulator
+        script: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
+          cd native
+          xcodegen generate
+          mkdir -p build-logs
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; ids=[x["udid"] for r,xs in d.items() if r.startswith("com.apple.CoreSimulator.SimRuntime.iOS-") for x in xs if x.get("isAvailable") and x["name"].startswith("iPhone")]; sys.exit("No available iPhone simulator") if not ids else print(ids[0])')
+          echo "DEVICE_ID=$DEVICE_ID" >> "$CM_ENV"
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+      - name: Run the complete native XCTest suite
+        script: |
+          set -euo pipefail
+          cd native
+          bash scripts/run-simulator-tests.sh
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          lines = Path('build-logs/tests.log').read_text().splitlines()
+          count = 0
+          for name in ['ReachHomeAvailabilityTests','ReachAppearancePreferencesTests','ReachAppearanceStoreTests']:
+              source = Path('REACHTests', name + '.swift').read_text()
+              for method in re.findall(r'func (test\w+)\(', source):
+                  assert any(name in line and method in line and 'passed' in line for line in lines), f'No passing XCTest result for {name}.{method}'
+                  count += 1
+          assert count == 14, f'Expected 14 new XCTest results, got {count}'
+          Path('build-logs/redesign-tests-verified.txt').write_text(f'All {count} redesign XCTest methods have passing log results.\n')
+          PY
+      - name: Check compiled resources and capture simulator evidence
+        script: |
+          set -euo pipefail
+          cd native
+          APP=DerivedData/Build/Products/Debug-iphonesimulator/REACH.app
+          test -s "$APP/Assets.car"
+          test -s "$APP/PrivacyInfo.xcprivacy"
+          test ! -e "$APP/GoogleService-Info.plist"
+          xcrun simctl install "$DEVICE_ID" "$APP"
+          xcrun simctl launch "$DEVICE_ID" com.reachprototype.app
+          xcrun simctl io "$DEVICE_ID" screenshot build-logs/redesign-launch.png
+      - name: Compile physical iPhone target without distribution signing
+        script: |
+          set -euo pipefail
+          cd native
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath DeviceDerivedData \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build-logs/validation-device-compile.log
+    artifacts:
+      - native/build-logs/**
+      - native/TestResults.xcresult
+
+  reach-ios-sprint-validation:
+    name: REACH next sprint validation only (manual, no upload)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    # No Firebase variable groups, distribution signing, publisher or push trigger.
+    environment:
+      xcode: latest
+      node: 22
+    scripts:
+      - name: Check branch and protected staging baseline
+        script: |
+          set -euo pipefail
+          test "$CM_BRANCH" = "native-reach"
+          git cat-file -e e7591c7c3ebd4c73c35a606de019859df60f9f48^{commit}
+          mkdir -p native/build-logs
+          git rev-parse HEAD > native/build-logs/sprint-source-commit.txt
+          git rev-parse HEAD:native/REACH > native/build-logs/sprint-app-tree.txt
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          assert not list(Path('native/REACH').rglob('GoogleService-Info.plist')), 'Validation requires no live Firebase client configuration'
+          PYCODE
+          python3 -m unittest discover -s native/scripts -p 'test_*.py'
+          node --test staging/*.test.mjs
+          node --check native/firebase/sync-proposal.test.mjs
+          python3 native/scripts/run-portable-tests.py
+      - name: Generate Xcode project and select iPhone simulator
+        script: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
+          cd native
+          xcodegen generate
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; ids=[x["udid"] for r,xs in d.items() if r.startswith("com.apple.CoreSimulator.SimRuntime.iOS-") for x in xs if x.get("isAvailable") and x["name"].startswith("iPhone")]; sys.exit("No available iPhone simulator") if not ids else print(ids[0])')
+          echo "DEVICE_ID=$DEVICE_ID" >> "$CM_ENV"
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+      - name: Run all native tests and verify bundled sunset
+        script: |
+          set -euo pipefail
+          cd native
+          bash scripts/run-simulator-tests.sh
+          test -s DerivedData/Build/Products/Debug-iphonesimulator/REACH.app/Assets.car
+          test -s DerivedData/Build/Products/Debug-iphonesimulator/REACH.app/PrivacyInfo.xcprivacy
+      - name: Launch simulator and capture interface evidence
+        script: |
+          set -euo pipefail
+          cd native
+          xcrun simctl install "$DEVICE_ID" DerivedData/Build/Products/Debug-iphonesimulator/REACH.app
+          xcrun simctl launch --terminate-running-process "$DEVICE_ID" com.reachprototype.app
+          sleep 3
+          xcrun simctl io "$DEVICE_ID" screenshot build-logs/sprint-launch.png
+      - name: Compile unsigned physical iPhone target
+        script: |
+          set -euo pipefail
+          cd native
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath DeviceDerivedData \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build-logs/sprint-device-compile.log
+    artifacts:
+      - native/build-logs/**
+      - native/TestResults.xcresult
+
+  reach-ios-testflight-archive:
+    name: REACH staging TestFlight (manual build, automatic upload)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: REACH Codemagic
+    environment:
+      groups:
+        - reach-staging
+      vars:
+        REACH_APPLE_TEAM_ID: GFUK853ZT5
+        REACH_IOS_BUILD_NUMBER: "2"
+        REACH_APPROVED_APP_COMMIT: 8e41fb3f24263cc5c4ea1dec6a82b58270285c76
+      xcode: latest
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.reachprototype.app
+    # Owner starts this workflow only after approval. No automatic build trigger.
+    # Select an existing exact-bundle App Store profile and matching private key.
+    scripts:
+      - name: Validate branch, staging configuration and Apple build inputs
+        script: |
+          set -euo pipefail
+          test "$CM_BRANCH" = "native-reach"
+          test "$REACH_APPLE_TEAM_ID" = "GFUK853ZT5"
+          test "$REACH_IOS_BUILD_NUMBER" = "2"
+          test "$REACH_APPROVED_APP_COMMIT" = "8e41fb3f24263cc5c4ea1dec6a82b58270285c76"
+          # Check source before installing the staging-only client configuration.
+          python3 native/scripts/verify-validation-source.py "$REACH_APPROVED_APP_COMMIT"
+          rm -rf native/build/testflight native/build/testflight-unverified
+          python3 native/scripts/install-staging-config.py --required
+          python3 native/scripts/prepare-store-export.py inputs
+          python3 -m unittest discover -s native/scripts -p 'test_*.py'
+      - name: Generate Xcode project for tests and archive
+        script: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
+          cd native
+          xcodegen generate
+      - name: Run native simulator tests before archiving
+        script: |
+          set -euo pipefail
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; ids=[x["udid"] for r,xs in d.items() if r.startswith("com.apple.CoreSimulator.SimRuntime.iOS-") for x in xs if x.get("isAvailable") and x["name"].startswith("iPhone")]; sys.exit("No available iPhone simulator") if not ids else print(ids[0])')
+          export DEVICE_ID
+          cd native
+          bash scripts/run-simulator-tests.sh
+      - name: Apply existing App Store distribution profiles
+        script: |
+          set -euo pipefail
+          cd native
+          xcode-project use-profiles
+          python3 scripts/prepare-store-export.py export "$HOME/export_options.plist"
+      - name: Archive for TestFlight
+        script: |
+          set -euo pipefail
+          cd native
+          mkdir -p build-logs
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build/REACH-TestFlight.xcarchive \
+            DEVELOPMENT_TEAM="$REACH_APPLE_TEAM_ID" \
+            MARKETING_VERSION="0.1.0" CURRENT_PROJECT_VERSION="$REACH_IOS_BUILD_NUMBER" archive \
+            2>&1 | tee build-logs/testflight-archive.log
+          python3 scripts/verify-device-archive.py build/REACH-TestFlight.xcarchive/Products/Applications/REACH.app \
+            --distribution app_store --expected-team "$REACH_APPLE_TEAM_ID"
+      - name: Export App Store-signed IPA and verify exported app
+        script: |
+          set -euo pipefail
+          cd native
+          xcodebuild -exportArchive -archivePath build/REACH-TestFlight.xcarchive \
+            -exportPath build/testflight-unverified -exportOptionsPlist "$HOME/export_options.plist" \
+            2>&1 | tee build-logs/testflight-export.log
+          python3 scripts/prepare-store-export.py promote-ipa build/testflight-unverified build/testflight
+    artifacts:
+      - native/build/testflight/*.ipa
+      - native/build/REACH-TestFlight.xcarchive/dSYMs/**
+      - native/build-logs/**
+      - native/TestResults.xcresult
+    publishing:
+      app_store_connect:
+        auth: integration
+        # Upload the verified IPA; beta review and tester assignment remain manual.
+        submit_to_testflight: false
+        # Never submit for public App Store review or release.
+        submit_to_app_store: false
