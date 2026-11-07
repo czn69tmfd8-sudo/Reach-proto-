@@ -50,14 +50,14 @@ class AppPackagingTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(bundled).hexdigest(),'b1b72b03ca4f7d331daec329edf39c67136e7ae09daa180ac11b62a56a3f8efc')
         self.assertEqual(struct.unpack('>II',bundled[16:24]),(864,1536))
 
-    def test_build_four_pins_reviewed_home_source_before_staging_config_install(self):
+    def test_build_five_pins_reviewed_header_source_before_staging_config_install(self):
         workflow=(ROOT.parent/'codemagic.yaml').read_text().split('  reach-ios-testflight-archive:',1)[1]
-        self.assertIn('REACH_IOS_BUILD_NUMBER: "4"',workflow)
-        self.assertIn('test "$REACH_IOS_BUILD_NUMBER" = "4"',workflow)
-        self.assertIn('REACH_APPROVED_APP_COMMIT: 41999f1663e28f35eb6945983e48d2ade7a26f99',workflow)
-        self.assertIn('test "$REACH_APPROVED_APP_COMMIT" = "41999f1663e28f35eb6945983e48d2ade7a26f99"',workflow)
+        self.assertIn('REACH_IOS_BUILD_NUMBER: "5"',workflow)
+        self.assertIn('test "$REACH_IOS_BUILD_NUMBER" = "5"',workflow)
+        self.assertIn('REACH_APPROVED_APP_COMMIT: 1ef1a29efd26b06781a5f68b930eb95d4f95f119',workflow)
+        self.assertIn('test "$REACH_APPROVED_APP_COMMIT" = "1ef1a29efd26b06781a5f68b930eb95d4f95f119"',workflow)
         self.assertIn('git merge-base --is-ancestor "$REACH_APPROVED_APP_COMMIT" HEAD', workflow)
-        fingerprint = 'e044a6290c8a4c9eb3a3fd1ceabff3a7e3425b525499a6a9c600ed066daaae6d'
+        fingerprint = '656f35d64bdb5e5e36596c7eebd34afd9bdd3578e452290da10a0adfab7d038e'
         self.assertIn(f'python3 native/scripts/verify-sprint-source.py {fingerprint}', workflow)
         self.assertLess(workflow.index('verify-sprint-source.py'), workflow.index('install-staging-config.py'))
         self.assertIn('MARKETING_VERSION="0.1.0" CURRENT_PROJECT_VERSION="$REACH_IOS_BUILD_NUMBER" archive',workflow)
