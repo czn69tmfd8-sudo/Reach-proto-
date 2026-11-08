@@ -34,6 +34,9 @@ final class ReachCallReviewTests: XCTestCase {
         XCTAssertNotEqual(membership, session)
         XCTAssertNotEqual(membership, preflight)
         XCTAssertNotEqual(session, preflight)
+        XCTAssertNotEqual(ReachErrorPresentation.message(ReachRoomCoordinatorError.unauthorized), membership)
+        XCTAssertNotEqual(ReachErrorPresentation.message(ReachRoomCoordinatorError.partnerChanged), membership)
+        XCTAssertNotEqual(ReachErrorPresentation.message(ReachRoomCoordinatorError.pairNoLongerUsable), membership)
         XCTAssertTrue(membership.contains("Room creation"))
         XCTAssertTrue(session.contains("sign-in changed"))
         for message in [membership, session, preflight] {
