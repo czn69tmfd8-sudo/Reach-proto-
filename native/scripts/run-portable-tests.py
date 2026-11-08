@@ -97,7 +97,8 @@ def main():
             '-o', str(out/('libREACH.dylib' if sys.platform == 'darwin' else 'libREACH.so'))], cwd=out, check=True)
         entries = []
         for path in tests:
-            methods = re.findall(r'func (test\w+)\([^)]*\)(\s+async)?', path.read_text())
+            test_source = re.sub(r'#if canImport\(FirebaseFirestore\).*?#endif', '', path.read_text(), flags=re.S)
+            methods = re.findall(r'func (test\w+)\([^)]*\)(\s+async)?', test_source)
             if not methods:
                 raise SystemExit(f'No discoverable tests in {path.name}')
             entries.append('testCase([' + ','.join(
