@@ -16,6 +16,14 @@ final class ReachCallReviewTests: XCTestCase {
         XCTAssertTrue(ReachFailureCopy.backend(domain: NSURLErrorDomain, code: -1009).contains("network"))
         XCTAssertFalse(ReachFailureCopy.backend(domain: "secret-uid", code: 42).contains("secret-uid"))
     }
+    func testCallPreflightFailureIsDistinguishableWithoutLeakingPairingDetails() {
+        let message = ReachErrorPresentation.message(StagingCallPreflightError.notAuthorized)
+        XCTAssertTrue(message.contains("before opening a room"))
+        XCTAssertFalse(message.contains("hostUid"))
+        XCTAssertFalse(message.contains("pairCode"))
+        XCTAssertNotEqual(message, ReachErrorPresentation.message(ReachRoomCoordinatorError.unauthorized))
+    }
+
     func testOnlyShortLivedValidRelayGrantsAreEligibleForFutureUse() {
         let now = Date()
         func grant(_ urls: [String], seconds: Double = 300, username: String = "ephemeral") -> ReachRelayGrant {
