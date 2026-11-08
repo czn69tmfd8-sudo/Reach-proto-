@@ -9,8 +9,6 @@ private struct RoomListenerRegistrationBox: @unchecked Sendable {
 
 // Immutable SDK handle; Firebase synchronizes its own operations and callbacks.
 final class FirestoreRoomStore: @unchecked Sendable, ReachRoomStore {
-    static let sessionLifetime: TimeInterval = 8 * 60 * 60
-
     private let db: Firestore
 
     init(db: Firestore = Firestore.firestore()) {
@@ -24,7 +22,7 @@ final class FirestoreRoomStore: @unchecked Sendable, ReachRoomStore {
     ) async throws -> ReachSession {
         let roomID = UUID().uuidString
         let openedAt = Date()
-        let expiresAt = openedAt.addingTimeInterval(Self.sessionLifetime)
+        let expiresAt = ReachRoomExpiry.epochMilliseconds(from: openedAt)
         let pairRef = db.collection(ReachCollections.pairInvites).document(pairCode)
         let roomRef = db.collection(ReachCollections.rooms).document(roomID)
 
@@ -63,7 +61,7 @@ final class FirestoreRoomStore: @unchecked Sendable, ReachRoomStore {
                     "pairCode": pairCode,
                     "createdAt": FieldValue.serverTimestamp(),
                     // Web stores this as epoch milliseconds; native must preserve that contract.
-                    "expiresAt": Int64(expiresAt.timeIntervalSince1970 * 1000),
+                    "expiresAt": expiresAt,
                     "active": true
                 ], forDocument: roomRef)
 
@@ -98,12 +96,15 @@ final class FirestoreRoomStore: @unchecked Sendable, ReachRoomStore {
         AsyncThrowingStream { continuation in
             let registration = db.collection(ReachCollections.rooms)
                 .document(id)
-                .addSnapshotListener { snapshot, error in
+                .addSnapshotListener(includeMetadataChanges: true) { snapshot, error in
                     if let error {
                         continuation.finish(throwing: error)
                         return
                     }
-                    guard let snapshot, snapshot.exists, let data = snapshot.data() else {
+                    guard let snapshot, ReachCallDocumentPolicy.isAuthoritative(
+                        isFromCache: snapshot.metadata.isFromCache, hasPendingWrites: snapshot.metadata.hasPendingWrites
+                    ) else { return }
+                    guard snapshot.exists, let data = snapshot.data() else {
                         continuation.yield(nil)
                         return
                     }

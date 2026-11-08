@@ -110,3 +110,32 @@ test('missing pair room-state fields deny room creation cleanly',async()=>{
  const d=db('a'),b=writeBatch(d);b.set(ref(d,'rooms/new'),{hostUid:'a',partnerUid:'b',pairCode:code,active:true,createdAt:serverTimestamp(),expiresAt:Date.now()+60000});
  b.update(ref(d,'pairInvites/'+code),{activeRoom:'new',openedBy:'a'});await cleanDenied(b.commit());
 });
+test('own lock and pair read can pass while a missing partner lock denies opening a room', async () => {
+ await seed();
+ await admin(async d => {
+  await updateDoc(ref(d,'pairInvites/'+code),{activeRoom:null,openedBy:null});
+  await deleteDoc(ref(d,'memberLocks/b'));
+ });
+ const d=db('a');
+ assert.equal((await getDoc(ref(d,'memberLocks/a'))).data().pairCode,code);
+ assert.equal((await getDoc(ref(d,'pairInvites/'+code))).data().partnerUid,'b');
+ const batch=writeBatch(d);
+ batch.set(ref(d,'rooms/new'),{hostUid:'a',partnerUid:'b',pairCode:code,active:true,createdAt:serverTimestamp(),expiresAt:Date.now()+60000});
+ batch.update(ref(d,'pairInvites/'+code),{activeRoom:'new',openedBy:'a'});
+ await cleanDenied(batch.commit());
+ assert.equal((await getDoc(ref(d,'pairInvites/'+code))).data().activeRoom,null);
+});
+test('room expiry headroom allows an opener clock ahead of the server', async () => {
+ await seed();
+ await admin(d=>updateDoc(ref(d,'pairInvites/'+code),{activeRoom:null,openedBy:null}));
+ const d=db('a');
+ function open(expiresAt) {
+  const batch=writeBatch(d);
+  batch.set(ref(d,'rooms/new'),{hostUid:'a',partnerUid:'b',pairCode:code,active:true,createdAt:serverTimestamp(),expiresAt});
+  batch.update(ref(d,'pairInvites/'+code),{activeRoom:'new',openedBy:'a'});
+  return batch.commit();
+ }
+ const clientNow=Date.now()+30000;
+ await cleanDenied(open(clientNow+28800000));
+ await assertSucceeds(open(clientNow+28800000-60000));
+});

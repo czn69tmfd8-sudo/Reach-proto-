@@ -24,7 +24,7 @@ final class StagingCallController: ObservableObject {
         let join = expectedRoomID != nil
         busy = true
         phase = .preparing
-        diagnostics.record(.preparing)
+        diagnostics.record(.checkingPartnership)
         watchdog = ReachTransportWatchdog()
         let token = UUID(); generation = token
         do {
@@ -33,9 +33,12 @@ final class StagingCallController: ObservableObject {
                   let lock = try await dependencies.pairs.memberLock(uid: uid),
                   let pair = try await dependencies.pairs.pair(code: lock.pairCode),
                   case .authorized(let partnership) = PairingAuthorization.resolve(uid: uid, memberLock: lock, pairCode: lock.pairCode, pair: pair) else {
-                throw ReachRoomCoordinatorError.unauthorized
+                // Distinguish a failed local pairing preflight from a denied room transaction.
+                // No UIDs, pairing codes, or room identifiers are included in user-facing copy.
+                throw StagingCallPreflightError.notAuthorized
             }
             guard generation == token else { throw CancellationError() }
+            diagnostics.record(.partnershipVerified)
             // Rooms are one-shot: never attach a new peer to an old offer or its ICE.
             if !join, pair.activeRoom != nil { throw ReachRoomCoordinatorError.partnerAlreadyOpen }
             if let expectedRoomID {
@@ -48,6 +51,7 @@ final class StagingCallController: ObservableObject {
                 }
             }
             guard generation == token else { return }
+            diagnostics.record(.preparing)
             let media = NativeWebRTCPeer()
             peer = media
             try await media.prepare()
@@ -66,6 +70,7 @@ final class StagingCallController: ObservableObject {
                 }
                 session = try await coordinator.sessionToTake(partnership: partnership, pair: currentPair)
             } else {
+                diagnostics.record(.registeringRoom)
                 session = try await coordinator.openHand(partnership: partnership, existingPair: pair)
             }
             guard generation == token else {
@@ -76,6 +81,14 @@ final class StagingCallController: ObservableObject {
             }
             diagnostics.record(join ? .joining : .opening)
             self.session = session; self.partnership = partnership; rooms = dependencies.rooms
+            diagnostics.record(.checkingRoom)
+            guard let room = try await dependencies.rooms.room(id: session.id),
+                  room.isCurrent(), room.pairCode == partnership.id,
+                  room.hostUid == session.openedBy,
+                  room.partnerUid == (join ? partnership.localMemberID : partnership.partnerMemberID) else {
+                throw SignalingError.ended
+            }
+            guard generation == token else { return }
             inbox = SignalingInbox()
             let role: ReachMediaRole = join ? .joiner : .opener
             let signaling = try FirestoreSignalingTransport()
@@ -102,7 +115,7 @@ final class StagingCallController: ObservableObject {
                             }
                             try await signaling.publishCandidate(candidate, roomID: session.id, role: role)
                         }
-                    } catch { await self?.fail(error, token: token) }
+                    } catch { await self?.fail(error, token: token, checkpoint: .signalingFailed) }
                 })
             }
             if join { phase = .connecting }
@@ -124,7 +137,7 @@ final class StagingCallController: ObservableObject {
                             }
                         }
                     }
-                } catch { await self?.fail(error, token: token) }
+                } catch { await self?.fail(error, token: token, checkpoint: .signalingFailed) }
             })
             tasks.append(Task { [weak self] in
                 do {
@@ -133,7 +146,7 @@ final class StagingCallController: ObservableObject {
                         try self.inbox.accept(candidate)
                         try await self.drainRemoteCandidates(media: media, token: token)
                     }
-                } catch { await self?.fail(error, token: token) }
+                } catch { await self?.fail(error, token: token, checkpoint: .signalingFailed) }
             })
             tasks.append(Task { [weak self] in
                 do {
@@ -144,7 +157,7 @@ final class StagingCallController: ObservableObject {
                             throw ReachRoomCoordinatorError.unauthorized
                         }
                     }
-                } catch { await self?.fail(error, token: token) }
+                } catch { await self?.fail(error, token: token, checkpoint: .pairObservationFailed) }
             })
             tasks.append(Task { [weak self] in
                 do {
@@ -152,16 +165,15 @@ final class StagingCallController: ObservableObject {
                         guard let self, self.generation == token else { return }
                         guard let room, room.isCurrent(), room.pairCode == partnership.id else { throw SignalingError.ended }
                     }
-                } catch { await self?.fail(error, token: token) }
+                } catch { await self?.fail(error, token: token, checkpoint: .roomObservationFailed) }
             })
-            guard let room = try await dependencies.rooms.room(id: session.id) else { throw SignalingError.ended }
-            guard generation == token else { return }
             tasks.append(Task { [weak self] in
                 do { try await Task.sleep(for: .seconds(max(0, room.expiresAt.timeIntervalSinceNow))) }
                 catch { return }
                 await self?.fail(SignalingError.ended, token: token)
             })
             if !join {
+                diagnostics.record(.publishingOffer)
                 let offer = try await media.makeDescription(.offer)
                 guard generation == token else { throw CancellationError() }
                 try await signaling.publishDescription(offer, roomID: session.id, role: role)
@@ -218,8 +230,9 @@ final class StagingCallController: ObservableObject {
         }
     }
 
-    private func fail(_ error: Error, token: UUID) async {
+    private func fail(_ error: Error, token: UUID, checkpoint: ReachDiagnosticSample.Event? = nil) async {
         guard generation == token else { return }
+        if let checkpoint { diagnostics.record(checkpoint) }
         diagnostics.record(.failed)
         await stop(message: ReachErrorPresentation.message(error))
     }
@@ -253,5 +266,13 @@ final class StagingCallController: ObservableObject {
         guard generation == stopToken else { return }
         busy = false
         phase = feedback.map(ReachCallPhase.failed) ?? .idle
+    }
+}
+
+enum StagingCallPreflightError: LocalizedError {
+    case notAuthorized
+
+    var errorDescription: String? {
+        "Call setup could not verify this device’s staging partnership before opening a room."
     }
 }

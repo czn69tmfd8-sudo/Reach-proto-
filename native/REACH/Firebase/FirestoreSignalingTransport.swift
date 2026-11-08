@@ -29,9 +29,12 @@ final class FirestoreSignalingTransport: ReachSignalingTransport {
         let field = role == .opener ? "answer" : "offer"
         let kind: ReachSessionDescription.Kind = role == .opener ? .answer : .offer
         return AsyncThrowingStream { continuation in
-            let registration = db.collection(ReachCollections.rooms).document(roomID).addSnapshotListener { snapshot, error in
+            let registration = db.collection(ReachCollections.rooms).document(roomID).addSnapshotListener(includeMetadataChanges: true) { snapshot, error in
                 if let error { continuation.finish(throwing: error); return }
-                guard let data = snapshot?.data(), data["active"] as? Bool == true,
+                guard let snapshot, ReachCallDocumentPolicy.isAuthoritative(
+                    isFromCache: snapshot.metadata.isFromCache, hasPendingWrites: snapshot.metadata.hasPendingWrites
+                ) else { return }
+                guard let data = snapshot.data(), data["active"] as? Bool == true,
                       let expiry = data["expiresAt"] as? NSNumber,
                       expiry.doubleValue > Date().timeIntervalSince1970 * 1000 else {
                     continuation.finish(throwing: SignalingError.ended)

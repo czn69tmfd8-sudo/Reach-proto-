@@ -139,13 +139,16 @@ final class FirestorePairStore: @unchecked Sendable, ReachPairStore {
         AsyncThrowingStream { continuation in
             let registration = db.collection(ReachCollections.pairInvites)
                 .document(code)
-                .addSnapshotListener { snapshot, error in
+                .addSnapshotListener(includeMetadataChanges: true) { snapshot, error in
                     if let error {
                         continuation.finish(throwing: error)
                         return
                     }
 
-                    guard let snapshot, snapshot.exists, let data = snapshot.data() else {
+                    guard let snapshot, ReachCallDocumentPolicy.isAuthoritative(
+                        isFromCache: snapshot.metadata.isFromCache, hasPendingWrites: snapshot.metadata.hasPendingWrites
+                    ) else { return }
+                    guard snapshot.exists, let data = snapshot.data() else {
                         continuation.yield(nil)
                         return
                     }

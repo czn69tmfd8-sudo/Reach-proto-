@@ -16,6 +16,33 @@ final class ReachCallReviewTests: XCTestCase {
         XCTAssertTrue(ReachFailureCopy.backend(domain: NSURLErrorDomain, code: -1009).contains("network"))
         XCTAssertFalse(ReachFailureCopy.backend(domain: "secret-uid", code: 42).contains("secret-uid"))
     }
+#if canImport(FirebaseFirestore)
+    func testCallPreflightFailureIsDistinguishableWithoutLeakingPairingDetails() {
+        let message = ReachErrorPresentation.message(StagingCallPreflightError.notAuthorized)
+        XCTAssertTrue(message.contains("before opening a room"))
+        XCTAssertFalse(message.contains("hostUid"))
+        XCTAssertFalse(message.contains("pairCode"))
+        XCTAssertNotEqual(message, ReachErrorPresentation.message(ReachRoomCoordinatorError.unauthorized))
+    }
+#endif
+
+    func testCallDocumentEvidenceRejectsCachedAndPendingSnapshots() {
+        XCTAssertFalse(ReachCallDocumentPolicy.isAuthoritative(isFromCache: true, hasPendingWrites: false))
+        XCTAssertFalse(ReachCallDocumentPolicy.isAuthoritative(isFromCache: false, hasPendingWrites: true))
+        XCTAssertTrue(ReachCallDocumentPolicy.isAuthoritative(isFromCache: false, hasPendingWrites: false))
+    }
+
+    func testRoomExpiryAllowsAnOpenerClockAheadOfTheServer() {
+        let serverNow = Date(timeIntervalSince1970: 1_700_000_000)
+        let clientNow = serverNow.addingTimeInterval(30)
+        let serverMilliseconds = Int64(serverNow.timeIntervalSince1970 * 1000)
+        let maxExpiry = serverMilliseconds + 28_800_000
+        XCTAssertGreaterThan(Int64(clientNow.addingTimeInterval(8 * 60 * 60).timeIntervalSince1970 * 1000), maxExpiry)
+        let requestedExpiry = ReachRoomExpiry.epochMilliseconds(from: clientNow)
+        XCTAssertEqual(requestedExpiry, maxExpiry - 30_000)
+        XCTAssertGreaterThan(requestedExpiry, serverMilliseconds)
+    }
+
     func testOnlyShortLivedValidRelayGrantsAreEligibleForFutureUse() {
         let now = Date()
         func grant(_ urls: [String], seconds: Double = 300, username: String = "ephemeral") -> ReachRelayGrant {

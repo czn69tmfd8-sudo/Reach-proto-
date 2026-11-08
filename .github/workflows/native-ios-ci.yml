@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - native-reach
+      - diagnose-staging-hand-auth
     paths:
       - "native/**"
       - ".github/workflows/native-ios-ci.yml"
@@ -21,6 +22,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Compile Swift 6 policies and run portable tests
         env:
           REACH_PORTABLE_LOADER_TRACE: "1"
@@ -43,6 +46,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Select installed Xcode
         run: |

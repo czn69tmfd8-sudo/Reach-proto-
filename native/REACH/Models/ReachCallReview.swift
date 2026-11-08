@@ -2,6 +2,14 @@ import Foundation
 
 struct ReachDiagnosticSample: Identifiable, Equatable, Sendable {
     enum Event: String, Sendable {
+        case checkingPartnership = "Checking staging partnership"
+        case partnershipVerified = "Staging partnership verified"
+        case registeringRoom = "Requesting staging room registration"
+        case checkingRoom = "Checking staging room on the server"
+        case publishingOffer = "Publishing the call offer"
+        case pairObservationFailed = "Partnership observation failed"
+        case roomObservationFailed = "Room observation failed"
+        case signalingFailed = "Call signaling failed"
         case preparing = "Preparing media"
         case opening = "Opening a hand"
         case joining = "Taking a hand"
@@ -60,5 +68,21 @@ enum ReachFailureCopy {
         if domain == NSURLErrorDomain { return "The network is unavailable. Check your connection and explicitly try again." }
         if domain == "FIRAuthErrorDomain" { return "Staging sign-in could not be verified. Check your connection and try again." }
         return "REACH could not complete this action. Check pairing and connection information before trying again."
+    }
+}
+
+/// Authoritative call document listeners wait for the server rather than act on
+/// a local snapshot from before the room transaction or on an uncommitted write.
+enum ReachCallDocumentPolicy {
+    static func isAuthoritative(isFromCache: Bool, hasPendingWrites: Bool) -> Bool {
+        !isFromCache && !hasPendingWrites
+    }
+}
+
+/// The Firestore rule caps expiry relative to server time. Leave headroom for
+/// an opener whose clock is slightly ahead instead of requesting the exact cap.
+enum ReachRoomExpiry {
+    static func epochMilliseconds(from now: Date) -> Int64 {
+        Int64(now.addingTimeInterval(8 * 60 * 60 - 60).timeIntervalSince1970 * 1000)
     }
 }
