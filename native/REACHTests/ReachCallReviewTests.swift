@@ -16,6 +16,7 @@ final class ReachCallReviewTests: XCTestCase {
         XCTAssertTrue(ReachFailureCopy.backend(domain: NSURLErrorDomain, code: -1009).contains("network"))
         XCTAssertFalse(ReachFailureCopy.backend(domain: "secret-uid", code: 42).contains("secret-uid"))
     }
+#if canImport(FirebaseFirestore)
     func testCallPreflightFailureIsDistinguishableWithoutLeakingPairingDetails() {
         let message = ReachErrorPresentation.message(StagingCallPreflightError.notAuthorized)
         XCTAssertTrue(message.contains("before opening a room"))
@@ -23,6 +24,7 @@ final class ReachCallReviewTests: XCTestCase {
         XCTAssertFalse(message.contains("pairCode"))
         XCTAssertNotEqual(message, ReachErrorPresentation.message(ReachRoomCoordinatorError.unauthorized))
     }
+#endif
 
     func testOnlyShortLivedValidRelayGrantsAreEligibleForFutureUse() {
         let now = Date()
