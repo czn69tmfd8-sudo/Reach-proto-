@@ -180,7 +180,6 @@ workflows:
           mkdir -p native/build
           node native/scripts/verify-staging-rules.mjs
     artifacts:
-      - native/build/staging-rules-verification/active.rules
       - native/build/staging-rules-verification/verification.json
 
   reach-ios-simulator:
