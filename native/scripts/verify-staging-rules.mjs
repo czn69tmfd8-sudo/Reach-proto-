@@ -37,7 +37,7 @@ async function accessToken(fetcher, secret) {
   try {
     const key = JSON.parse(secret);
     if (key.type !== 'service_account' || key.project_id !== project ||
-        key.client_email !== `reach-rules-reader@${project}.iam.gserviceaccount.com`) {
+        key.client_email !== `reach-staging-rules-reader@${project}.iam.gserviceaccount.com`) {
       throw new Error();
     }
     const now = Math.floor(Date.now() / 1000);
