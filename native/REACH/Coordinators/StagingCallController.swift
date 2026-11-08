@@ -33,7 +33,9 @@ final class StagingCallController: ObservableObject {
                   let lock = try await dependencies.pairs.memberLock(uid: uid),
                   let pair = try await dependencies.pairs.pair(code: lock.pairCode),
                   case .authorized(let partnership) = PairingAuthorization.resolve(uid: uid, memberLock: lock, pairCode: lock.pairCode, pair: pair) else {
-                throw ReachRoomCoordinatorError.unauthorized
+                // Distinguish a failed local pairing preflight from a denied room transaction.
+                // No UIDs, pairing codes, or room identifiers are included in user-facing copy.
+                throw StagingCallPreflightError.notAuthorized
             }
             guard generation == token else { throw CancellationError() }
             // Rooms are one-shot: never attach a new peer to an old offer or its ICE.
@@ -253,5 +255,13 @@ final class StagingCallController: ObservableObject {
         guard generation == stopToken else { return }
         busy = false
         phase = feedback.map(ReachCallPhase.failed) ?? .idle
+    }
+}
+
+private enum StagingCallPreflightError: LocalizedError {
+    case notAuthorized
+
+    var errorDescription: String? {
+        "Call setup could not verify this device’s staging partnership before opening a room."
     }
 }
