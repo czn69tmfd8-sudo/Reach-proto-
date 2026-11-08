@@ -8,10 +8,14 @@ struct ReachRoomCoordinator {
         existingPair: PairRecord,
         now: Date = Date()
     ) async throws -> ReachSession {
-        guard partnership.isAuthorized,
-              existingPair.isUsable(by: partnership.localMemberID),
-              existingPair.partnerUID(for: partnership.localMemberID) == partnership.partnerMemberID else {
+        guard partnership.isAuthorized else {
             throw ReachRoomCoordinatorError.unauthorized
+        }
+        guard existingPair.isUsable(by: partnership.localMemberID) else {
+            throw ReachRoomCoordinatorError.pairNoLongerUsable
+        }
+        guard existingPair.partnerUID(for: partnership.localMemberID) == partnership.partnerMemberID else {
+            throw ReachRoomCoordinatorError.partnerChanged
         }
 
         switch PairSessionInterpreter.presentation(pair: existingPair, partnership: partnership) {
@@ -100,6 +104,8 @@ struct ReachRoomCoordinator {
 
 enum ReachRoomCoordinatorError: LocalizedError, Equatable {
     case unauthorized
+    case pairNoLongerUsable
+    case partnerChanged
     case partnerAlreadyOpen
     case partnerHandUnavailable
     case staleSession(String)
@@ -109,7 +115,11 @@ enum ReachRoomCoordinatorError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .unauthorized:
-            return "This device is not authorized for the partnership."
+            return "The call's partnership authorization was not verified."
+        case .pairNoLongerUsable:
+            return "The partnership changed or was revoked before the call opened. Refresh pairing status; do not reset it."
+        case .partnerChanged:
+            return "The verified partner no longer matches the current pairing. Refresh pairing status; do not reset it."
         case .partnerAlreadyOpen:
             return "Your partner already has their hand open."
         case .partnerHandUnavailable:
