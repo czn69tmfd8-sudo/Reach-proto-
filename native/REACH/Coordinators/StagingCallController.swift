@@ -258,7 +258,7 @@ final class StagingCallController: ObservableObject {
     }
 }
 
-private enum StagingCallPreflightError: LocalizedError {
+enum StagingCallPreflightError: LocalizedError {
     case notAuthorized
 
     var errorDescription: String? {
