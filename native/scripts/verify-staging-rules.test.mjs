@@ -16,7 +16,7 @@ const candidate = await readFile(new URL('staging-relationship-space/merged.rule
 const {privateKey, publicKey} = generateKeyPairSync('rsa', {modulusLength: 2048});
 const credential = {
   type: 'service_account', project_id: project,
-  client_email: `reach-rules-reader@${project}.iam.gserviceaccount.com`,
+  client_email: `reach-staging-rules-reader@${project}.iam.gserviceaccount.com`,
   private_key: privateKey.export({type: 'pkcs8', format: 'pem'}),
 };
 const env = {
