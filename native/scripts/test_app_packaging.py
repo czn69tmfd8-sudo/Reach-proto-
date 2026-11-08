@@ -20,7 +20,9 @@ class AppPackagingTests(unittest.TestCase):
         self.assertEqual(p['NSPrivacyAccessedAPITypes'],[{'NSPrivacyAccessedAPIType':'NSPrivacyAccessedAPICategoryUserDefaults','NSPrivacyAccessedAPITypeReasons':['CA92.1']}])
     def test_store_upload_is_manual_and_scoped_to_testflight_workflow(self):
         other,workflow=(ROOT.parent/'codemagic.yaml').read_text().split('  reach-ios-testflight-archive:',1)
-        self.assertNotIn('    publishing:',other)
+        before, after = other.split('  reach-ios-build6-testflight:', 1)
+        _, after = after.split('  reach-staging-firestore-verify:', 1)
+        self.assertNotIn('    publishing:', before + after)
         self.assertIn('app_store_connect: REACH Codemagic',workflow)
         self.assertIn('auth: integration',workflow)
         self.assertIn('submit_to_app_store: false',workflow)
@@ -80,7 +82,7 @@ class AppPackagingTests(unittest.TestCase):
 
 
     def test_build_six_archive_is_manual_source_pinned_and_has_no_uploader(self):
-        workflow = (ROOT.parent/'codemagic.yaml').read_text().split('  reach-ios-build6-archive-only:', 1)[1].split('  reach-staging-firestore-verify:', 1)[0]
+        workflow = (ROOT.parent/'codemagic.yaml').read_text().split('  reach-ios-build6-archive-only:', 1)[1].split('  reach-ios-build6-testflight:', 1)[0]
         for forbidden in ('publishing:', 'triggering:', 'integrations:', 'app-store-connect ',
                           'firebase deploy', 'altool', 'iTMSTransporter'):
             self.assertNotIn(forbidden, workflow)
@@ -97,3 +99,16 @@ class AppPackagingTests(unittest.TestCase):
                  'promote-ipa build/build6-unverified build/build6-verified']
         self.assertEqual([workflow.index(step) for step in steps],
                          sorted(workflow.index(step) for step in steps))
+
+    def test_build_six_upload_requires_an_explicit_internal_only_selection(self):
+        config = (ROOT.parent/'codemagic.yaml').read_text()
+        archive, upload = config.split('  reach-ios-build6-testflight:', 1)
+        upload = upload.split('  reach-staging-firestore-verify:', 1)[0]
+        for required in ('default: "HOLD"', 'REACH_BUILD6_MODE: testflight',
+                         '${{ inputs.internal_upload }}', 'scripts: *reach_build6_scripts',
+                         'artifacts: *reach_build6_artifacts', 'submit_to_testflight: false',
+                         'submit_to_app_store: false'):
+            self.assertIn(required, upload)
+        self.assertIn('testflight) test "${REACH_BUILD6_UPLOAD_CONFIRMATION:-}" = "UPLOAD_INTERNAL_BUILD_6"', archive)
+        self.assertNotIn('triggering:', upload)
+        self.assertNotIn('beta_groups:', upload)

@@ -5,6 +5,15 @@ Check the build number under REACH's menu > About REACH. Update in place so the
 existing installation identities can be reused. Leave the existing pairing and
 auth accounts intact. A simulator pass does not establish physical audio or video.
 
+Before distributing, confirm the read-only staging rules report matches the
+reviewed baseline and App Store Connect shows that build 6 is unused. The
+manual `reach-ios-build6-archive-only` workflow verifies signing and archives
+privately. To upload from Codemagic after release approval, select
+`reach-ios-build6-testflight` on `native-reach` and explicitly select
+`UPLOAD_INTERNAL_BUILD_6`. The default `HOLD` stops before archiving.
+The workflow runs the same source and XCTest gates, uploads only the
+internal-testing export, and leaves tester assignment to App Store Connect.
+
 1. Open REACH on both phones and keep the app in the foreground. In **Pairing
    management**, tap **Refresh availability** on both. Record whether both
    report **Pairing verified**.

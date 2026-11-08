@@ -52,11 +52,12 @@ workflows:
     name: REACH Staging 0.1.0 (6) archive only
     instance_type: mac_mini_m2
     max_build_duration: 60
-    environment:
+    environment: &reach_build6_environment
       groups:
         - reach-staging
-      vars:
+      vars: &reach_build6_vars
         REACH_APPLE_TEAM_ID: GFUK853ZT5
+        REACH_BUILD6_MODE: archive
         REACH_IOS_BUILD_NUMBER: "6"
         REACH_APPROVED_APP_COMMIT: a253f1aa65cec6310311396e4fd21445b56b041e
       xcode: latest
@@ -64,12 +65,18 @@ workflows:
         distribution_type: app_store
         bundle_identifier: com.reachprototype.app
     # Manual archive/export to private CI artifacts using existing signing identities.
-    scripts:
+    scripts: &reach_build6_scripts
       - name: Validate branch, staging configuration and Apple build inputs
         script: |
           set -euo pipefail
           rm -rf native/build/build6-verified native/build/build6-unverified
           test "$CM_BRANCH" = "native-reach"
+          test -z "${CM_PULL_REQUEST_DEST:-}"
+          case "$REACH_BUILD6_MODE" in
+            archive) ;;
+            testflight) test "${REACH_BUILD6_UPLOAD_CONFIRMATION:-}" = "UPLOAD_INTERNAL_BUILD_6" ;;
+            *) exit 1 ;;
+          esac
           test "$REACH_APPLE_TEAM_ID" = "GFUK853ZT5"
           test "$REACH_IOS_BUILD_NUMBER" = "6"
           test "$REACH_APPROVED_APP_COMMIT" = "a253f1aa65cec6310311396e4fd21445b56b041e"
@@ -121,11 +128,38 @@ workflows:
             -exportPath build/build6-unverified -exportOptionsPlist "$HOME/export_options.plist" \
             2>&1 | tee build-logs/build6-export.log
           python3 scripts/prepare-store-export.py promote-ipa build/build6-unverified build/build6-verified
-    artifacts:
+    artifacts: &reach_build6_artifacts
       - native/build/build6-verified/*.ipa
       - native/build/REACH-Build6.xcarchive/dSYMs/**
       - native/build-logs/**
       - native/TestResults.xcresult
+
+  reach-ios-build6-testflight:
+    name: REACH Staging Build 6 (manual internal upload)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    inputs:
+      internal_upload:
+        description: Owner approval to upload the verified Build 6 to App Store Connect
+        type: choice
+        options: ["HOLD", "UPLOAD_INTERNAL_BUILD_6"]
+        default: "HOLD"
+    integrations:
+      app_store_connect: REACH Codemagic
+    environment:
+      <<: *reach_build6_environment
+      vars:
+        <<: *reach_build6_vars
+        REACH_BUILD6_MODE: testflight
+        REACH_BUILD6_UPLOAD_CONFIRMATION: ${{ inputs.internal_upload }}
+    scripts: *reach_build6_scripts
+    artifacts: *reach_build6_artifacts
+    publishing:
+      app_store_connect:
+        auth: integration
+        # Assign the uploaded internal-only build in App Store Connect after processing.
+        submit_to_testflight: false
+        submit_to_app_store: false
 
   reach-staging-firestore-verify:
     name: REACH staging Firestore rules verification (read only)
