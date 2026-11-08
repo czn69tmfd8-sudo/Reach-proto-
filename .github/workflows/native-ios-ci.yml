@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - native-reach
+      - diagnose-staging-hand-auth
     paths:
       - "native/**"
       - ".github/workflows/native-ios-ci.yml"
