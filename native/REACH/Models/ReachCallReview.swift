@@ -83,6 +83,6 @@ enum ReachCallDocumentPolicy {
 /// an opener whose clock is slightly ahead instead of requesting the exact cap.
 enum ReachRoomExpiry {
     static func epochMilliseconds(from now: Date) -> Int64 {
-        Int64(now.addingTimeInterval(8 * 60 * 60 - 60).timeIntervalSince1970 * 1000)
+        Int64(now.addingTimeInterval(ReachSessionContract.maximumAge - 60).timeIntervalSince1970 * 1000)
     }
 }

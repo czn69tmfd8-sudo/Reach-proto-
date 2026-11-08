@@ -2,9 +2,11 @@ import XCTest
 @testable import REACH
 
 final class ReachSessionContractTests: XCTestCase {
-    func testNativeSessionLifetimeMatchesEightHourWebContract() {
+    func testNativeRoomExpiryLeavesHeadroomBelowEightHourContract() {
         XCTAssertEqual(ReachSessionContract.maximumAge, 8 * 60 * 60)
-        XCTAssertEqual(FirestoreRoomStore.sessionLifetime, ReachSessionContract.maximumAge)
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let maximum = Int64(now.addingTimeInterval(ReachSessionContract.maximumAge).timeIntervalSince1970 * 1000)
+        XCTAssertEqual(ReachRoomExpiry.epochMilliseconds(from: now), maximum - 60_000)
     }
 
     func testRoomIsCurrentOnlyWhileActiveAndBeforeExpiry() {
