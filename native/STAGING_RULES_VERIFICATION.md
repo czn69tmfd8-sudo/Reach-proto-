@@ -13,12 +13,10 @@ key. On iPhone, use Safari's **Request Desktop Website** if the consoles hide
 their controls.
 
 1. Open [Google Cloud IAM](https://console.cloud.google.com/iam-admin/roles?project=reach-staging-a4745)
-   and confirm the selected project is exactly `reach-staging-a4745`. Under
-   **Roles**, create a project custom role named `Reach Rules Readback` with
-   exactly `firebaserules.releases.get` and `firebaserules.rulesets.get`. Use an
-   existing identical role if one is already approved.
+   and confirm the selected project is exactly `reach-staging-a4745`. Confirm the existing service account has the `Firebase Rules Viewer` role
+   on this staging project. Do not change existing IAM roles unless reviewed.
 2. Under **Service Accounts**, select or, once approved, create
-   `reach-rules-reader@reach-staging-a4745.iam.gserviceaccount.com`. Grant the
+   `reach-staging-rules-reader@reach-staging-a4745.iam.gserviceaccount.com`. Grant the
    custom role on this staging project only. Ensure this identity has no other
    project, folder, organization, Firestore data, or deployment grants. Do not
    reuse a Firebase Admin SDK, deployer, personal login, or production key.
