@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {generateKeyPairSync, verify as verifySignature} from 'node:crypto';
-import {mkdtemp, readFile, readdir, rm, stat} from 'node:fs/promises';
+import {mkdtemp, readFile, readdir, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {test} from 'node:test';
@@ -20,7 +20,7 @@ const credential = {
   private_key: privateKey.export({type: 'pkcs8', format: 'pem'}),
 };
 const env = {
-  CM_BRANCH: 'native-reach', REACH_RULES_PRIVATE_ARTIFACTS_CONFIRMED: 'yes',
+  CM_BRANCH: 'native-reach',
   REACH_STAGING_RULES_READER_JSON: JSON.stringify(credential),
 };
 
@@ -38,15 +38,14 @@ async function fixture(t, {first = release, last = first, source = baseline.toSt
   return {root, output, calls, options: {env, output, candidate, fetcher}};
 }
 
-test('reads only the pinned release and ruleset and saves exact private rollback bytes', async t => {
+test('reads only the pinned release and ruleset and publishes checksums only', async t => {
   const {output, calls, options} = await fixture(t);
   const result = await verify(options);
   assert.equal(result.result, 'verified');
   assert.equal(result.activeSHA256, baselineSHA);
   assert.equal(result.candidateSHA256, candidateSHA);
   assert.deepEqual(JSON.parse(await readFile(join(output, 'verification.json'))), result);
-  assert.deepEqual(await readFile(join(output, 'active.rules')), baseline);
-  assert.equal((await stat(join(output, 'active.rules'))).mode & 0o777, 0o600);
+  assert.deepEqual(await readdir(output), ['verification.json']);
   assert.deepEqual(calls.map(([url, options]) => [options.method, url]), [
     ['POST', 'https://oauth2.googleapis.com/token'],
     ['GET', `https://firebaserules.googleapis.com/v1/${releaseName}`],
@@ -62,11 +61,11 @@ test('reads only the pinned release and ruleset and saves exact private rollback
     publicKey, Buffer.from(signature, 'base64url')));
 });
 
-test('changed live source yields a release hold and retains the exact snapshot', async t => {
+test('changed live source yields a release hold without publishing rule contents', async t => {
   const source = 'rules_version = \'2\';\r\n// fixture — trailing space \r\n';
   const {output, options} = await fixture(t, {source});
   assert.equal((await verify(options)).result, 'release-hold');
-  assert.equal(await readFile(join(output, 'active.rules'), 'utf8'), source);
+  assert.deepEqual(await readdir(output), ['verification.json']);
 });
 
 test('candidate mismatch, unsafe run context and wrong credentials stop before network access', async t => {
@@ -75,7 +74,6 @@ test('candidate mismatch, unsafe run context and wrong credentials stop before n
   for (const patch of [
     {CM_BRANCH: 'main'},
     {CM_PULL_REQUEST_DEST: 'native-reach'},
-    {REACH_RULES_PRIVATE_ARTIFACTS_CONFIRMED: ''},
     {REACH_STAGING_RULES_READER_JSON: ''},
     {REACH_STAGING_RULES_READER_JSON: JSON.stringify({...credential, project_id: 'production'})},
   ]) {
