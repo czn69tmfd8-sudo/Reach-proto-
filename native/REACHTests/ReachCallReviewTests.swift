@@ -26,6 +26,24 @@ final class ReachCallReviewTests: XCTestCase {
     }
 #endif
 
+#if canImport(FirebaseFirestore)
+    func testRoomAuthorizationErrorsAreDistinctAndDoNotExposeIdentifiers() {
+        let membership = ReachErrorPresentation.message(FirestoreRoomStoreError.unauthorized)
+        let session = ReachErrorPresentation.message(FirestoreRoomStoreError.authSessionChanged)
+        let preflight = ReachErrorPresentation.message(StagingCallPreflightError.notAuthorized)
+        XCTAssertNotEqual(membership, session)
+        XCTAssertNotEqual(membership, preflight)
+        XCTAssertNotEqual(session, preflight)
+        XCTAssertTrue(membership.contains("Room creation"))
+        XCTAssertTrue(session.contains("sign-in changed"))
+        for message in [membership, session, preflight] {
+            XCTAssertFalse(message.contains("hostUid"))
+            XCTAssertFalse(message.contains("partnerUid"))
+            XCTAssertFalse(message.contains("pairCode"))
+        }
+    }
+#endif
+
     func testCallDocumentEvidenceRejectsCachedAndPendingSnapshots() {
         XCTAssertFalse(ReachCallDocumentPolicy.isAuthoritative(isFromCache: true, hasPendingWrites: false))
         XCTAssertFalse(ReachCallDocumentPolicy.isAuthoritative(isFromCache: false, hasPendingWrites: true))
