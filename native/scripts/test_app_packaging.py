@@ -80,19 +80,19 @@ class AppPackagingTests(unittest.TestCase):
 
 
     def test_build_six_archive_is_manual_source_pinned_and_has_no_uploader(self):
-        workflow = (ROOT.parent/'codemagic.yaml').read_text().split('  reach-ios-build6-archive-only:', 1)[1].split('  reach-ios-simulator:', 1)[0]
+        workflow = (ROOT.parent/'codemagic.yaml').read_text().split('  reach-ios-build6-archive-only:', 1)[1].split('  reach-staging-firestore-verify:', 1)[0]
         for forbidden in ('publishing:', 'triggering:', 'integrations:', 'app-store-connect ',
                           'firebase deploy', 'altool', 'iTMSTransporter'):
             self.assertNotIn(forbidden, workflow)
         for required in ('REACH_IOS_BUILD_NUMBER: "6"', 'test "$REACH_IOS_BUILD_NUMBER" = "6"',
-                         'a2f05f4494cc3ff6cf21e42dcd3c3e92bec24765',
-                         '43af880ce6bc456069b3aafe16c6fd1d62c61b39c6c84a0acd1ed6528fb22671',
+                         'a253f1aa65cec6310311396e4fd21445b56b041e',
+                         '59404e25db479d86dabbf71c344401a4411c327d73c694f37a03aca43e6e08d6',
                          'distribution_type: app_store', 'bundle_identifier: com.reachprototype.app',
                          'MARKETING_VERSION="0.1.0" CURRENT_PROJECT_VERSION="$REACH_IOS_BUILD_NUMBER"',
                          'native/build/build6-verified/*.ipa'):
             self.assertIn(required, workflow)
         steps = ['verify-sprint-source.py', 'install-staging-config.py --required',
-                 'run-simulator-tests.sh', 'test-results build-logs/test-summary.json --expected-tests 175',
+                 'run-simulator-tests.sh', 'test-results build-logs/test-summary.json --expected-tests 178',
                  'xcode-project use-profiles', 'xcodebuild -exportArchive',
                  'promote-ipa build/build6-unverified build/build6-verified']
         self.assertEqual([workflow.index(step) for step in steps],
