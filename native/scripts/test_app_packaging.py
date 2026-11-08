@@ -87,8 +87,8 @@ class AppPackagingTests(unittest.TestCase):
                           'firebase deploy', 'altool', 'iTMSTransporter'):
             self.assertNotIn(forbidden, workflow)
         for required in ('REACH_IOS_BUILD_NUMBER: "6"', 'test "$REACH_IOS_BUILD_NUMBER" = "6"',
-                         'a253f1aa65cec6310311396e4fd21445b56b041e',
-                         '59404e25db479d86dabbf71c344401a4411c327d73c694f37a03aca43e6e08d6',
+                         '47b2ef377b76a9bc1b4a589a68b46a3f7bd4d617',
+                         '4f18f8cbaf0358a7b6135e0e514a6a29e46ee1fec63873d3946f9b7ce330e959',
                          'distribution_type: app_store', 'bundle_identifier: com.reachprototype.app',
                          'MARKETING_VERSION="0.1.0" CURRENT_PROJECT_VERSION="$REACH_IOS_BUILD_NUMBER"',
                          'native/build/build6-verified/*.ipa'):

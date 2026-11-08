@@ -59,7 +59,7 @@ workflows:
         REACH_APPLE_TEAM_ID: GFUK853ZT5
         REACH_BUILD6_MODE: archive
         REACH_IOS_BUILD_NUMBER: "6"
-        REACH_APPROVED_APP_COMMIT: a253f1aa65cec6310311396e4fd21445b56b041e
+        REACH_APPROVED_APP_COMMIT: 47b2ef377b76a9bc1b4a589a68b46a3f7bd4d617
       xcode: latest
       ios_signing:
         distribution_type: app_store
@@ -79,10 +79,10 @@ workflows:
           esac
           test "$REACH_APPLE_TEAM_ID" = "GFUK853ZT5"
           test "$REACH_IOS_BUILD_NUMBER" = "6"
-          test "$REACH_APPROVED_APP_COMMIT" = "a253f1aa65cec6310311396e4fd21445b56b041e"
+          test "$REACH_APPROVED_APP_COMMIT" = "47b2ef377b76a9bc1b4a589a68b46a3f7bd4d617"
           # Check source before installing the staging-only client configuration.
           git merge-base --is-ancestor "$REACH_APPROVED_APP_COMMIT" HEAD
-          python3 native/scripts/verify-sprint-source.py 59404e25db479d86dabbf71c344401a4411c327d73c694f37a03aca43e6e08d6
+          python3 native/scripts/verify-sprint-source.py 4f18f8cbaf0358a7b6135e0e514a6a29e46ee1fec63873d3946f9b7ce330e959
           python3 native/scripts/install-staging-config.py --required
           python3 native/scripts/prepare-store-export.py inputs
           python3 -m unittest discover -s native/scripts -p 'test_*.py'
