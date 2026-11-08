@@ -64,9 +64,6 @@ export async function verify({env, candidate, output, fetcher = fetch}) {
   if (env.CM_BRANCH !== 'native-reach' || env.CM_PULL_REQUEST_DEST) {
     throw new VerificationError('Only a native-reach branch build may verify staging rules.');
   }
-  if (env.REACH_RULES_PRIVATE_ARTIFACTS_CONFIRMED !== 'yes') {
-    throw new VerificationError('Confirm private Codemagic artifact access before running.');
-  }
   const candidateHash = sha256(candidate);
   if (candidateHash !== candidateSHA) {
     throw new VerificationError(`Candidate checksum mismatch: ${candidateHash}. Expected ${candidateSHA}.`);
@@ -100,7 +97,6 @@ export async function verify({env, candidate, output, fetcher = fetch}) {
     result: activeHash === baselineSHA ? 'verified' : 'release-hold',
   };
   await mkdir(output, {mode: 0o700});
-  await writeFile(resolve(output, 'active.rules'), source, {mode: 0o600, flag: 'wx'});
   await writeFile(resolve(output, 'verification.json'), JSON.stringify(report, null, 2) + '\n',
     {mode: 0o600, flag: 'wx'});
   return report;
