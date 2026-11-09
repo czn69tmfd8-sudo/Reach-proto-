@@ -6,12 +6,18 @@ import Foundation
 final class AdventureBookPreviewRepository: AdventureBookRepository {
     private(set) var book: AdventureBook
     private let memberUID: String
-    private let members: Set<String>
+    private var members: Set<String>
 
     init(pairCode: String, memberUID: String, members: Set<String>, memories: [AdventureMemory] = []) {
         self.book = AdventureBook(pairCode: pairCode, memories: memories)
         self.memberUID = memberUID
         self.members = members
+    }
+
+    /// Simulates pair revocation without changing any real account or Firebase state.
+    func revokePreviewAccess() {
+        members.removeAll()
+        book.memories.removeAll()
     }
 
     private func authorize(_ pairCode: String) throws {
