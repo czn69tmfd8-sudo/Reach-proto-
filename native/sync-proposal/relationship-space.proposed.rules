@@ -1,0 +1,52 @@
+// REVIEW ONLY. Standalone emulator input. Never deploy this file by itself.
+// Any future staging rollout must merge only this isolated match and helpers.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function spacePairPath(code) {
+      return /databases/$(database)/documents/nativeStaging/v1/pairInvites/$(code);
+    }
+    function spaceLockMatches(uid, code) {
+      let path = /databases/$(database)/documents/nativeStaging/v1/memberLocks/$(uid);
+      return exists(path) && get(path).data.get('pairCode', null) == code;
+    }
+    function spaceMemberID(uid) {
+      return uid is string && uid.matches('[^/]+') && uid.toUtf8().size() <= 1500
+        && !(uid in ['.', '..']) && !uid.matches('__.*__');
+    }
+    function spaceMembers(p, code) {
+      return spaceMemberID(p.get('hostUid', null)) && spaceMemberID(p.get('partnerUid', null))
+        && p.hostUid != p.partnerUid && request.auth.uid in [p.hostUid, p.partnerUid]
+        && p.get('revoked', false) == false
+        && spaceLockMatches(p.hostUid, code) && spaceLockMatches(p.partnerUid, code);
+    }
+    function spacePilotEnabled(code) {
+      let path = /databases/$(database)/documents/nativeStaging/v1/relationshipSpace/$(code);
+      return exists(path) && get(path).data.get('enabled', false) == true;
+    }
+    function spaceAuthorized(code) {
+      return request.auth != null && code.matches('[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{12}')
+        && exists(spacePairPath(code)) && spaceMembers(get(spacePairPath(code)).data, code) && spacePilotEnabled(code);
+    }
+    function spaceEntry(d) {
+      return d.keys().hasAll(['kind', 'authorUid', 'title', 'caption', 'eventAt', 'progress'])
+        && d.keys().hasOnly(['kind', 'authorUid', 'title', 'caption', 'eventAt', 'progress', 'photo'])
+        && d.authorUid == request.auth.uid
+        && d.kind in ['memory', 'milestone', 'goal', 'response', 'plan']
+        && d.title is string && d.title.size() > 0 && d.title.toUtf8().size() <= 120
+        && d.caption is string && d.caption.toUtf8().size() <= 6000 && d.eventAt is timestamp
+        && d.progress is int && d.progress >= 0 && d.progress <= 100 && (d.kind == 'goal' || d.progress == 0)
+        && (!('photo' in d) || (d.kind == 'memory' && d.photo is bytes && d.photo.size() > 0 && d.photo.size() <= 250000));
+    }
+    match /nativeStaging/v1/relationshipSpace/{code}/entries/{entryID} {
+      allow get: if spaceAuthorized(code);
+      allow list: if spaceAuthorized(code) && request.query.limit != null && request.query.limit <= 12;
+      allow create: if spaceAuthorized(code)
+        && entryID.matches('[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
+        && spaceEntry(request.resource.data);
+      allow update: if spaceAuthorized(code) && resource.data.authorUid == request.auth.uid
+        && request.resource.data.kind == resource.data.kind && spaceEntry(request.resource.data);
+      allow delete: if spaceAuthorized(code) && resource.data.authorUid == request.auth.uid;
+    }
+  }
+}
