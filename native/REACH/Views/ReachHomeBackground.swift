@@ -58,7 +58,7 @@ struct ReachConnectionHeart: View {
 struct ReachHomeIdentityHeader: View {
     @EnvironmentObject private var appearance: ReachAppearanceStore
     var paired = false
-    @ScaledMetric(relativeTo: .title) private var photoSize: CGFloat = 92
+    @ScaledMetric(relativeTo: .title) private var photoSize: CGFloat = 104
 
     var body: some View {
         VStack(spacing: 10) {
@@ -89,13 +89,13 @@ struct ReachHomeIdentityHeader: View {
                         .font(.system(size: 42, weight: .ultraLight))
                 }
             }
-            .frame(width: min(photoSize, 92), height: min(photoSize, 92))
+            .frame(width: min(photoSize, 104), height: min(photoSize, 104))
             .clipShape(Circle())
             .overlay(Circle().strokeBorder(tint.opacity(0.9), lineWidth: 2))
             .shadow(color: tint.opacity(0.35), radius: 12)
             .accessibilityLabel(photo == nil ? "\(label): profile photo not set" : "\(label): local profile photo")
             Text(label).font(.caption.weight(.semibold)).multilineTextAlignment(.center)
-                .frame(width: min(photoSize, 92))
+                .frame(width: min(photoSize, 104))
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

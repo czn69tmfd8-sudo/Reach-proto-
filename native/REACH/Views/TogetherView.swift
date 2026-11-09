@@ -1,7 +1,47 @@
 import SwiftUI
 import UIKit
 
+/// Activity discovery only. Existing scrapbook data remains in its original stores.
 struct TogetherView: View {
+    var body: some View {
+        ReachPage {
+            Text("Together").font(.largeTitle.bold())
+            Text("Things we can do together, wherever we are.")
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
+            activity("REACH Kitchen", icon: "fork.knife", detail: "Cook, share recipes, and make something together.", status: "In development")
+            activity("Play Together", icon: "gamecontroller", detail: "Games and little challenges made for two.", status: "Coming soon")
+            activity("Date Night", icon: "sparkles", detail: "Activities and ideas for your next shared experience.", status: "Coming soon")
+            Text("Looking for saved memories? Find Our Scrapbook in the Us tab.")
+                .font(.footnote)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.white.opacity(0.85))
+        }
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private func activity(_ title: String, icon: String, detail: String, status: String) -> some View {
+        ReachGlassPanel {
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: icon)
+                    .font(.title2)
+                    .frame(width: 36)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(title).font(.headline)
+                    Text(detail).font(.subheadline)
+                    Text(status)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.75))
+                }
+                Spacer(minLength: 0)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+struct ReachScrapbookView: View {
     @EnvironmentObject private var store: RelationshipJournalStore
     @EnvironmentObject private var appearance: ReachAppearanceStore
     @State private var selected: RelationshipEntry.Kind = .memory
@@ -22,7 +62,7 @@ struct TogetherView: View {
 
     var body: some View {
         ReachPage {
-            Text("Together").font(.largeTitle.bold())
+            Text("Our Scrapbook").font(.largeTitle.bold())
             Picker("Scrapbook visibility", selection: $shared) {
                 Text("Private").tag(false)
                 Text("Shared").tag(true)
@@ -67,7 +107,7 @@ struct TogetherView: View {
             Text(appearance.preferences.personalMessage).italic().multilineTextAlignment(.center)
         }
         JournalStorageNotice()
-        Picker("Together section", selection: $selected) {
+        Picker("Scrapbook section", selection: $selected) {
             Text("Memories").tag(RelationshipEntry.Kind.memory)
             Text("Questions").tag(RelationshipEntry.Kind.question)
             Text("Date ideas").tag(RelationshipEntry.Kind.dateIdea)

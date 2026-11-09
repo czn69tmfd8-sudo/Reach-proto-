@@ -75,6 +75,7 @@ private struct StagingConnectionView: View {
                         .buttonStyle(.bordered).tint(.white).frame(minHeight: 44)
                 }
                 if let error { Text(error).font(.footnote).multilineTextAlignment(.center) }
+                ReachDailyMomentView(now: timeline.date)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -139,11 +140,18 @@ private struct StagingConnectionView: View {
                     wordmark
                 }
             }
-            Text("Same moment. Any distance.")
-                .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.9))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: 3) {
+                Text("“Let all that you do be done in love.”")
+                    .font(.subheadline.weight(.medium))
+                    .italic()
+                Text("1 Corinthians 16:14")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+            .multilineTextAlignment(.center)
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.85), radius: 5)
+            .accessibilityElement(children: .combine)
             Text("PRIVATE STAGING").font(.caption2.weight(.bold)).tracking(2)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 12).padding(.vertical, 6)

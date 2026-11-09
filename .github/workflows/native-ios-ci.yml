@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - native-reach
+      - build-7-small-visual-fixes
+      - fix/build7-daily-moment-swift-keypath
       - diagnose-staging-hand-auth
       - fix-staging-room-auth-diagnostics
     paths:

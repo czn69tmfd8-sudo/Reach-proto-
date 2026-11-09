@@ -3,10 +3,10 @@ import PhotosUI
 
 struct ReachUsView: View {
     private enum Space: String, CaseIterable, Identifiable {
-        case story = "Our Story", goals = "Our Goals", questions = "Our Questions", plans = "Our Plans", profile = "Our Profile"
+        case scrapbook = "Our Scrapbook", story = "Our Story", goals = "Our Goals", questions = "Our Questions", plans = "Our Plans", profile = "Our Profile"
         var id: Self { self }
     }
-    @State private var space: Space = .story
+    @State private var space: Space = .scrapbook
     @State private var privateStory = false
     @State private var editingQuestion: RelationshipEntry?
     @EnvironmentObject private var journal: RelationshipJournalStore
@@ -19,6 +19,17 @@ struct ReachUsView: View {
                 ForEach(Space.allCases) { Text($0.rawValue).tag($0) }
             }.pickerStyle(.menu).font(.headline)
             switch space {
+            case .scrapbook:
+                NavigationLink {
+                    ReachScrapbookView()
+                } label: {
+                    Label("Open Our Scrapbook", systemImage: "book.closed.fill")
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                }
+                .buttonStyle(.borderedProminent)
+                Text("Your private entries and shared memories stay where they are stored. Only their place in the app has changed.")
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
             case .story:
                 Picker("Story visibility", selection: $privateStory) {
                     Text("Shared timeline").tag(false)
@@ -78,7 +89,7 @@ private struct ReachProfilePanel: View {
                         .onChange(of: appearance.preferences.partnerName) { _, text in
                             if text.count > 40 { appearance.preferences.partnerName = String(text.prefix(40)) }
                         }
-                    Toggle("Show a personal message in Together", isOn: $appearance.preferences.showMessage)
+                    Toggle("Show a personal message in Our Scrapbook", isOn: $appearance.preferences.showMessage)
                     TextField("Your optional words", text: $appearance.preferences.personalMessage, axis: .vertical)
                         .lineLimit(3...6).accessibilityLabel("Optional personal message")
                         .onChange(of: appearance.preferences.personalMessage) { _, text in
