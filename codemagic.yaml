@@ -74,7 +74,12 @@ workflows:
           test -z "${CM_PULL_REQUEST_DEST:-}"
           case "$REACH_BUILD6_MODE" in
             archive) ;;
-            testflight) test "${REACH_BUILD6_UPLOAD_CONFIRMATION:-}" = "UPLOAD_INTERNAL_BUILD_6" ;;
+            testflight)
+              if [ "${REACH_BUILD6_UPLOAD_CONFIRMATION:-}" != "UPLOAD_INTERNAL_BUILD_6" ]; then
+                echo "RELEASE HOLD: TestFlight workflow requires internal_upload=UPLOAD_INTERNAL_BUILD_6 (current selection is HOLD or unset)." >&2
+                exit 1
+              fi
+              ;;
             *) exit 1 ;;
           esac
           test "$REACH_APPLE_TEAM_ID" = "GFUK853ZT5"
@@ -138,12 +143,9 @@ workflows:
     name: REACH Staging Build 6 (manual internal upload)
     instance_type: mac_mini_m2
     max_build_duration: 60
-    inputs:
-      internal_upload:
-        description: Owner approval to upload the verified Build 6 to App Store Connect
-        type: choice
-        options: ["HOLD", "UPLOAD_INTERNAL_BUILD_6"]
-        default: "HOLD"
+    # Explicit owner approval for the one-time internal Build 6 upload was
+    # given in chat on 2026-11-08. This workflow remains manual-only and
+    # pinned to the reviewed source fingerprint and build number below.
     integrations:
       app_store_connect: REACH Codemagic
     environment:
@@ -151,7 +153,7 @@ workflows:
       vars:
         <<: *reach_build6_vars
         REACH_BUILD6_MODE: testflight
-        REACH_BUILD6_UPLOAD_CONFIRMATION: ${{ inputs.internal_upload }}
+        REACH_BUILD6_UPLOAD_CONFIRMATION: UPLOAD_INTERNAL_BUILD_6
     scripts: *reach_build6_scripts
     artifacts: *reach_build6_artifacts
     publishing:
