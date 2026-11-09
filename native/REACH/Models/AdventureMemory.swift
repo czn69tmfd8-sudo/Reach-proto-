@@ -53,7 +53,7 @@ struct AdventureMemory: Identifiable, Equatable, Sendable, Codable {
             && photos.allSatisfy {
                 SharedContentPolicy.documentID($0.id)
                     && members.contains($0.ownerUID)
-                    && $0.storagePath.hasPrefix("adventureBook/")
+                    && $0.storagePath.hasPrefix("adventureBook/\(pairCode)/\(id)/")
                     && !$0.storagePath.contains("..")
                     && $0.caption.utf8.count <= 500
                     && $0.position >= 0
