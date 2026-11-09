@@ -174,7 +174,7 @@ struct ReachDailyMomentView: View {
                 if !saved.isEmpty {
                     DisclosureGroup("Saved reminders (\\(saved.count))", isExpanded: $showSaved) {
                         VStack(alignment: .leading, spacing: 8) {
-                            ForEach(saved.sorted(), id: \\.self) { savedIndex in
+                            ForEach(saved.sorted(), id: \.self) { savedIndex in
                                 Text("“\\(ReachDailyMoments.messages[savedIndex])”")
                                     .font(.caption)
                                     .frame(maxWidth: .infinity, alignment: .leading)
