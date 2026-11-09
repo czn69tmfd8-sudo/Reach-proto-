@@ -74,7 +74,8 @@ class SprintBoundaryTests(unittest.TestCase):
         marker = '  reach-ios-simulator:'
         prefix, tail = current.split(marker, 1)
         self.assertEqual('workflows:\n' + marker + tail, original)
-        prefix = prefix.split('  reach-ios-build6-archive-only:', 1)[0]
+        # Isolate this workflow even when new release workflows precede Build 6.
+        prefix = prefix.split('  reach-ios-relationship-validation:', 1)[0] + '  reach-ios-relationship-validation:' + prefix.split('  reach-ios-relationship-validation:', 1)[1].split('  reach-ios-build7-archive-only:', 1)[0].split('  reach-ios-build6-archive-only:', 1)[0]
         self.assertTrue(prefix.startswith('workflows:\n  reach-ios-relationship-validation:'))
         for forbidden in ['publishing:', 'triggering:', 'artifacts:', 'groups:', 'ios_signing:',
                           'integrations:', 'archive', 'upload-symbols', 'firebase deploy', 'use-profiles',
