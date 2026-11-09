@@ -99,15 +99,9 @@ struct ReachAdventureBookPreview: View {
                 .accessibilityLabel("Photo placeholder")
             Text("One memory, two perspectives")
                 .font(.caption).italic()
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: 10) {
-                    story("Partner's story", sample.stories[0].text)
-                    story("My story", personalStory)
-                }
-                VStack(alignment: .leading, spacing: 10) {
-                    story("Partner's story", sample.stories[0].text)
-                    story("My story", personalStory)
-                }
+            VStack(alignment: .leading, spacing: 10) {
+                story("Partner's story", sample.stories[0].text)
+                story("My story", personalStory)
             }
             Button("Write my story") { showingStoryEditor = true }
                 .buttonStyle(.bordered)
