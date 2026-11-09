@@ -53,13 +53,19 @@ class SprintBoundaryTests(unittest.TestCase):
             'native/REACH/Services/LocalRelationshipFile.swift',
             'native/REACH/Services/RelationshipJournalStore.swift',
             'native/REACH/Models/RelationshipJournal.swift',
-            'native/REACH/Views/RootView.swift',
         ]
         diff = subprocess.check_output(['git', 'diff', '--name-only', baseline, '--', *protected], cwd=ROOT)
         self.assertEqual(diff, b'')
         candidate = 'relationship-space.proposed.rules'
         for path in [ROOT/'firebase.json', ROOT/'native/firebase/firebase.json', ROOT/'codemagic.yaml']:
             self.assertNotIn(candidate, path.read_text())
+
+    def test_visual_changes_are_limited_to_ui_and_local_daily_messages(self):
+        source = (ROOT / 'native/REACH/Views/ReachDailyMomentView.swift').read_text()
+        for forbidden in ['import Firebase', 'Firestore', 'URLSession', 'NativeWebRTCPeer', 'PairingAuthorization']:
+            self.assertNotIn(forbidden, source)
+        self.assertIn('ReachDailyMomentView(now: timeline.date)',
+                      (ROOT / 'native/REACH/Views/RootView.swift').read_text())
 
     def test_relationship_validation_signs_only_the_simulator_and_preserves_build_five_workflows(self):
         baseline = '641cc0debc41f3e60517ab1880d8444ab9c5dc94'
