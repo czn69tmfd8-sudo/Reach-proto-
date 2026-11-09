@@ -27,7 +27,8 @@ struct ReachUsView: View {
                         .frame(maxWidth: .infinity, minHeight: 52)
                 }
                 .buttonStyle(.borderedProminent)
-                Text("Your private entries and shared memories stay where they are stored. Only their place in the app has changed.")
+                NavigationLink { ReachScrapbookView() } label: { Label("Existing Memories", systemImage: "archivebox").frame(maxWidth: .infinity, minHeight: 48) }.buttonStyle(.bordered)
+                Text("Adventure Book is a sample-page preview. Existing memories remain accessible and unchanged.")
                     .font(.footnote)
                     .multilineTextAlignment(.center)
             case .story:
