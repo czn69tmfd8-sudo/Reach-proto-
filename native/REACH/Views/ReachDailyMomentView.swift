@@ -144,13 +144,13 @@ struct ReachDailyMomentView: View {
             }
 
             if enabled {
-                Text("“\\(quote)”")
+                Text("“\(quote)”")
                     .font(.subheadline)
                     .italic()
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 7)
-                    .accessibilityLabel("Today's reminder: \\(quote)")
+                    .accessibilityLabel("Today's reminder: \(quote)")
 
                 HStack(spacing: 18) {
                     Button {
@@ -164,7 +164,7 @@ struct ReachDailyMomentView: View {
 
                     Spacer()
 
-                    ShareLink(item: "A little reminder from REACH ❤️\\n\\n“\\(quote)”\\n\\nThinking of you.") {
+                    ShareLink(item: "A little reminder from REACH ❤️\n\n“\(quote)”\n\nThinking of you.") {
                         Label("Share", systemImage: "square.and.arrow.up")
                     }
                 }
@@ -172,10 +172,10 @@ struct ReachDailyMomentView: View {
                 .buttonStyle(.plain)
 
                 if !saved.isEmpty {
-                    DisclosureGroup("Saved reminders (\\(saved.count))", isExpanded: $showSaved) {
+                    DisclosureGroup("Saved reminders (\(saved.count))", isExpanded: $showSaved) {
                         VStack(alignment: .leading, spacing: 8) {
-                            ForEach(saved.sorted(), id: \\.self) { savedIndex in
-                                Text("“\\(ReachDailyMoments.messages[savedIndex])”")
+                            ForEach(saved.sorted(), id: \.self) { savedIndex in
+                                Text("“\(ReachDailyMoments.messages[savedIndex])”")
                                     .font(.caption)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
