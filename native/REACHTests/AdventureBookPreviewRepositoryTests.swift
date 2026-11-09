@@ -59,7 +59,8 @@ final class AdventureBookPreviewRepositoryTests: XCTestCase {
     func testRevocationClearsLocalSnapshotAndDeniesFutureReads() async throws {
         let repository = AdventureBookPreviewRepository(pairCode: pair, memberUID: "person-a", members: members)
         try await repository.createMemory(memory())
-        XCTAssertEqual((try await repository.load(pairCode: pair)).memories.count, 1)
+        let loaded = try await repository.load(pairCode: pair)
+        XCTAssertEqual(loaded.memories.count, 1)
         repository.revokePreviewAccess()
         XCTAssertTrue(repository.book.memories.isEmpty)
         do {
