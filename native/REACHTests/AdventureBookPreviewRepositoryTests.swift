@@ -56,4 +56,18 @@ final class AdventureBookPreviewRepositoryTests: XCTestCase {
             XCTAssertEqual(error as? AdventureBookRepositoryError, .invalidMemory)
         }
     }
+    func testRevocationClearsLocalSnapshotAndDeniesFutureReads() async throws {
+        let repository = AdventureBookPreviewRepository(pairCode: pair, memberUID: "person-a", members: members)
+        try await repository.createMemory(memory())
+        XCTAssertEqual((try await repository.load(pairCode: pair)).memories.count, 1)
+        repository.revokePreviewAccess()
+        XCTAssertTrue(repository.book.memories.isEmpty)
+        do {
+            _ = try await repository.load(pairCode: pair)
+            XCTFail("Revoked access must fail")
+        } catch {
+            XCTAssertEqual(error as? AdventureBookRepositoryError, .notPaired)
+        }
+    }
+
 }
