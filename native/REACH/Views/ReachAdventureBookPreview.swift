@@ -7,7 +7,7 @@ struct ReachAdventureBookPreview: View {
     @State private var personalStory = "My favourite part of our adventure…"
     @State private var showingStoryEditor = false
     @State private var showingMemoryEditor = false
-    @State private var draftedMemory: AdventureMemory?
+    @State private var draftedMemories: [AdventureMemory] = []
     private let sample = AdventureMemory(
         id: "sample-memory", pairCode: "ABCDEFGHJKLM", creatorUID: "sample-one",
         title: "Our Lake Weekend", occurredAt: Date(timeIntervalSince1970: 1_700_000_000),
@@ -30,8 +30,10 @@ struct ReachAdventureBookPreview: View {
             TabView(selection: $page) {
                 cover.tag(0)
                 memory.tag(1)
-                if let draftedMemory { draftPage(draftedMemory).tag(2) }
-                nextPage.tag(draftedMemory == nil ? 2 : 3)
+                ForEach(Array(draftedMemories.enumerated()), id: \.element.id) { index, memory in
+                    draftPage(memory).tag(index + 2)
+                }
+                nextPage.tag(draftedMemories.count + 2)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .frame(height: 520)
@@ -40,10 +42,10 @@ struct ReachAdventureBookPreview: View {
                 Button("Previous") { if page > 0 { page -= 1 } }
                     .disabled(page == 0)
                 Spacer()
-                Text("Page \(page + 1) of \(draftedMemory == nil ? 3 : 4)")
+                Text("Page \(page + 1) of \(draftedMemories.count + 3)")
                 Spacer()
-                Button("Next") { if page < (draftedMemory == nil ? 2 : 3) { page += 1 } }
-                    .disabled(page == (draftedMemory == nil ? 2 : 3))
+                Button("Next") { if page < draftedMemories.count + 2 { page += 1 } }
+                    .disabled(page == draftedMemories.count + 2)
             }
             .buttonStyle(.bordered)
             Text("Swipe to turn pages. Real photos, synchronization and page-curl effects come later.")
@@ -56,8 +58,9 @@ struct ReachAdventureBookPreview: View {
         }
         .sheet(isPresented: $showingMemoryEditor) {
             AdventureMemoryDraftEditor { title, date, text in
-                draftedMemory = AdventureMemory(id: UUID().uuidString, pairCode: "ABCDEFGHJKLM", creatorUID: "sample-one", title: title, occurredAt: date, stories: [.init(authorUID: "sample-one", text: text, updatedAt: Date())], photos: [], comments: [], pageOrder: 1)
-                page = 2
+                let memory = AdventureMemory(id: UUID().uuidString, pairCode: "ABCDEFGHJKLM", creatorUID: "sample-one", title: title, occurredAt: date, stories: [.init(authorUID: "sample-one", text: text, updatedAt: Date())], photos: [], comments: [], pageOrder: draftedMemories.count + 1)
+                draftedMemories.append(memory)
+                page = draftedMemories.count + 1
             }
         }
     }
