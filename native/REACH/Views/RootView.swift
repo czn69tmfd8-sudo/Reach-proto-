@@ -75,6 +75,7 @@ private struct StagingConnectionView: View {
                         .buttonStyle(.bordered).tint(.white).frame(minHeight: 44)
                 }
                 if let error { Text(error).font(.footnote).multilineTextAlignment(.center) }
+                ReachDailyMomentView(now: timeline.date)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
