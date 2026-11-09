@@ -74,7 +74,12 @@ workflows:
           test -z "${CM_PULL_REQUEST_DEST:-}"
           case "$REACH_BUILD6_MODE" in
             archive) ;;
-            testflight) test "${REACH_BUILD6_UPLOAD_CONFIRMATION:-}" = "UPLOAD_INTERNAL_BUILD_6" ;;
+            testflight)
+              if [ "${REACH_BUILD6_UPLOAD_CONFIRMATION:-}" != "UPLOAD_INTERNAL_BUILD_6" ]; then
+                echo "RELEASE HOLD: TestFlight workflow requires internal_upload=UPLOAD_INTERNAL_BUILD_6 (current selection is HOLD or unset)." >&2
+                exit 1
+              fi
+              ;;
             *) exit 1 ;;
           esac
           test "$REACH_APPLE_TEAM_ID" = "GFUK853ZT5"
