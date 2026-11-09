@@ -24,7 +24,10 @@ class AppPackagingTests(unittest.TestCase):
         _, after = after.split('  reach-staging-firestore-verify:', 1)
         # Build 7 has its own explicitly approved TestFlight publisher.
         # Exclude only that workflow from this legacy no-upload assertion.
-        before = before.split('  reach-ios-build7-testflight:', 1)[0] + before.split('  reach-ios-build6-archive-only:', 1)[1].join(['  reach-ios-build6-archive-only:', '']) if '  reach-ios-build7-testflight:' in before else before
+        if '  reach-ios-build7-testflight:' in before:
+            build7_start, remainder = before.split('  reach-ios-build7-testflight:', 1)
+            _, build6_archive = remainder.split('  reach-ios-build6-archive-only:', 1)
+            before = build7_start + '  reach-ios-build6-archive-only:' + build6_archive
         self.assertNotIn('    publishing:', before + after)
         build7 = other.split('  reach-ios-build7-testflight:', 1)[1].split('  reach-ios-build6-archive-only:', 1)[0]
         self.assertIn('app_store_connect: REACH Codemagic', build7)
