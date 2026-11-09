@@ -88,7 +88,8 @@ struct ReachAdventureBookPreview: View {
     }
 
     private var memory: some View {
-        VStack(spacing: 14) {
+        ScrollView {
+            VStack(spacing: 14) {
             Text(sample.title)
                 .font(.system(.title2, design: .serif).bold())
             Image(systemName: "photo.on.rectangle.angled")
@@ -111,7 +112,7 @@ struct ReachAdventureBookPreview: View {
                 .font(.subheadline.weight(.semibold))
             Text("Shared comments will appear here.")
                 .font(.caption)
-            Spacer(minLength: 0)
+            }
         }
         .padding(18)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -131,14 +132,15 @@ struct ReachAdventureBookPreview: View {
     }
 
     private func draftPage(_ item: AdventureMemory) -> some View {
-        VStack(spacing: 16) {
+        ScrollView {
+            VStack(spacing: 16) {
             Text(item.title).font(.system(.title2, design: .serif).bold())
             Text(item.occurredAt, style: .date).font(.caption)
             Image(systemName: "photo.on.rectangle.angled").font(.system(size: 48))
             story("My story", item.stories.first?.text ?? "")
             story("Partner\u0027s story", "Waiting for their perspective")
-            Spacer()
             Text("Local preview only").font(.caption)
+            }
         }
         .padding(20).frame(maxWidth: .infinity, maxHeight: .infinity)
         .foregroundStyle(ink).background(paper, in: RoundedRectangle(cornerRadius: 12)).padding(5)
