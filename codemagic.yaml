@@ -101,7 +101,7 @@ workflows:
           rm -rf TestResults.xcresult
           rm -f build-logs/test-summary.json
           bash scripts/run-simulator-tests.sh
-          python3 scripts/prepare-store-export.py test-results build-logs/test-summary.json --expected-tests 178
+          python3 scripts/prepare-store-export.py test-results build-logs/test-summary.json --expected-tests 179
       - name: Apply existing App Store distribution profiles
         script: |
           set -euo pipefail
