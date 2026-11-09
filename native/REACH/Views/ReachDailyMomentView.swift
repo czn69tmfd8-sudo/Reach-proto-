@@ -132,11 +132,25 @@ struct ReachDailyMomentView: View {
     private var isSaved: Bool { saved.contains(index) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label("A little love, daily", systemImage: "heart.text.square")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
+        VStack(alignment: .leading, spacing: 15) {
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        LinearGradient(colors: [.pink, .purple], startPoint: .topLeading, endPoint: .bottomTrailing),
+                        in: Circle()
+                    )
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("A little love, daily")
+                        .font(.headline.weight(.semibold))
+                    Text("A moment to carry with you")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.75))
+                }
+                Spacer(minLength: 4)
                 Toggle("Daily reminders", isOn: $enabled)
                     .labelsHidden()
                     .tint(.pink)
@@ -144,38 +158,57 @@ struct ReachDailyMomentView: View {
             }
 
             if enabled {
-                Text("“\(quote)”")
-                    .font(.subheadline)
-                    .italic()
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 7)
-                    .accessibilityLabel("Today's reminder: \(quote)")
+                VStack(spacing: 8) {
+                    Image(systemName: "quote.opening")
+                        .font(.title3.weight(.medium))
+                        .foregroundStyle(.pink.opacity(0.9))
+                        .accessibilityHidden(true)
+                    Text("“\\(quote)”")
+                        .font(.system(.body, design: .serif).weight(.medium))
+                        .italic()
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityLabel("Today's reminder: \\(quote)")
+                    Text("TODAY'S THOUGHT")
+                        .font(.caption2.weight(.semibold))
+                        .tracking(2)
+                        .foregroundStyle(.white.opacity(0.65))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 19)
+                .frame(maxWidth: .infinity)
+                .background(.white.opacity(0.075), in: RoundedRectangle(cornerRadius: 18))
+                .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(.white.opacity(0.14)))
 
-                HStack(spacing: 18) {
+                HStack(spacing: 12) {
                     Button {
                         var next = saved
                         if isSaved { next.remove(index) } else { next.insert(index) }
                         savedIndices = next.sorted().map(String.init).joined(separator: ",")
                     } label: {
                         Label(isSaved ? "Saved" : "Save", systemImage: isSaved ? "heart.fill" : "heart")
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: 44)
+                            .background(.white.opacity(0.1), in: Capsule())
                     }
                     .accessibilityLabel(isSaved ? "Remove reminder from saved" : "Save today's reminder")
 
-                    Spacer()
-
-                    ShareLink(item: "A little reminder from REACH ❤️\n\n“\(quote)”\n\nThinking of you.") {
+                    ShareLink(item: "A little reminder from REACH ❤️\\n\\n“\\(quote)”\\n\\nThinking of you.") {
                         Label("Share", systemImage: "square.and.arrow.up")
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: 44)
+                            .background(.white.opacity(0.1), in: Capsule())
                     }
                 }
-                .font(.caption.weight(.semibold))
+                .font(.subheadline.weight(.semibold))
                 .buttonStyle(.plain)
 
                 if !saved.isEmpty {
-                    DisclosureGroup("Saved reminders (\(saved.count))", isExpanded: $showSaved) {
+                    DisclosureGroup("Saved reminders (\\(saved.count))", isExpanded: $showSaved) {
                         VStack(alignment: .leading, spacing: 8) {
-                            ForEach(saved.sorted(), id: \.self) { savedIndex in
-                                Text("“\(ReachDailyMoments.messages[savedIndex])”")
+                            ForEach(saved.sorted(), id: \\.self) { savedIndex in
+                                Text("“\\(ReachDailyMoments.messages[savedIndex])”")
                                     .font(.caption)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
@@ -186,14 +219,16 @@ struct ReachDailyMomentView: View {
                 }
             }
         }
-        .padding(16)
+        .padding(17)
         .foregroundStyle(.white)
         .background {
-            RoundedRectangle(cornerRadius: 22)
-                .fill(Color(red: 0.16, green: 0.09, blue: 0.27).opacity(0.75))
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Color(red: 0.16, green: 0.09, blue: 0.27).opacity(0.78))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
         }
-        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(.pink.opacity(0.55)))
-        .shadow(color: .black.opacity(0.25), radius: 9, y: 4)
+        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(
+            LinearGradient(colors: [.pink.opacity(0.75), .purple.opacity(0.35), .white.opacity(0.12)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1))
+        .shadow(color: .black.opacity(0.3), radius: 12, y: 6)
     }
 }
