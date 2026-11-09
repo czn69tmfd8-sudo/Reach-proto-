@@ -4,6 +4,14 @@ import SwiftUI
 struct ReachAdventureBookPreview: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var page = 0
+    private let sample = AdventureMemory(
+        id: "sample-memory", pairCode: "ABCDEFGHJKLM", creatorUID: "sample-one",
+        title: "Our Lake Weekend", occurredAt: Date(timeIntervalSince1970: 1_700_000_000),
+        stories: [
+            .init(authorUID: "sample-one", text: "What I remember most about that day…", updatedAt: Date(timeIntervalSince1970: 1_700_000_000)),
+            .init(authorUID: "sample-two", text: "My favourite part of our adventure…", updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+        ], photos: [], comments: [], pageOrder: 0
+    )
     private let paper = Color(red: 0.96, green: 0.89, blue: 0.75)
     private let ink = Color(red: 0.29, green: 0.16, blue: 0.13)
 
@@ -64,7 +72,7 @@ struct ReachAdventureBookPreview: View {
 
     private var memory: some View {
         VStack(spacing: 14) {
-            Text("Our Lake Weekend")
+            Text(sample.title)
                 .font(.system(.title2, design: .serif).bold())
             Image(systemName: "photo.on.rectangle.angled")
                 .font(.system(size: 50))
@@ -75,8 +83,8 @@ struct ReachAdventureBookPreview: View {
             Text("One memory, two perspectives")
                 .font(.caption).italic()
             HStack(alignment: .top, spacing: 10) {
-                story("Partner's story", "What I remember most about that day…")
-                story("My story", "My favourite part of our adventure…")
+                story("Partner's story", sample.stories[0].text)
+                story("My story", sample.stories[1].text)
             }
             Divider()
             Label("Our conversation", systemImage: "bubble.left.and.bubble.right")
