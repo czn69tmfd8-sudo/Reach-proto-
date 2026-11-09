@@ -104,11 +104,14 @@ class AppPackagingTests(unittest.TestCase):
         config = (ROOT.parent/'codemagic.yaml').read_text()
         archive, upload = config.split('  reach-ios-build6-testflight:', 1)
         upload = upload.split('  reach-staging-firestore-verify:', 1)[0]
-        for required in ('default: "HOLD"', 'REACH_BUILD6_MODE: testflight',
-                         '${{ inputs.internal_upload }}', 'scripts: *reach_build6_scripts',
+        for required in ('REACH_BUILD6_MODE: testflight',
+                         'REACH_BUILD6_UPLOAD_CONFIRMATION: UPLOAD_INTERNAL_BUILD_6',
+                         'scripts: *reach_build6_scripts',
                          'artifacts: *reach_build6_artifacts', 'submit_to_testflight: false',
                          'submit_to_app_store: false'):
             self.assertIn(required, upload)
-        self.assertIn('testflight) test "${REACH_BUILD6_UPLOAD_CONFIRMATION:-}" = "UPLOAD_INTERNAL_BUILD_6"', archive)
+        self.assertIn('testflight)', archive)
+        self.assertIn('if [ "${REACH_BUILD6_UPLOAD_CONFIRMATION:-}" != "UPLOAD_INTERNAL_BUILD_6" ]; then', archive)
+        self.assertIn('RELEASE HOLD: TestFlight workflow requires internal_upload=UPLOAD_INTERNAL_BUILD_6', archive)
         self.assertNotIn('triggering:', upload)
         self.assertNotIn('beta_groups:', upload)
