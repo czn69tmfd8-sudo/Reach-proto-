@@ -52,6 +52,18 @@ final class AdventureMemoryTests: XCTestCase {
         XCTAssertFalse(value.isValid(members: members))
     }
 
+    func testRejectPhotoPathThatDoesNotMatchItsPhotoID() {
+        var value = memory()
+        value.photos = [.init(id: "photo-1", ownerUID: first,
+                              storagePath: "adventureBook/ABCDEFGHJKLM/memory-1/photo-2",
+                              caption: "", position: 0)]
+        XCTAssertFalse(value.isValid(members: members))
+        value.photos = [.init(id: "photo-1", ownerUID: first,
+                              storagePath: "adventureBook/ABCDEFGHJKLM/memory-1/photo-1",
+                              caption: "", position: 0)]
+        XCTAssertTrue(value.isValid(members: members))
+    }
+
     func testRejectDuplicateStoryAuthors() {
         var value = memory()
         let now = Date()
