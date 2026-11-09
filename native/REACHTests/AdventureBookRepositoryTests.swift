@@ -26,5 +26,7 @@ final class AdventureBookRepositoryTests: XCTestCase {
         XCTAssertNil(AdventureBookPaths.memory(pairCode: "ABCDEFGHJKLM", memoryID: "../other"))
         XCTAssertNil(AdventureBookPaths.story(pairCode: "ABCDEFGHJKLM", memoryID: "summer-trip", authorUID: "user/other"))
         XCTAssertNil(AdventureBookPaths.photo(pairCode: "ABCDEFGHJKLM", memoryID: "..", photoID: "photo-1"))
+        XCTAssertNil(AdventureBookPaths.memory(pairCode: "ABCDEFGHJKLM", memoryID: "trip..backup"))
+        XCTAssertNil(AdventureBookPaths.memory(pairCode: "ABCDEFGHJKLM", memoryID: "trip%2Fother"))
     }
 }
