@@ -28,7 +28,7 @@ sources = [
 test_names = [
     'ReachSignalingValidationTests', 'ReachRoomCoordinatorTests', 'PairSessionInterpreterTests',
     'RelationshipJournalTests', 'LocalRelationshipFileTests', 'SharedContentPolicyTests', 'RelationshipSpaceTests', 'ReachCallReviewTests',
-    'ReachHomeAvailabilityTests', 'ReachAppearancePreferencesTests',
+    'ReachHomeAvailabilityTests', 'ReachAppearancePreferencesTests', 'AdventureMemoryTests',
     'ReachConnectionMachineTests', 'ReachJoinPolicyTests', 'CallbackDeadlineTests',
     'ReachMediaPolicyTests', 'SignalingInboxTests', 'ReachEnvironmentTests',
     'ReachSessionLifecycleTests', 'ReachReconnectPolicyTests', 'SessionContinuityPolicyTests',
