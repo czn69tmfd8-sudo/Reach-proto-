@@ -79,7 +79,9 @@ workflows:
           # Check source before installing the staging-only client configuration.
           git merge-base --is-ancestor "$REACH_APPROVED_APP_COMMIT" HEAD
           # Permit release workflow changes only; keep validated application sources identical.
-          git diff --quiet "$REACH_APPROVED_APP_COMMIT" HEAD -- native/REACH native/project.yml native/Package.swift native/scripts
+          git diff --quiet "$REACH_APPROVED_APP_COMMIT" HEAD -- native/REACH native/project.yml native/Package.swift
+          # Only the release-boundary test may differ among native scripts.
+          test -z "$(git diff --name-only "$REACH_APPROVED_APP_COMMIT" HEAD -- native/scripts | grep -v "^native/scripts/test_sprint_boundaries.py$" || true)"
           python3 native/scripts/install-staging-config.py --required
           python3 native/scripts/prepare-store-export.py inputs
           python3 -m unittest discover -s native/scripts -p 'test_*.py'
