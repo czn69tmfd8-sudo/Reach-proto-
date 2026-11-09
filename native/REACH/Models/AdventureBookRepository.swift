@@ -3,27 +3,34 @@ import Foundation
 /// Proposed Firestore document layout, kept independent of Firebase SDK so
 /// paths and ownership can be tested before staging rules are reviewed.
 enum AdventureBookPaths {
+    static func safeSegment(_ value: String) -> Bool {
+        SharedContentPolicy.documentID(value)
+            && !value.contains("..")
+            && !value.contains("%")
+            && !value.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
+    }
+
     static func memory(pairCode: String, memoryID: String) -> String? {
         guard SharedContentPolicy.pairCode(pairCode),
-              SharedContentPolicy.documentID(memoryID) else { return nil }
+              safeSegment(memoryID) else { return nil }
         return "adventureBooks/\(pairCode)/memories/\(memoryID)"
     }
 
     static func story(pairCode: String, memoryID: String, authorUID: String) -> String? {
         guard let base = memory(pairCode: pairCode, memoryID: memoryID),
-              SharedContentPolicy.documentID(authorUID) else { return nil }
+              safeSegment(authorUID) else { return nil }
         return "\(base)/stories/\(authorUID)"
     }
 
     static func comment(pairCode: String, memoryID: String, commentID: String) -> String? {
         guard let base = memory(pairCode: pairCode, memoryID: memoryID),
-              SharedContentPolicy.documentID(commentID) else { return nil }
+              safeSegment(commentID) else { return nil }
         return "\(base)/comments/\(commentID)"
     }
 
     static func photo(pairCode: String, memoryID: String, photoID: String) -> String? {
         guard memory(pairCode: pairCode, memoryID: memoryID) != nil,
-              SharedContentPolicy.documentID(photoID) else { return nil }
+              safeSegment(photoID) else { return nil }
         return "adventureBook/\(pairCode)/\(memoryID)/\(photoID)"
     }
 }
