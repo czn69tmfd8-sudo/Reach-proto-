@@ -48,6 +48,89 @@ workflows:
             -destination 'generic/platform=iOS' -derivedDataPath DeviceDerivedData \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
 
+  reach-ios-build7-archive-only:
+    name: REACH Staging 0.1.0 (7) archive only — no upload
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment: &reach_build7_environment
+      groups:
+        - reach-staging
+      vars: &reach_build7_vars
+        REACH_APPLE_TEAM_ID: GFUK853ZT5
+        REACH_BUILD7_MODE: archive
+        REACH_IOS_BUILD_NUMBER: "7"
+        REACH_APPROVED_APP_COMMIT: 4889ffe099f09eb0ea1b627f5f3d526227611fa3
+      xcode: latest
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.reachprototype.app
+    # Manual archive/export to private CI artifacts using existing signing identities.
+    scripts: &reach_build7_scripts
+      - name: Validate branch, staging configuration and Apple build inputs
+        script: |
+          set -euo pipefail
+          rm -rf native/build/build7-verified native/build/build7-unverified
+          test "$CM_BRANCH" = "release/build7-visual-candidate"
+          test -z "${CM_PULL_REQUEST_DEST:-}"
+          test "$REACH_BUILD7_MODE" = archive
+          test "$REACH_APPLE_TEAM_ID" = "GFUK853ZT5"
+          test "$REACH_IOS_BUILD_NUMBER" = "7"
+          test "$REACH_APPROVED_APP_COMMIT" = "4889ffe099f09eb0ea1b627f5f3d526227611fa3"
+          # Check source before installing the staging-only client configuration.
+          git merge-base --is-ancestor "$REACH_APPROVED_APP_COMMIT" HEAD
+          # Permit release workflow changes only; keep validated application sources identical.
+          git diff --quiet "$REACH_APPROVED_APP_COMMIT" HEAD -- native/REACH native/project.yml native/Package.swift native/scripts
+          python3 native/scripts/install-staging-config.py --required
+          python3 native/scripts/prepare-store-export.py inputs
+          python3 -m unittest discover -s native/scripts -p 'test_*.py'
+      - name: Generate Xcode project for tests and archive
+        script: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
+          cd native
+          xcodegen generate
+      - name: Run native simulator tests before archiving
+        script: |
+          set -euo pipefail
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; ids=[x["udid"] for r,xs in d.items() if r.startswith("com.apple.CoreSimulator.SimRuntime.iOS-") for x in xs if x.get("isAvailable") and x["name"].startswith("iPhone")]; sys.exit("No available iPhone simulator") if not ids else print(ids[0])')
+          export DEVICE_ID
+          cd native
+          rm -rf TestResults.xcresult
+          rm -f build-logs/test-summary.json
+          bash scripts/run-simulator-tests.sh
+          python3 scripts/prepare-store-export.py test-results build-logs/test-summary.json 
+      - name: Apply existing App Store distribution profiles
+        script: |
+          set -euo pipefail
+          cd native
+          xcode-project use-profiles
+          python3 scripts/prepare-store-export.py export "$HOME/export_options.plist"
+      - name: Archive Build 7
+        script: |
+          set -euo pipefail
+          cd native
+          mkdir -p build-logs
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build/REACH-Build7.xcarchive \
+            DEVELOPMENT_TEAM="$REACH_APPLE_TEAM_ID" \
+            MARKETING_VERSION="0.1.0" CURRENT_PROJECT_VERSION="$REACH_IOS_BUILD_NUMBER" archive \
+            2>&1 | tee build-logs/build7-archive.log
+          python3 scripts/verify-device-archive.py build/REACH-Build7.xcarchive/Products/Applications/REACH.app \
+            --distribution app_store --expected-team "$REACH_APPLE_TEAM_ID"
+      - name: Export App Store-signed IPA and verify exported app
+        script: |
+          set -euo pipefail
+          cd native
+          xcodebuild -exportArchive -archivePath build/REACH-Build7.xcarchive \
+            -exportPath build/build7-unverified -exportOptionsPlist "$HOME/export_options.plist" \
+            2>&1 | tee build-logs/build7-export.log
+          python3 scripts/prepare-store-export.py promote-ipa build/build7-unverified build/build7-verified
+    artifacts: &reach_build7_artifacts
+      - native/build/build7-verified/*.ipa
+      - native/build/REACH-Build7.xcarchive/dSYMs/**
+      - native/build-logs/**
+      - native/TestResults.xcresult
+
   reach-ios-build6-archive-only:
     name: REACH Staging 0.1.0 (6) archive only
     instance_type: mac_mini_m2
