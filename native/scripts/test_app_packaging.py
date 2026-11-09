@@ -87,14 +87,14 @@ class AppPackagingTests(unittest.TestCase):
                           'firebase deploy', 'altool', 'iTMSTransporter'):
             self.assertNotIn(forbidden, workflow)
         for required in ('REACH_IOS_BUILD_NUMBER: "6"', 'test "$REACH_IOS_BUILD_NUMBER" = "6"',
-                         '47b2ef377b76a9bc1b4a589a68b46a3f7bd4d617',
-                         '4f18f8cbaf0358a7b6135e0e514a6a29e46ee1fec63873d3946f9b7ce330e959',
+                         '6153bfd1f74dcd60f1ba5fcb6cf9495b26326a17',
+                         '30f8506760124f3aeb926a122d0b5353d5a2eb3c651dc8927127387a43c533c4',
                          'distribution_type: app_store', 'bundle_identifier: com.reachprototype.app',
                          'MARKETING_VERSION="0.1.0" CURRENT_PROJECT_VERSION="$REACH_IOS_BUILD_NUMBER"',
                          'native/build/build6-verified/*.ipa'):
             self.assertIn(required, workflow)
         steps = ['verify-sprint-source.py', 'install-staging-config.py --required',
-                 'run-simulator-tests.sh', 'test-results build-logs/test-summary.json --expected-tests 178',
+                 'run-simulator-tests.sh', 'test-results build-logs/test-summary.json --expected-tests 179',
                  'xcode-project use-profiles', 'xcodebuild -exportArchive',
                  'promote-ipa build/build6-unverified build/build6-verified']
         self.assertEqual([workflow.index(step) for step in steps],
