@@ -5,6 +5,7 @@ on:
     branches:
       - native-reach
       - diagnose-staging-hand-auth
+      - fix-staging-room-auth-diagnostics
     paths:
       - "native/**"
       - ".github/workflows/native-ios-ci.yml"

@@ -1,3 +1,4 @@
+import FirebaseAuth
 import FirebaseFirestore
 import Foundation
 
@@ -23,6 +24,11 @@ final class FirestoreRoomStore: @unchecked Sendable, ReachRoomStore {
         let roomID = UUID().uuidString
         let openedAt = Date()
         let expiresAt = ReachRoomExpiry.epochMilliseconds(from: openedAt)
+        // The SDK transaction uses the currently signed-in Firebase identity. Never
+        // submit a room write under a different identity than the verified caller.
+        guard Auth.auth(app: db.app).currentUser?.uid == uid else {
+            throw FirestoreRoomStoreError.authSessionChanged
+        }
         let pairRef = db.collection(ReachCollections.pairInvites).document(pairCode)
         let roomRef = db.collection(ReachCollections.rooms).document(roomID)
 
@@ -192,6 +198,7 @@ enum FirestoreRoomStoreError: LocalizedError, Equatable {
     case roomPairMismatch
     case pairRevoked
     case unauthorized
+    case authSessionChanged
     case partnerMismatch
     case partnerAlreadyOpen
     case alreadyOpen(String)
@@ -201,7 +208,8 @@ enum FirestoreRoomStoreError: LocalizedError, Equatable {
         case .roomPairMismatch: return "The room does not belong to this partnership."
         case .pairMissing: return "The partnership no longer exists."
         case .pairRevoked: return "The partnership has been revoked."
-        case .unauthorized: return "This device is not authorized for the partnership."
+        case .unauthorized: return "Room creation rejected: the signed-in member is not in the current staging partnership. Your existing pairing has not been changed."
+        case .authSessionChanged: return "Room creation stopped because the staging sign-in changed. Close and reopen REACH; do not reset pairing."
         case .partnerMismatch: return "The expected partner does not match the partnership."
         case .partnerAlreadyOpen: return "Your partner already has their hand open."
         case .alreadyOpen: return "Your hand is already open."
