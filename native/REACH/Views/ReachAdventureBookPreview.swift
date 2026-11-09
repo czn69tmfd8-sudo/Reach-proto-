@@ -4,6 +4,8 @@ import SwiftUI
 struct ReachAdventureBookPreview: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var page = 0
+    @State private var personalStory = "My favourite part of our adventure…"
+    @State private var showingStoryEditor = false
     private let sample = AdventureMemory(
         id: "sample-memory", pairCode: "ABCDEFGHJKLM", creatorUID: "sample-one",
         title: "Our Lake Weekend", occurredAt: Date(timeIntervalSince1970: 1_700_000_000),
@@ -46,6 +48,9 @@ struct ReachAdventureBookPreview: View {
                 .multilineTextAlignment(.center)
         }
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $showingStoryEditor) {
+            AdventureStoryEditor(initialText: personalStory) { personalStory = $0 }
+        }
     }
 
     private var cover: some View {
@@ -84,8 +89,11 @@ struct ReachAdventureBookPreview: View {
                 .font(.caption).italic()
             HStack(alignment: .top, spacing: 10) {
                 story("Partner's story", sample.stories[0].text)
-                story("My story", sample.stories[1].text)
+                story("My story", personalStory)
             }
+            Button("Write my story") { showingStoryEditor = true }
+                .buttonStyle(.bordered)
+                .font(.caption)
             Divider()
             Label("Our conversation", systemImage: "bubble.left.and.bubble.right")
                 .font(.subheadline.weight(.semibold))
