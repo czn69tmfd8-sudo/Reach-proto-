@@ -75,6 +75,19 @@ private struct StagingConnectionView: View {
                         .buttonStyle(.bordered).tint(.white).frame(minHeight: 44)
                 }
                 if let error { Text(error).font(.footnote).multilineTextAlignment(.center) }
+                VStack(spacing: 5) {
+                    Text("“Let all that you do be done in love.”")
+                        .font(.subheadline.weight(.medium))
+                        .italic()
+                    Text("1 Corinthians 16:14")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.85), radius: 5)
+                .accessibilityElement(children: .combine)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
