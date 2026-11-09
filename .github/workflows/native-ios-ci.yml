@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - native-reach
+      - build-7-small-visual-fixes
       - diagnose-staging-hand-auth
       - fix-staging-room-auth-diagnostics
     paths:
