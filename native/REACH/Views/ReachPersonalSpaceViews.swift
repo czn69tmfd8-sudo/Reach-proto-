@@ -30,7 +30,6 @@ struct ReachUsView: View {
                 Text("Your private entries and shared memories stay where they are stored. Only their place in the app has changed.")
                     .font(.footnote)
                     .multilineTextAlignment(.center)
-                SharedRelationshipShelf(kind: .memory, privateCopy: .constant(nil))
             case .story:
                 Picker("Story visibility", selection: $privateStory) {
                     Text("Shared timeline").tag(false)
@@ -90,7 +89,7 @@ private struct ReachProfilePanel: View {
                         .onChange(of: appearance.preferences.partnerName) { _, text in
                             if text.count > 40 { appearance.preferences.partnerName = String(text.prefix(40)) }
                         }
-                    Toggle("Show a personal message in Together", isOn: $appearance.preferences.showMessage)
+                    Toggle("Show a personal message in Our Scrapbook", isOn: $appearance.preferences.showMessage)
                     TextField("Your optional words", text: $appearance.preferences.personalMessage, axis: .vertical)
                         .lineLimit(3...6).accessibilityLabel("Optional personal message")
                         .onChange(of: appearance.preferences.personalMessage) { _, text in
