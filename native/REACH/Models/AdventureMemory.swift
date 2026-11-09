@@ -37,7 +37,7 @@ struct AdventureMemory: Identifiable, Equatable, Sendable, Codable {
 
     /// Both partner stories are first-class contributions, never comments.
     func isValid(members: Set<String>) -> Bool {
-        SharedContentPolicy.documentID(id)
+        AdventureBookPaths.safeSegment(id)
             && SharedContentPolicy.pairCode(pairCode)
             && members.count == 2
             && members.contains(creatorUID)
@@ -51,9 +51,9 @@ struct AdventureMemory: Identifiable, Equatable, Sendable, Codable {
             && photos.count <= 20
             && Set(photos.map(\.id)).count == photos.count
             && photos.allSatisfy {
-                SharedContentPolicy.documentID($0.id)
+                AdventureBookPaths.safeSegment($0.id)
                     && members.contains($0.ownerUID)
-                    && $0.storagePath.hasPrefix("adventureBook/\(pairCode)/\(id)/")
+                    && $0.storagePath == AdventureBookPaths.photo(pairCode: pairCode, memoryID: id, photoID: $0.id)
                     && !$0.storagePath.contains("..")
                     && $0.caption.utf8.count <= 500
                     && $0.position >= 0
@@ -87,7 +87,7 @@ struct AdventureMemory: Identifiable, Equatable, Sendable, Codable {
     mutating func addComment(_ comment: Comment, as uid: String, members: Set<String>) -> Bool {
         guard uid == comment.authorUID, members.count == 2, members.contains(uid),
               comments.count < 500, !comments.contains(where: { $0.id == comment.id }),
-              SharedContentPolicy.documentID(comment.id),
+              AdventureBookPaths.safeSegment(comment.id),
               !comment.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               comment.text.utf8.count <= 2000,
               comment.createdAt.timeIntervalSince1970.isFinite else { return false }
