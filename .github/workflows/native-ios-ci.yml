@@ -25,6 +25,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Report release source fingerprint
+        run: |
+          set -euo pipefail
+          git ls-tree -rz HEAD -- native/REACH native/REACHTests native/Configuration native/project.yml | sha256sum
+          echo "REACH release source fingerprint above; compare with archive-only release gate."
+
       - name: Compile Swift 6 policies and run portable tests
         env:
           REACH_PORTABLE_LOADER_TRACE: "1"
