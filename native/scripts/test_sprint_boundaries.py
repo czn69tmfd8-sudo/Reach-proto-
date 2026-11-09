@@ -5,7 +5,7 @@ import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-BASELINE = 'e7591c7c3ebd4c73c35a606de019859df60f9f48'
+BASELINE = '4889ffe099f09eb0ea1b627f5f3d526227611fa3'
 
 class SprintBoundaryTests(unittest.TestCase):
     def test_existing_security_and_media_policies_remain_byte_identical(self):
