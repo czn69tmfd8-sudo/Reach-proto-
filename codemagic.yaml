@@ -246,6 +246,14 @@ workflows:
           test -z "${CM_PULL_REQUEST_DEST:-}"
           test -z "$(find native -name GoogleService-Info.plist -print -quit)"
           git rev-parse HEAD
+          # Historical security regressions compare against immutable Git
+          # commits. Codemagic's shallow checkout must be hydrated first.
+          if test "$(git rev-parse --is-shallow-repository)" = "true"; then
+            git fetch --unshallow origin
+          else
+            git fetch origin --prune
+          fi
+          python3 native/scripts/preflight-historical-baselines.py
           python3 -m unittest discover -s native/scripts -p 'test_*.py'
           python3 native/scripts/run-portable-tests.py
       - name: Build and test independent simulator preview identity
