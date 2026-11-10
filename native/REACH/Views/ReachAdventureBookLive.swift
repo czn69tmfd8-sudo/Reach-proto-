@@ -111,16 +111,16 @@ struct ReachAdventureBookLive: View {
                     AdventureAuthenticatedPhoto(pairCode: memory.pairCode,
                                                 memoryID: memory.id, photo: photo)
                 }
-                PhotosPicker(selection: $photoSelection, matching: .images) {
+                if AdventurePhotoFeatureGate.liveUploadsEnabled {\n                PhotosPicker(selection: $photoSelection, matching: .images) {
                     Label("Choose photo", systemImage: "photo.badge.plus")
                 }
                 .onChange(of: photoSelection) { _, selection in
                     if selection != nil { uploadingPhotoFor = memory }
                 }
-                if !photoProgress.isEmpty {
+                } else {\n                    Label("Photos will be available after secure Storage activation. Memories, stories and comments still work.", systemImage: "photo.on.rectangle.angled")\n                        .font(.caption)\n                        .foregroundStyle(.secondary)\n                }\n                if !photoProgress.isEmpty {
                     Text(photoProgress).font(.caption)
                 }
-                if pendingPhoto != nil && pendingPhotoBytes != nil {
+                if AdventurePhotoFeatureGate.liveUploadsEnabled && pendingPhoto != nil && pendingPhotoBytes != nil {
                     Button("Retry incomplete photo") {
                         Task { await retryPendingPhoto() }
                     }.buttonStyle(.bordered)
@@ -272,7 +272,7 @@ struct ReachAdventureBookLive: View {
         catch { self.error = error.localizedDescription }
     }
     private func uploadSelectedPhoto() async {
-        guard let selection = photoSelection, let memory = uploadingPhotoFor,
+        guard AdventurePhotoFeatureGate.liveUploadsEnabled,\n              let selection = photoSelection, let memory = uploadingPhotoFor,
               let uid = Auth.auth().currentUser?.uid else { return }
         defer { photoSelection = nil; uploadingPhotoFor = nil }
         do {
@@ -316,7 +316,7 @@ struct ReachAdventureBookLive: View {
     }
 
     private func retryPendingPhoto() async {
-        guard var operation = pendingPhoto, let bytes = pendingPhotoBytes else { return }
+        guard AdventurePhotoFeatureGate.liveUploadsEnabled,\n              var operation = pendingPhoto, let bytes = pendingPhotoBytes else { return }
         let transport = FirestoreAdventurePhotoTransport()
         do {
             if operation.phase == .prepared || operation.phase == .retryRequired {
