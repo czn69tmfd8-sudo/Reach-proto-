@@ -11,6 +11,8 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     private let db: Firestore
     private let stories: FirestoreAdventureStoryTransport
     private var listener: ListenerRegistration?
+    private var childListeners: [ListenerRegistration] = []
+    private var observingCode: String?
 
     init(db: Firestore = Firestore.firestore()) {
         self.db = db
@@ -141,10 +143,10 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     }
 
     func saveOwnStory(pairCode: String, memoryID: String, text: String) async throws {
-        let uid = try await verifiedCode(pairCode)
-        let current = try await stories.loadOwnStory(pairCode: pairCode, memoryID: memoryID, uid: uid)
-        try await stories.saveOwnStory(pairCode: pairCode, memoryID: memoryID, uid: uid,
-                                       text: text, expectedVersion: current?.version)
+        // An editor must provide the version of the story it actually displayed.
+        // Fetching a fresh version here would allow a stale draft to overwrite
+        // an unseen edit. Refuse this legacy unversioned API instead.
+        throw AdventureBookRepositoryError.conflict
     }
 
     /// Explicit versioned write for editors that retain a server snapshot.
@@ -168,7 +170,8 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     /// checked load. Never expose unverified cached listener payloads.
     func observe(pairCode: String, onChange: @escaping @MainActor (Result<AdventureBook, Error>) -> Void) async throws {
         _ = try await verifiedCode(pairCode)
-        listener?.remove()
+        stopObserving()
+        observingCode = pairCode
         listener = memoriesCollection(pairCode).limit(to: 50).addSnapshotListener { [weak self] _, error in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -178,7 +181,11 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
                     onChange(.failure(error))
                     return
                 }
-                do { onChange(.success(try await self.load(pairCode: pairCode))) }
+                do {
+                    let book = try await self.load(pairCode: pairCode)
+                    self.installChildListeners(for: book, pairCode: pairCode, onChange: onChange)
+                    onChange(.success(book))
+                }
                 catch {
                     self.listener?.remove()
                     self.listener = nil
@@ -188,8 +195,43 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
         }
     }
 
+    private func installChildListeners(
+        for book: AdventureBook, pairCode: String,
+        onChange: @escaping @MainActor (Result<AdventureBook, Error>) -> Void
+    ) {
+        childListeners.forEach { $0.remove() }
+        childListeners = []
+        guard observingCode == pairCode else { return }
+        for memory in book.memories {
+            let base = memoriesCollection(pairCode).document(memory.id)
+            for name in ["stories", "comments", "photos"] {
+                let registration = base.collection(name).limit(to: 50).addSnapshotListener {
+                    [weak self] snapshot, error in
+                    Task { @MainActor [weak self] in
+                        guard let self, self.observingCode == pairCode else { return }
+                        if let error {
+                            self.stopObserving()
+                            onChange(.failure(error))
+                            return
+                        }
+                        guard snapshot?.metadata.isFromCache == false else { return }
+                        do { onChange(.success(try await self.load(pairCode: pairCode))) }
+                        catch {
+                            self.stopObserving()
+                            onChange(.failure(error))
+                        }
+                    }
+                }
+                childListeners.append(registration)
+            }
+        }
+    }
+
     func stopObserving() {
         listener?.remove()
         listener = nil
+        childListeners.forEach { $0.remove() }
+        childListeners = []
+        observingCode = nil
     }
 }
