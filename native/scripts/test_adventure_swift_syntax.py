@@ -16,3 +16,13 @@ class AdventureBookSwiftSyntaxGuards(unittest.TestCase):
                 # A Swift key path uses one backslash, e.g. map(\\.id).
                 # A second backslash is a syntax error (not string escaping).
                 self.assertNotIn(chr(92) * 2 + ".", source)
+
+    def test_storage_download_uses_bounded_callback_bridge(self):
+        source = (ROOT / "native/REACH/Firebase/FirestoreAdventurePhotoTransport.swift").read_text()
+        self.assertIn("reference.getData(maxSize: maxSize, completion: completion)", source)
+        self.assertIn("withCheckedThrowingContinuation", source)
+        self.assertIn("withTaskCancellationHandler", source)
+        self.assertIn("guard maxSize > 0, maxSize <= 15_728_640", source)
+        self.assertNotIn(".getData(maxSize: maximumBytes)", source)
+        self.assertNotIn("try await object.getData(", source)
+        self.assertIn("guard !finished else", source)
