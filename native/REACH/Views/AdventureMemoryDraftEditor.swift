@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Creates a memory in a local preview only. The caller decides whether and
-/// when a reviewed draft may be shared through a separately secured service.
+/// Collects a local memory draft. The caller decides whether and
+/// when a reviewed draft may be saved through a separately secured service.
 struct AdventureMemoryDraftEditor: View {
     let onSave: (String, Date, String) -> Void
     @Environment(\.dismiss) private var dismiss
@@ -31,7 +31,7 @@ struct AdventureMemoryDraftEditor: View {
                         .font(.caption)
                 }
                 Section {
-                    Text("Preview only. This memory is not uploaded or saved permanently. Photo attachments and partner synchronization are not enabled.")
+                    Text("Add Page saves through the active Adventure Book. Photo uploads remain unavailable until secure Storage activation.")
                         .font(.footnote)
                 }
             }
