@@ -2,7 +2,7 @@ import {test,before,after,beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {initializeTestEnvironment,assertSucceeds,assertFails} from '@firebase/rules-unit-testing';
-import {doc,setDoc,getDoc,updateDoc,deleteDoc,collection,getDocs,query,limit,serverTimestamp,writeBatch} from 'firebase/firestore';
+import {doc,setDoc,getDoc,updateDoc,deleteDoc,collection,getDocs,query,limit,serverTimestamp,writeBatch,runTransaction} from 'firebase/firestore';
 
 let env;
 const A='ABCDEFGHJKLM', B='NPQRSTUVWXYZ';
@@ -102,4 +102,21 @@ test('independent story documents remain intact after another authorized edit',a
  await assertSucceeds(updateDoc(story(a),{text:'Second',updatedAt:serverTimestamp()}));
  assert.equal((await getDoc(story(a))).data().text,'Second');
  assert.ok(version);
+});
+
+test('Firestore transaction detects stale story version and preserves latest text',async()=>{
+ const d=db('a'),ref=story(d);
+ await assertSucceeds(setDoc(ref,{authorUid:'a',text:'Original',updatedAt:serverTimestamp()}));
+ const initial=await getDoc(ref);
+ const expected=initial.updateTime.toMillis();
+ const edit=(text)=>runTransaction(d,async transaction=>{
+   const snap=await transaction.get(ref);
+   if(snap.updateTime.toMillis()!==expected) throw Error('adventure-story-version-conflict');
+   transaction.update(ref,{text,updatedAt:serverTimestamp()});
+ });
+ const results=await Promise.allSettled([edit('First edit'),edit('Second edit')]);
+ assert.equal(results.filter(r=>r.status==='fulfilled').length,1,'only one concurrent editor may commit');
+ assert.equal(results.filter(r=>r.status==='rejected'&&r.reason.message==='adventure-story-version-conflict').length,1);
+ const final=await getDoc(ref);
+ assert.ok(['First edit','Second edit'].includes(final.data().text));
 });
