@@ -35,6 +35,26 @@ class AdventureBookVisualRegressionTests(unittest.TestCase):
         self.assertIn('AdventureBookPalette.gold', source)
         self.assertNotIn("FirebaseStorage", source)
 
+    def test_leather_grain_and_stitching_are_asset_free(self):
+        source = (VIEWS / "AdventureBookVisualComponents.swift").read_text()
+        self.assertIn("AdventureLeatherGrain()", source)
+        self.assertIn("Canvas { context, size in", source)
+        self.assertIn("dash: [3, 5]", source)
+        self.assertNotIn("AsyncImage(", source)
+
+    def test_gallery_thumbnails_reuse_authenticated_photo_transport(self):
+        source = (VIEWS / "ReachAdventureBookLive.swift").read_text()
+        self.assertIn("if let coverPhoto = memory.photos.first", source)
+        self.assertIn("compact: true", source)
+        self.assertIn("var compact = false", source)
+        self.assertIn("FirestoreAdventurePhotoTransport()", source)
+        self.assertNotIn("downloadURL(", source)
+
+    def test_story_save_preserves_authentication_without_unused_uid(self):
+        source = (VIEWS / "ReachAdventureBookLive.swift").read_text()
+        self.assertIn("guard let code = pairCode, Auth.auth().currentUser != nil else { return }", source)
+        self.assertIn("expectedVersion: selectedStoryVersion", source)
+
     def test_gallery_does_not_auto_import_private_content(self):
         source = (VIEWS / "ReachAdventureBookLive.swift").read_text()
         self.assertIn("ForEach(Array(memories.enumerated())", source)
