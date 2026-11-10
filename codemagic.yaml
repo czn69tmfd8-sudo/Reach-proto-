@@ -31,6 +31,7 @@ workflows:
           xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Debug \
             -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath DerivedData \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+          xcrun simctl bootstatus "$DEVICE_ID" -b
           xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Debug \
             -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath DerivedData \
             CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY="-" -parallel-testing-enabled NO test
