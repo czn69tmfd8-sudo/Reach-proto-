@@ -11,6 +11,7 @@ struct ReachAdventureBookLive: View {
     @State private var busy = false
     @State private var showingNewMemory = false
     @State private var selectedMemory: AdventureMemory?
+    @State private var selectedStoryVersion: Timestamp?
     @State private var commentDraft = ""
     @State private var page = 0
     @State private var repository = FirestoreAdventureBookRepository()
@@ -103,7 +104,7 @@ struct ReachAdventureBookLive: View {
                     .padding(10).frame(maxWidth: .infinity, alignment: .leading)
                     .background(.white.opacity(0.5), in: RoundedRectangle(cornerRadius: 9))
                 }
-                Button("Write or edit my story") { selectedMemory = memory }
+                Button("Write or edit my story") { Task { await openStoryEditor(memory) } }
                     .buttonStyle(.bordered)
                 Divider()
                 Text("Our conversation").font(.headline)
@@ -190,23 +191,30 @@ struct ReachAdventureBookLive: View {
         } catch { self.error = error.localizedDescription }
     }
 
+    private func openStoryEditor(_ memory: AdventureMemory) async {
+        guard let code = pairCode, let uid = Auth.auth().currentUser?.uid else { return }
+        do {
+            let current = try await FirestoreAdventureStoryTransport()
+                .loadOwnStory(pairCode: code, memoryID: memory.id, uid: uid)
+            selectedStoryVersion = current?.version
+            selectedMemory = memory
+        } catch { self.error = error.localizedDescription }
+    }
+
     private func saveStory(memoryID: String, text: String) async {
         guard let code = pairCode, let uid = Auth.auth().currentUser?.uid else { return }
         do {
-            // Version must correspond to the editor's original server snapshot.
-            // Until the editor carries that token, existing-story edits are
-            // blocked instead of silently overwriting a newer contribution.
-            let transport = FirestoreAdventureStoryTransport()
-            let existing = try await transport.loadOwnStory(pairCode: code, memoryID: memoryID, uid: uid)
-            guard existing == nil else { throw AdventureBookRepositoryError.conflict }
+            // Use the exact version captured when the editor opened.
+            // Transaction retries reject a stale version if the partner or
+            // another session changed the story in the meantime.
             try await repository.saveOwnStory(pairCode: code, memoryID: memoryID,
-                                              text: text, expectedVersion: nil)
+                                              text: text, expectedVersion: selectedStoryVersion)
         } catch { self.error = error.localizedDescription }
     }
 
     private func postComment(memoryID: String, text: String) async {
         guard let code = pairCode else { return }
         do { try await repository.postComment(pairCode: code, memoryID: memoryID, text: text) }
-        catch { error = error.localizedDescription }
+        catch { self.error = error.localizedDescription }
     }
 }
