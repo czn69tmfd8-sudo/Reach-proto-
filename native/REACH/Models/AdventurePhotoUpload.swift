@@ -43,6 +43,21 @@ struct AdventurePhotoUpload: Equatable, Sendable, Codable {
     /// Interrupted upload: keep the same object ID. Before retrying, the
     /// transport must query object existence and verify ownership/size/hash.
     /// Never blindly overwrite an object that may already exist.
+    /// After process death, an upload that had started may have reached the
+    /// server. Never create another object until metadata is checked.
+    mutating func prepareForRecovery(as uid: String) -> Bool {
+        guard uid == ownerUID, objectPath != nil else { return false }
+        switch phase {
+        case .prepared, .uploading:
+            phase = .retryRequired
+            return true
+        case .retryRequired, .uploadedAwaitingMetadata:
+            return true
+        case .published:
+            return false
+        }
+    }
+
     mutating func interrupted(as uid: String) -> Bool {
         guard uid == ownerUID, phase == .uploading else { return false }
         phase = .retryRequired
