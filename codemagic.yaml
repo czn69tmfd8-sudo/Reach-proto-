@@ -297,7 +297,7 @@ workflows:
       - native/build-logs/tests.log
 
   reach-adventure-single-app-signed-archive-hold:
-    name: REACH Build 15 original app (held archive or authorized internal upload)
+    name: REACH Build 15 authorized internal TestFlight upload (archive-only optional)
     instance_type: mac_mini_m2
     max_build_duration: 60
     inputs:
@@ -305,7 +305,7 @@ workflows:
         description: Select archive only or separately authorized Build 15 internal upload
         type: choice
         options: ["HOLD", "APPROVE_SINGLE_APP_ARCHIVE_ONLY", "UPLOAD_INTERNAL_BUILD_15"]
-        default: "HOLD"
+        default: "UPLOAD_INTERNAL_BUILD_15"
     integrations:
       app_store_connect: REACH Codemagic
     environment:
@@ -319,12 +319,15 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.reachprototype.app
-    # Manual and held by default. Upload runs only with the exact separate approval.
+    # Owner authorized this one-time Build 15 upload on 2026-11-10. Manual only.
+    # New runs default to that approved upload; HOLD and archive-only remain selectable.
     # Existing source/signing checks run in both approved modes. No public release.
     scripts:
       - name: Verify original app identity, staging client and explicit archive authorization
         script: |
           set -euo pipefail
+          export REACH_SIGNED_ARCHIVE_APPROVAL="${{ inputs.archive_approval }}"
+          printf 'Build 15 effective approval: %s\n' "$REACH_SIGNED_ARCHIVE_APPROVAL"
           test "$CM_BRANCH" = "feature/adventure-book-single-app-integration"
           test -z "${CM_PULL_REQUEST_DEST:-}"
           case "$REACH_SIGNED_ARCHIVE_APPROVAL" in
@@ -388,6 +391,8 @@ workflows:
       - name: Export and upload only with explicit internal Build 15 authorization
         script: |
           set -euo pipefail
+          export REACH_SIGNED_ARCHIVE_APPROVAL="${{ inputs.archive_approval }}"
+          printf 'Build 15 effective approval: %s\n' "$REACH_SIGNED_ARCHIVE_APPROVAL"
           if [ "$REACH_SIGNED_ARCHIVE_APPROVAL" = "APPROVE_SINGLE_APP_ARCHIVE_ONLY" ]; then
             echo "Archive-only selection: no export or upload."
             exit 0

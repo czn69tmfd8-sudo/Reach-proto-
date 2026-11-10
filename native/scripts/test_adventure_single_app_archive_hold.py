@@ -15,7 +15,7 @@ class AdventureSingleAppArchiveHoldTests(unittest.TestCase):
     def test_original_identity_and_explicit_owner_hold(self):
         workflow = self.workflow()
         self.assertIn("com.reachprototype.app", workflow)
-        self.assertIn('default: "HOLD"', workflow)
+        self.assertIn('default: "UPLOAD_INTERNAL_BUILD_15"', workflow)
         self.assertIn('REACH_SIGNED_ARCHIVE_APPROVAL: ${{ inputs.archive_approval }}', workflow)
         self.assertIn('test "$REACH_IOS_BUILD_NUMBER" = "15"', workflow)
         self.assertIn('--expected-tests 207', workflow)

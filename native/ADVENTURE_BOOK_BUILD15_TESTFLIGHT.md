@@ -13,7 +13,7 @@ project to that exact source fingerprint before the staging plist is injected.
 | Apple team and profile type | `GFUK853ZT5`, App Store distribution |
 | Firebase | `reach-staging-a4745` via the existing `reach-staging` group |
 | Version | `0.1.0 (15)`, provisional until confirmed unused |
-| Default approval input | `HOLD` |
+| Default approval input | `UPLOAD_INTERNAL_BUILD_15` (owner-authorized manual upload) |
 
 ## Before authorizing a private archive
 
@@ -64,7 +64,7 @@ GitHub/passkey authentication is not required for an owner-started Safari run.
 
 Use **Start new build → feature/adventure-book-single-app-integration →
 reach-adventure-single-app-signed-archive-hold**, from the reviewed preparation
-commit. Select **archive_approval → UPLOAD_INTERNAL_BUILD_15**. Default `HOLD`
+commit. Select **archive_approval → UPLOAD_INTERNAL_BUILD_15**. Selecting `HOLD`
 rejects the run, and `APPROVE_SINGLE_APP_ARCHIVE_ONLY` still produces only the
 private archive. Do not select an older Build 5/6 uploader.
 
@@ -137,3 +137,27 @@ Build 7 distribution record.
    appear on both phones without overwriting one another. Gallery photos stay
    out of scope. Report the build, failing action and fixed error text without
    account IDs, codes, photos, video, or raw logs.
+
+## Approval-mode correction after Codemagic build index 2
+
+The downloaded export/upload log contains only “Archive-only selection: no
+export or upload.” At preparation commit `0f38e98`, this message is reachable
+only when the effective environment value is exactly
+`APPROVE_SINGLE_APP_ARCHIVE_ONLY`. An absent, unresolved or upload value would
+not produce this successful skip. That log alone cannot distinguish a retained
+UI selection from a Codemagic environment override.
+
+The manual workflow now defaults to the already-authorized
+`UPLOAD_INTERNAL_BUILD_15`. Both the initial gate and export/upload step export
+the same resolved workflow input directly, so a stale environment mapping cannot
+silently select archive-only mode. Both steps log the non-secret effective mode.
+The real export shell is regression-tested with harmless command stubs for
+upload, archive-only, missing, HOLD and unresolved values, including a stale
+archive-only environment overridden by the selected upload input.
+
+Start a **new build**, not a rebuild of index 2. Select the current preparation
+commit and ensure **archive_approval = UPLOAD_INTERNAL_BUILD_15**. The first step
+must show **Build 15 effective approval: UPLOAD_INTERNAL_BUILD_15** before tests
+and signing begin. The export step must show the same mode. This is a local
+execution check of the workflow shell, not a claim that the new Codemagic run
+or Apple upload has occurred.
