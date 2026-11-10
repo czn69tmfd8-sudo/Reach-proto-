@@ -108,10 +108,10 @@ test('Firestore transaction detects stale story version and preserves latest tex
  const d=db('a'),ref=story(d);
  await assertSucceeds(setDoc(ref,{authorUid:'a',text:'Original',updatedAt:serverTimestamp()}));
  const initial=await getDoc(ref);
- const expected=initial.updateTime.toMillis();
+ const expected=initial.data().updatedAt.toMillis();
  const edit=(text)=>runTransaction(d,async transaction=>{
    const snap=await transaction.get(ref);
-   if(snap.updateTime.toMillis()!==expected) throw Error('adventure-story-version-conflict');
+   if(snap.data().updatedAt.toMillis()!==expected) throw Error('adventure-story-version-conflict');
    transaction.update(ref,{text,updatedAt:serverTimestamp()});
  });
  const results=await Promise.allSettled([edit('First edit'),edit('Second edit')]);
