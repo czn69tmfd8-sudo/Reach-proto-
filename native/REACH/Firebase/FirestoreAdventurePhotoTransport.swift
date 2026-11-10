@@ -55,7 +55,8 @@ final class FirestoreAdventurePhotoTransport {
                   remote.size == Int64(bytes.count),
                   remote.contentType == "image/jpeg",
                   remote.customMetadata?["sha256"] == digest,
-                  remote.name == upload.photoID else {
+                  remote.name == upload.photoID,
+                  remote.bucket == object.bucket else {
                 throw AdventureBookRepositoryError.conflict
             }
             // Custom metadata is client supplied. Verify the actual remote
