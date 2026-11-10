@@ -14,7 +14,7 @@ private struct AdventureRemotePhotoMetadata: Sendable {
     let contentType: String?
     let name: String?
     let bucket: String?
-    let generation: String?
+    let generation: Int64
 }
 
 /// Private staging-only photo transport. No download URLs are generated.
