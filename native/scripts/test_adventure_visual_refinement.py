@@ -27,6 +27,14 @@ class AdventureBookVisualRegressionTests(unittest.TestCase):
             self.assertIn(expected, source)
         self.assertNotIn(chr(92) + "n                PhotosPicker", source)
 
+    def test_cover_has_visual_reference_motifs_without_backend_changes(self):
+        source = (VIEWS / "AdventureBookVisualComponents.swift").read_text()
+        self.assertIn('Image(systemName: "safari")', source)
+        self.assertIn('Image(systemName: "circle.circle")', source)
+        self.assertIn('accessibilityLabel("Open Our Adventure Book")', source)
+        self.assertIn('AdventureBookPalette.gold', source)
+        self.assertNotIn("FirebaseStorage", source)
+
     def test_gallery_does_not_auto_import_private_content(self):
         source = (VIEWS / "ReachAdventureBookLive.swift").read_text()
         self.assertIn("ForEach(Array(memories.enumerated())", source)
