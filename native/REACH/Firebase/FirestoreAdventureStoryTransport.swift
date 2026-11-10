@@ -1,3 +1,4 @@
+import FirebaseCore
 import FirebaseAuth
 import FirebaseFirestore
 import Foundation
@@ -18,8 +19,8 @@ final class FirestoreAdventureStoryTransport {
     }
 
     private func document(pairCode: String, memoryID: String, uid: String) throws -> DocumentReference {
-        try ReachEnvironmentGuard.validate(environment: .staging, configuredProjectID: db.app.options.projectID)
-        guard let user = Auth.auth(app: db.app).currentUser, user.uid == uid,
+        try ReachEnvironmentGuard.validate(environment: .staging, configuredProjectID: FirebaseApp.app()?.options.projectID)
+        guard let user = Auth.auth().currentUser, user.uid == uid,
               let path = AdventureBookPaths.story(pairCode: pairCode, memoryID: memoryID, authorUID: uid)
         else { throw AdventureBookRepositoryError.unauthorized }
         return db.document(path)
