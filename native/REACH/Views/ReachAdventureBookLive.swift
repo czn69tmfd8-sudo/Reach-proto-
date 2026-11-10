@@ -237,7 +237,13 @@ struct ReachAdventureBookLive: View {
             let current = try await FirestoreAdventureStoryTransport()
                 .loadOwnStory(pairCode: code, memoryID: memory.id, uid: uid)
             selectedStoryVersion = current?.version
-            selectedMemory = memory
+            var editorMemory = memory
+            editorMemory.stories.removeAll { $0.authorUID == uid }
+            if let current {
+                editorMemory.stories.append(.init(authorUID: uid, text: current.text,
+                                                  updatedAt: Date()))
+            }
+            selectedMemory = editorMemory
         } catch { self.error = error.localizedDescription }
     }
 
