@@ -138,7 +138,7 @@ struct ReachAdventureBookPreview: View {
             Text(item.occurredAt, style: .date).font(.caption)
             Image(systemName: "photo.on.rectangle.angled").font(.system(size: 48))
             story("My story", item.stories.first?.text ?? "")
-            story("Partner\u0027s story", "Waiting for their perspective")
+            story("Partner's story", "Waiting for their perspective")
             Text("Local preview only").font(.caption)
             }
         }
