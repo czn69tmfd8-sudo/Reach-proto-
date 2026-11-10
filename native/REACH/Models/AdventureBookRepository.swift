@@ -28,6 +28,17 @@ enum AdventureBookPaths {
         return "\(base)/comments/\(commentID)"
     }
 
+
+    /// Every story lives in its own Firestore document keyed by author UID.
+    /// Updates must use an explicit server version precondition, never blind setData.
+    static func ownStoryWrite(pairCode: String, memoryID: String, authorUID: String,
+                              authenticatedUID: String, expectedVersion: String?) -> AdventureStoryWrite? {
+        guard authenticatedUID == authorUID,
+              let path = story(pairCode: pairCode, memoryID: memoryID, authorUID: authorUID),
+              expectedVersion == nil || (expectedVersion?.isEmpty == false) else { return nil }
+        return AdventureStoryWrite(path: path, authorUID: authorUID, expectedVersion: expectedVersion)
+    }
+
     static func photo(pairCode: String, memoryID: String, photoID: String) -> String? {
         guard memory(pairCode: pairCode, memoryID: memoryID) != nil,
               safeSegment(photoID) else { return nil }
@@ -51,4 +62,12 @@ enum AdventureBookRepositoryError: Error, Equatable {
     case invalidMemory
     case conflict
     case unavailable
+}
+
+/// A null version is create-only; a non-null version requires the exact
+/// server updateTime. Clients must reload and ask before resolving conflicts.
+struct AdventureStoryWrite: Equatable, Sendable {
+    let path: String
+    let authorUID: String
+    let expectedVersion: String?
 }
