@@ -232,6 +232,53 @@ workflows:
       - native/DerivedData/Logs/Test/**
       - native/build-logs/**
 
+  reach-adventure-single-app-validation:
+    name: REACH Adventure Book original-bundle integration (simulator and unsigned device, no distribution)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      xcode: latest
+      node: 22
+    scripts:
+      - name: Verify original app identity and all historical regression baselines
+        script: |
+          set -euo pipefail
+          test "$CM_BRANCH" = "feature/adventure-book-single-app-integration"
+          test -z "${CM_PULL_REQUEST_DEST:-}"
+          test -z "$(find native -name GoogleService-Info.plist -print -quit)"
+          grep -q 'PRODUCT_BUNDLE_IDENTIFIER: com.reachprototype.app' native/project.yml
+          grep -q 'INFOPLIST_KEY_CFBundleDisplayName: REACH Staging' native/project.yml
+          grep -q 'static let nativeBundleID = "com.reachprototype.app"' native/REACH/Firebase/ReachEnvironment.swift
+          git rev-parse HEAD
+          if test "$(git rev-parse --is-shallow-repository)" = "true"; then
+            git fetch --unshallow origin
+          else
+            git fetch origin --prune
+          fi
+          python3 native/scripts/preflight-historical-baselines.py
+          python3 -m unittest discover -s native/scripts -p 'test_*.py'
+          python3 native/scripts/run-portable-tests.py
+          node --test staging/*.test.mjs
+      - name: Validate Adventure Book Firebase security in local emulators
+        script: |
+          set -euo pipefail
+          cd native/firebase
+          npm ci
+          npx firebase emulators:exec --only firestore,storage 'node --test adventure-book.rules.test.mjs adventure-book.storage.test.mjs merge-live-adventure-rules.test.mjs' --project demo-reach-adventure
+      - name: Native simulator and unsigned iPhone target
+        script: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
+          cd native
+          xcodegen generate
+          xcodebuild -resolvePackageDependencies -project REACH.xcodeproj -scheme REACH
+          bash scripts/run-simulator-tests.sh
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath DeviceDerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+    artifacts:
+      - native/build-logs/tests.log
+
   reach-ios-simulator:
     name: REACH iPhone simulator (local signing)
     instance_type: mac_mini_m2
