@@ -107,6 +107,9 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
                                   creatorUID: creator, title: title, occurredAt: date.dateValue(),
                                   stories: stories, photos: photos, comments: comments, pageOrder: order))
         }
+        // Pairing can be revoked during the multi-request load. Revalidate
+        // before any assembled content is returned to the view.
+        _ = try await verifiedCode(pairCode)
         return AdventureBook(pairCode: pairCode, memories: memories)
     }
 
@@ -176,13 +179,14 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 if let error {
-                    self.listener?.remove()
-                    self.listener = nil
+                    self.stopObserving()
                     onChange(.failure(error))
                     return
                 }
+                guard self.observingCode == pairCode else { return }
                 do {
                     let book = try await self.load(pairCode: pairCode)
+                    guard self.observingCode == pairCode else { return }
                     self.installChildListeners(for: book, pairCode: pairCode, onChange: onChange)
                     onChange(.success(book))
                 }
@@ -215,7 +219,11 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
                             return
                         }
                         guard snapshot?.metadata.isFromCache == false else { return }
-                        do { onChange(.success(try await self.load(pairCode: pairCode))) }
+                        do {
+                            let refreshed = try await self.load(pairCode: pairCode)
+                            guard self.observingCode == pairCode else { return }
+                            onChange(.success(refreshed))
+                        }
                         catch {
                             self.stopObserving()
                             onChange(.failure(error))
