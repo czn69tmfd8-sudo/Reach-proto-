@@ -143,12 +143,12 @@ struct ReachAdventureBookLive: View {
                                                 memoryID: memory.id, photo: photo)
                 }
                 if AdventurePhotoFeatureGate.liveUploadsEnabled {
-                PhotosPicker(selection: $photoSelection, matching: .images) {
+                    PhotosPicker(selection: $photoSelection, matching: .images) {
                     Label("Choose photo", systemImage: "photo.badge.plus")
                 }
-                .onChange(of: photoSelection) { _, selection in
-                    if selection != nil { uploadingPhotoFor = memory }
-                }
+                    .onChange(of: photoSelection) { _, selection in
+                        if selection != nil { uploadingPhotoFor = memory }
+                    }
                 } else {
                     Label("Photos will be available after secure Storage activation. Memories, stories and comments still work.", systemImage: "photo.on.rectangle.angled")
                         .font(.caption)
@@ -169,7 +169,7 @@ struct ReachAdventureBookLive: View {
                 let ownUID = Auth.auth().currentUser?.uid
                 let ownStory = memory.stories.first(where: { $0.authorUID == ownUID })?.text ?? ""
                 let partnerStory = memory.stories.first(where: { $0.authorUID != ownUID })?.text ?? ""
-                AdventureStoryCard(heading: "Aaron’s Story", text: partnerStory)
+                AdventureStoryCard(heading: "Partner’s Story", text: partnerStory)
                 AdventureStoryCard(heading: "My Story", text: ownStory)
                 Button("Write or edit my story") { Task { await openStoryEditor(memory) } }
                     .buttonStyle(.bordered)
