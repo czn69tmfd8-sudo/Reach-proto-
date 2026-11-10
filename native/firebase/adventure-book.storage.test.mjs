@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {initializeTestEnvironment,assertSucceeds,assertFails} from '@firebase/rules-unit-testing';
 import {doc,setDoc,updateDoc} from 'firebase/firestore';
-import {ref,uploadBytes,getBytes,deleteObject} from 'firebase/storage';
+import {ref,uploadBytes,getBytes,getMetadata,deleteObject} from 'firebase/storage';
 let env;
 const code='ABCDEFGHJKLM';
 const root='nativeStaging/v1/';
@@ -62,12 +62,26 @@ test('revocation blocks authenticated SDK reads and writes without deleting stor
 test('interrupted upload retains immutable object; identical retry cannot overwrite',async()=>{
  const target=object('a','recovery-photo');
  const meta={contentType:'image/jpeg',customMetadata:{ownerUid:'a',sha256:'a'.repeat(64)}};
- await assertSucceeds(uploadBytes(target,bytes,meta));
+ const uploadResult=await assertSucceeds(uploadBytes(target,bytes,meta));
+ assert.equal(uploadResult.metadata.size,bytes.byteLength);
+ assert.equal(uploadResult.metadata.contentType,'image/jpeg');
+ const stored=await assertSucceeds(getMetadata(object('b','recovery-photo')));
+ assert.equal(stored.name,'recovery-photo');
+ assert.equal(stored.size,bytes.byteLength);
+ assert.equal(stored.contentType,'image/jpeg');
+ assert.equal(stored.customMetadata.ownerUid,'a');
+ assert.equal(stored.customMetadata.sha256,'a'.repeat(64));
  const saved=await assertSucceeds(getBytes(object('b','recovery-photo')));
+ assert.equal(saved.byteLength,bytes.byteLength);
  assert.deepEqual(Array.from(new Uint8Array(saved)),Array.from(bytes));
  await assertFails(uploadBytes(target,bytes,meta));
  const unchanged=await assertSucceeds(getBytes(object('b','recovery-photo')));
+ assert.equal(unchanged.byteLength,bytes.byteLength);
  assert.deepEqual(Array.from(new Uint8Array(unchanged)),Array.from(bytes));
+ const after=await assertSucceeds(getMetadata(object('b','recovery-photo')));
+ assert.equal(after.generation,stored.generation);
+ assert.equal(after.size,stored.size);
+ assert.equal(after.customMetadata.sha256,stored.customMetadata.sha256);
  await assertFails(deleteObject(target));
 });
 test('revoked user cannot recover remote object or delete orphan',async()=>{
