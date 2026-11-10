@@ -45,5 +45,5 @@ jobs:
           set -euo pipefail
           npm ci --no-audit --no-fund
           node prepare-adventure-rules.mjs
-          printf '%s\\n' '{"firestore":{"rules":"adventure-book.combined.generated.rules"},"storage":{"rules":"adventure-book.storage.proposed.rules"},"emulators":{"firestore":{"port":8080},"storage":{"port":9199},"ui":{"enabled":false}}}' > adventure-emulator.generated.json
+          printf '%s\n' '{"firestore":{"rules":"adventure-book.combined.generated.rules"},"storage":{"rules":"adventure-book.storage.proposed.rules"},"emulators":{"firestore":{"port":8080},"storage":{"port":9199},"ui":{"enabled":false}}}' > adventure-emulator.generated.json
           npx firebase emulators:exec --only firestore,storage --project demo-reach-adventure --config adventure-emulator.generated.json 'node --test --test-concurrency=1 adventure-book.rules.test.mjs adventure-book.storage.test.mjs'
