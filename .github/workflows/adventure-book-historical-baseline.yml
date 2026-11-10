@@ -1,13 +1,16 @@
 name: Adventure Book historical baseline and portable regression
 on:
   push:
-    branches: [feature/adventure-book-foundation, feature/adventure-book-visual-refinement]
+    branches: [feature/adventure-book-foundation, feature/adventure-book-visual-refinement, feature/adventure-book-device-isolation]
     paths:
       - 'codemagic.yaml'
       - 'native/scripts/preflight-historical-baselines.py'
       - 'native/scripts/test_sprint_boundaries.py'
       - 'native/scripts/test_adventure_swift_syntax.py'
       - 'native/scripts/test_adventure_visual_refinement.py'
+      - 'native/scripts/prepare-adventure-device-preview.py'
+      - 'native/scripts/test_adventure_device_preview.py'
+      - 'native/scripts/generate-adventure-preview-icon.py'
       - 'native/REACH/Firebase/FirestoreAdventureBookRepository.swift'
       - 'native/REACH/Firebase/FirestoreAdventurePhotoTransport.swift'
       - 'native/REACH/Firebase/FirestoreAdventureStoryTransport.swift'
