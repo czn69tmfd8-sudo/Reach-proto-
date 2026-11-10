@@ -9,6 +9,7 @@ on:
       - 'native/scripts/test_adventure_swift_syntax.py'
       - 'native/REACH/Firebase/FirestoreAdventureBookRepository.swift'
       - 'native/REACH/Firebase/FirestoreAdventurePhotoTransport.swift'
+      - 'native/REACH/Firebase/FirestoreAdventureStoryTransport.swift'
       - 'native/project.yml'
       - '.github/workflows/adventure-book-historical-baseline.yml'
   workflow_dispatch:
