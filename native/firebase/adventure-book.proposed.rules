@@ -43,6 +43,7 @@ match /adventureBooks/{code}/memories/{memoryID} {
     && request.resource.data.createdAt == request.time;
   allow update: if adventureAuthorized(code) && adventureMemoryShape(request.resource.data, code)
     && request.resource.data.creatorUid == resource.data.creatorUid
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','occurredAt','pageOrder'])
     && request.resource.data.createdAt == resource.data.createdAt
     && request.resource.data.pairCode == resource.data.pairCode;
   // No implicit deletion on revocation. Explicit deletion needs a separate consent workflow.
