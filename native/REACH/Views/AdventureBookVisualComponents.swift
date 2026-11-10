@@ -9,6 +9,27 @@ enum AdventureBookPalette {
     static let gold = Color(red: 0.82, green: 0.65, blue: 0.35)
 }
 
+
+/// A deterministic leather-grain impression with no downloaded artwork.
+private struct AdventureLeatherGrain: View {
+    var body: some View {
+        Canvas { context, size in
+            guard size.width > 0, size.height > 0 else { return }
+            let step: CGFloat = 9
+            for column in 0..<Int(size.width / step) {
+                for row in 0..<Int(size.height / step) {
+                    let seed = (column * 73 + row * 139) % 19
+                    let x = CGFloat(column) * step + CGFloat(seed % 5)
+                    let y = CGFloat(row) * step + CGFloat(seed % 7)
+                    let rect = CGRect(x: x, y: y, width: 1.2, height: 2.4)
+                    context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(0.055)))
+                }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
 struct AdventureLeatherCover: View {
     let open: () -> Void
 
@@ -21,9 +42,18 @@ struct AdventureLeatherCover: View {
                         AdventureBookPalette.leather,
                         Color(red: 0.19, green: 0.09, blue: 0.07)
                     ], startPoint: .topLeading, endPoint: .bottomTrailing))
+                // Fine-grain leather and stitched border are vector-drawn,
+                // requiring no external image asset or new permissions.
+                AdventureLeatherGrain()
+                    .clipShape(RoundedRectangle(cornerRadius: 19))
+                    .accessibilityHidden(true)
                 RoundedRectangle(cornerRadius: 15)
                     .strokeBorder(AdventureBookPalette.gold.opacity(0.7), lineWidth: 1.5)
                     .padding(12)
+                RoundedRectangle(cornerRadius: 15)
+                    .strokeBorder(AdventureBookPalette.gold.opacity(0.5),
+                                  style: StrokeStyle(lineWidth: 1, dash: [3, 5]))
+                    .padding(16)
                 RoundedRectangle(cornerRadius: 11)
                     .strokeBorder(AdventureBookPalette.gold.opacity(0.35),
                                   style: StrokeStyle(lineWidth: 1, dash: [2, 5]))
