@@ -203,6 +203,14 @@ workflows:
           git diff --exit-code HEAD -- native/REACH native/REACHTests native/Configuration native/project.yml
           git diff --cached --exit-code HEAD -- native/REACH native/REACHTests native/Configuration native/project.yml
           git rev-parse HEAD
+          # Codemagic may provide a shallow checkout. Historical source
+          # fingerprints are mandatory; hydrate history before regression tests.
+          if test "$(git rev-parse --is-shallow-repository)" = "true"; then
+            git fetch --unshallow origin
+          else
+            git fetch origin --prune
+          fi
+          python3 native/scripts/preflight-historical-baselines.py
           python3 native/scripts/run-portable-tests.py
           python3 -m unittest discover -s native/scripts -p 'test_*.py'
       - name: Generate and validate unsigned simulator build
