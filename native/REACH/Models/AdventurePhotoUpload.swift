@@ -2,8 +2,8 @@ import Foundation
 
 /// Local recovery journal for an immutable Storage object. No Firebase access
 /// is granted by this state machine; server rules remain authoritative.
-struct AdventurePhotoUpload: Equatable, Sendable {
-    enum Phase: Equatable, Sendable {
+struct AdventurePhotoUpload: Equatable, Sendable, Codable {
+    enum Phase: String, Equatable, Sendable, Codable {
         case prepared
         case uploading
         case uploadedAwaitingMetadata
