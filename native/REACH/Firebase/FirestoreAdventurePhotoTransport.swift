@@ -84,13 +84,14 @@ final class FirestoreAdventurePhotoTransport {
                                                          memoryID: upload.memoryID) else {
             throw AdventureBookRepositoryError.invalidMemory
         }
+        let ownerUID = upload.ownerUID
         let ref = db.document(memoryPath).collection("photos").document(upload.photoID)
         _ = try await db.runTransaction { transaction, pointer -> Any? in
             do {
                 let current = try transaction.getDocument(ref)
                 guard !current.exists else { throw AdventureBookRepositoryError.conflict }
                 transaction.setData([
-                    "ownerUid": upload.ownerUID, "storagePath": path,
+                    "ownerUid": ownerUID, "storagePath": path,
                     "caption": caption, "position": position,
                     "createdAt": FieldValue.serverTimestamp()
                 ], forDocument: ref)
