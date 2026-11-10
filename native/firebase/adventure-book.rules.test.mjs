@@ -120,3 +120,18 @@ test('Firestore transaction detects stale story version and preserves latest tex
  const final=await getDoc(ref);
  assert.ok(['First edit','Second edit'].includes(final.data().text));
 });
+
+test('metadata publication after upload is immutable on create and survives duplicate retry',async()=>{
+ const a=db('a'),b=db('b');
+ const ref=photo(a,A,'trip','recovered-photo');
+ const record={ownerUid:'a',storagePath:'adventureBook/'+A+'/trip/recovered-photo',caption:'',position:1,createdAt:serverTimestamp()};
+ await assertSucceeds(setDoc(ref,record));
+ const stored=await assertSucceeds(getDoc(photo(b,A,'trip','recovered-photo')));
+ assert.equal(stored.data().ownerUid,'a');
+ // A restarted client must read and adopt this exact record, not create
+ // another owner or alter the original path.
+ await assertFails(setDoc(ref,{...record,storagePath:'adventureBook/'+A+'/trip/different'}));
+ await assertFails(setDoc(photo(b,A,'trip','recovered-photo'),{...record,ownerUid:'b'}));
+ assert.equal((await getDoc(ref)).data().storagePath,record.storagePath);
+ await assertFails(deleteDoc(ref));
+});
