@@ -49,6 +49,33 @@ final class AdventurePhotoUploadTests: XCTestCase {
         XCTAssertFalse(record.canResume(as: "a", withHash: hash, byteCount: 301))
     }
 
+    func testSuccessfulRemoteUploadWithMissingLocalConfirmation() {
+        var upload = AdventurePhotoUpload(pairCode: "ABCDEFGHJKLM", memoryID: "trip",
+                                          photoID: "photo-1", ownerUID: "a")
+        XCTAssertTrue(upload.begin(as: "a"))
+        // Process dies after the server stores bytes, before local callback.
+        XCTAssertTrue(upload.prepareForRecovery(as: "a"))
+        XCTAssertEqual(upload.phase, .retryRequired)
+        // After verifying the remote object's owner, name, size and hash:
+        XCTAssertTrue(upload.begin(as: "a"))
+        XCTAssertTrue(upload.uploaded(as: "a"))
+        XCTAssertEqual(upload.phase, .uploadedAwaitingMetadata)
+        XCTAssertFalse(upload.begin(as: "a")) // no second upload
+    }
+
+    func testInterruptedMetadataPublicationIsNotReuploaded() {
+        var upload = AdventurePhotoUpload(pairCode: "ABCDEFGHJKLM", memoryID: "trip",
+                                          photoID: "photo-1", ownerUID: "a")
+        XCTAssertTrue(upload.begin(as: "a"))
+        XCTAssertTrue(upload.uploaded(as: "a"))
+        XCTAssertTrue(upload.prepareForRecovery(as: "a"))
+        XCTAssertEqual(upload.phase, .uploadedAwaitingMetadata)
+        XCTAssertFalse(upload.begin(as: "a"))
+        XCTAssertTrue(upload.metadataCommitted(as: "a"))
+        XCTAssertFalse(upload.metadataCommitted(as: "a"))
+        XCTAssertFalse(upload.prepareForRecovery(as: "a"))
+    }
+
     func testJournalRoundTripAndExplicitClear() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".json")
