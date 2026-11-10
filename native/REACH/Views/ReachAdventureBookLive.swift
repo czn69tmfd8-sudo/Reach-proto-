@@ -2,6 +2,7 @@ import FirebaseAuth
 import FirebaseFirestore
 import PhotosUI
 import SwiftUI
+import UIKit
 
 /// Staging-only live Adventure Book surface. The existing preview remains
 /// available and no data is copied from the user's private scrapbook.
@@ -17,6 +18,9 @@ struct ReachAdventureBookLive: View {
     @State private var photoSelection: PhotosPickerItem?
     @State private var uploadingPhotoFor: AdventureMemory?
     @State private var photoProgress = ""
+    @State private var pendingPhoto: AdventurePhotoUpload?
+    @State private var pendingPhotoBytes: Data?
+    @State private var pendingPhotoPosition = 0
     @State private var page = 0
     @State private var repository = FirestoreAdventureBookRepository()
 
@@ -107,6 +111,11 @@ struct ReachAdventureBookLive: View {
                 }
                 if !photoProgress.isEmpty {
                     Text(photoProgress).font(.caption)
+                }
+                if pendingPhoto != nil {
+                    Button("Retry incomplete photo") {
+                        Task { await retryPendingPhoto() }
+                    }.buttonStyle(.bordered)
                 }
                 ForEach(memory.stories, id: \.authorUID) { story in
                     VStack(alignment: .leading, spacing: 6) {
@@ -239,23 +248,47 @@ struct ReachAdventureBookLive: View {
             guard let original = try await selection.loadTransferable(type: Data.self) else {
                 throw AdventureBookRepositoryError.invalidMemory
             }
-            // Only actual JPEG bytes are currently accepted. Do not upload
-            // HEIC/PNG bytes under a forged JPEG content type.
-            guard original.starts(with: [0xff, 0xd8, 0xff]) else {
+            // Normalize Photos assets (including HEIC) to actual JPEG bytes.
+            // Reject oversized files before contacting Storage.
+            guard let decoded = UIImage(data: original),
+                  let jpeg = decoded.jpegData(compressionQuality: 0.78),
+                  !jpeg.isEmpty, jpeg.count <= 15_728_640 else {
                 throw AdventureBookRepositoryError.invalidMemory
             }
             var operation = AdventurePhotoUpload(pairCode: memory.pairCode,
                                                  memoryID: memory.id,
                                                  photoID: UUID().uuidString.lowercased(),
                                                  ownerUID: uid)
-            let transport = FirestoreAdventurePhotoTransport()
-            photoProgress = "Uploading private photo…"
-            try await transport.uploadJPEG(original, upload: &operation)
-            photoProgress = "Publishing photo…"
-            try await transport.publish(&operation, caption: "", position: memory.photos.count)
-            photoProgress = "Photo saved"
+            pendingPhoto = operation
+            pendingPhotoBytes = jpeg
+            pendingPhotoPosition = memory.photos.count
+            await retryPendingPhoto()
         } catch {
             photoProgress = "Upload incomplete. Nothing was overwritten."
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func retryPendingPhoto() async {
+        guard var operation = pendingPhoto, let bytes = pendingPhotoBytes else { return }
+        let transport = FirestoreAdventurePhotoTransport()
+        do {
+            if operation.phase == .prepared || operation.phase == .retryRequired {
+                photoProgress = "Uploading private photo…"
+                try await transport.uploadJPEG(bytes, upload: &operation)
+                pendingPhoto = operation
+            }
+            guard operation.phase == .uploadedAwaitingMetadata else {
+                throw AdventureBookRepositoryError.conflict
+            }
+            photoProgress = "Publishing private photo…"
+            try await transport.publish(&operation, caption: "", position: pendingPhotoPosition)
+            pendingPhoto = nil
+            pendingPhotoBytes = nil
+            photoProgress = "Photo saved"
+        } catch {
+            pendingPhoto = operation
+            photoProgress = "Photo incomplete — retry without replacing existing data"
             self.error = error.localizedDescription
         }
     }
