@@ -1,0 +1,32 @@
+name: Adventure Book historical baseline and portable regression
+on:
+  push:
+    branches: [feature/adventure-book-foundation]
+    paths:
+      - 'codemagic.yaml'
+      - 'native/scripts/preflight-historical-baselines.py'
+      - 'native/scripts/test_sprint_boundaries.py'
+      - 'native/project.yml'
+      - '.github/workflows/adventure-book-historical-baseline.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  historical-baseline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Demonstrate shallow checkout and restore historical Git objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse --is-shallow-repository)" = true
+          git fetch --unshallow origin
+          python3 native/scripts/preflight-historical-baselines.py
+      - name: Execute complete Python historical regression suite
+        run: python3 -m unittest discover -s native/scripts -p 'test_*.py' -v
+      - name: Execute complete portable Swift regression suite
+        run: python3 native/scripts/run-portable-tests.py
