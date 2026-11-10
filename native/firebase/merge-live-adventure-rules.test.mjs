@@ -19,8 +19,8 @@ test('offline merge retains existing Storage and Firestore rules byte-for-byte a
   assert.ok(mergedSt.includes("match /existing/{id} { allow read: if request.auth != null; allow write: if false; }"));
   assert.ok(mergedSt.includes('match /adventureBook/{code}/{memoryID}/{photoID}'));
   assert.ok(mergedFs.includes('match /adventureBooks/{code}/memories/{memoryID}'));
-  assert.equal((mergedSt.match(/service firebase.storage/g)||[]).length,1);
-  assert.equal((mergedFs.match(/service cloud.firestore/g)||[]).length,1);
+  assert.equal((mergedSt.match(/^\s*service\s+firebase\.storage\s*\{/gm)||[]).length,1);
+  assert.equal((mergedFs.match(/^\s*service\s+cloud\.firestore\s*\{/gm)||[]).length,1);
   const manifest=JSON.parse(await readFile(out+'.manifest.json','utf8'));
   assert.equal(manifest.deployAuthorized,false);
   assert.ok(manifest.sha256.liveStorage && manifest.sha256.mergedStorage);
