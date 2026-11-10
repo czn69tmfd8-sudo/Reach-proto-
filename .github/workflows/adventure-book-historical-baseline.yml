@@ -1,7 +1,7 @@
 name: Adventure Book historical baseline and portable regression
 on:
   push:
-    branches: [feature/adventure-book-foundation]
+    branches: [feature/adventure-book-foundation, feature/adventure-book-visual-refinement]
     paths:
       - 'codemagic.yaml'
       - 'native/scripts/preflight-historical-baselines.py'
@@ -14,6 +14,7 @@ on:
       - 'native/REACH/Models/AdventurePhotoUpload.swift'
       - 'native/REACHTests/AdventurePhotoUploadTests.swift'
       - 'native/REACH/Views/ReachAdventureBookLive.swift'
+      - 'native/REACH/Views/AdventureBookVisualComponents.swift'
       - '.github/workflows/adventure-book-historical-baseline.yml'
   workflow_dispatch:
 permissions:
