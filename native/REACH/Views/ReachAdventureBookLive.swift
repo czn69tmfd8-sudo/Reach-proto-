@@ -106,11 +106,28 @@ struct ReachAdventureBookLive: View {
                         }
                     } label: {
                         HStack(spacing: 14) {
-                            Image(systemName: "photo.on.rectangle.angled")
-                                .font(.title2)
-                                .frame(width: 54, height: 54)
-                                .background(.white.opacity(0.55),
-                                            in: RoundedRectangle(cornerRadius: 7))
+                            Group {
+                                if let coverPhoto = memory.photos.first {
+                                    AdventureAuthenticatedPhoto(
+                                        pairCode: memory.pairCode,
+                                        memoryID: memory.id,
+                                        photo: coverPhoto,
+                                        compact: true)
+                                } else {
+                                    Image(systemName: "photo.on.rectangle.angled")
+                                        .font(.title2)
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                        .accessibilityLabel("Memory has no photograph")
+                                }
+                            }
+                            .frame(width: 62, height: 62)
+                            .background(.white.opacity(0.8),
+                                        in: RoundedRectangle(cornerRadius: 4))
+                            .padding(4)
+                            .background(.white.opacity(0.5),
+                                        in: RoundedRectangle(cornerRadius: 6))
+                            .rotationEffect(.degrees(index.isMultiple(of: 2) ? -2 : 2))
+                            .shadow(color: .black.opacity(0.16), radius: 3, y: 2)
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(memory.title)
                                     .font(.system(.headline, design: .serif))
@@ -410,6 +427,7 @@ private struct AdventureAuthenticatedPhoto: View {
     let pairCode: String
     let memoryID: String
     let photo: AdventureMemory.Photo
+    var compact = false
     @State private var image: UIImage?
     @State private var error: String?
 
@@ -417,15 +435,18 @@ private struct AdventureAuthenticatedPhoto: View {
         VStack(alignment: .leading, spacing: 6) {
             if let image {
                 Image(uiImage: image)
-                    .resizable().scaledToFit()
-                    .frame(maxHeight: 230)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .resizable()
+                    .aspectRatio(contentMode: compact ? .fill : .fit)
+                    .frame(maxWidth: compact ? 62 : nil,
+                           maxHeight: compact ? 62 : 230)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: compact ? 3 : 10))
             } else if let error {
                 Label(error, systemImage: "lock.fill").font(.caption)
             } else {
                 ProgressView("Loading private photo…")
             }
-            if !photo.caption.isEmpty {
+            if !compact && !photo.caption.isEmpty {
                 Text(photo.caption).font(.caption)
             }
         }
