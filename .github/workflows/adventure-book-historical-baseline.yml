@@ -10,7 +10,10 @@ on:
       - 'native/REACH/Firebase/FirestoreAdventureBookRepository.swift'
       - 'native/REACH/Firebase/FirestoreAdventurePhotoTransport.swift'
       - 'native/REACH/Firebase/FirestoreAdventureStoryTransport.swift'
-      - 'native/project.yml'\n      - 'native/REACH/Models/AdventurePhotoUpload.swift'\n      - 'native/REACHTests/AdventurePhotoUploadTests.swift'\n      - 'native/REACH/Views/ReachAdventureBookLive.swift'
+      - 'native/project.yml'
+      - 'native/REACH/Models/AdventurePhotoUpload.swift'
+      - 'native/REACHTests/AdventurePhotoUploadTests.swift'
+      - 'native/REACH/Views/ReachAdventureBookLive.swift'
       - '.github/workflows/adventure-book-historical-baseline.yml'
   workflow_dispatch:
 permissions:
