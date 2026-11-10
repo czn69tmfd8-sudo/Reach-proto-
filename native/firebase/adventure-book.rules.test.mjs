@@ -92,13 +92,13 @@ test('missing partner and expired invitation are not treated as active membershi
  await assertFails(getDoc(memory(a)));
 });
 
-test('concurrent stale update preconditions reject overwrite of newer story',async()=>{
+test('independent story documents remain intact after another authorized edit',async()=>{
  const a=db('a');
  await assertSucceeds(setDoc(story(a),{authorUid:'a',text:'First',updatedAt:serverTimestamp()}));
  const first=await getDoc(story(a));
  const version=first.data().updatedAt;
- // Firestore client transactions and server updateTime preconditions must be used by
- // the real transport. This test only verifies independent documents and edit authorization.
+ // This does not validate compare-and-swap. Real server updateTime preconditions
+ // and concurrent stale-write rejection require separate integration coverage.
  await assertSucceeds(updateDoc(story(a),{text:'Second',updatedAt:serverTimestamp()}));
  assert.equal((await getDoc(story(a))).data().text,'Second');
  assert.ok(version);
