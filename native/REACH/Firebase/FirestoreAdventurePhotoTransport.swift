@@ -118,7 +118,8 @@ final class FirestoreAdventurePhotoTransport {
             }
             return
         }
-        _ = try await db.runTransaction { transaction, pointer -> Any? in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            db.runTransaction({ transaction, pointer -> Any? in
             do {
                 let current = try transaction.getDocument(ref)
                 guard !current.exists else { throw AdventureBookRepositoryError.conflict }
@@ -131,6 +132,10 @@ final class FirestoreAdventurePhotoTransport {
                 pointer?.pointee = error as NSError
             }
             return nil
+            }, completion: { _, error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: ()) }
+            })
         }
         guard upload.metadataCommitted(as: upload.ownerUID) else {
             throw AdventureBookRepositoryError.conflict
