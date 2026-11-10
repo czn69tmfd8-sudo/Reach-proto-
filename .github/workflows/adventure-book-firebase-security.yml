@@ -35,4 +35,4 @@ jobs:
       - name: Run isolated Adventure Book Firestore security tests
         run: |
           printf '%s\n' '{"firestore":{"rules":"adventure-book.combined.generated.rules"},"emulators":{"firestore":{"port":8080},"ui":{"enabled":false}}}' > adventure-emulator.generated.json
-          npx firebase emulators:exec --only firestore --project demo-reach-adventure --config adventure-emulator.generated.json 'node --test --test-concurrency=1 adventure-book.rules.test.mjs'
+          npx firebase emulators:exec --only firestore,storage --project demo-reach-adventure --config adventure-emulator.generated.json 'node --test --test-concurrency=1 adventure-book.rules.test.mjs adventure-book.storage.test.mjs'
