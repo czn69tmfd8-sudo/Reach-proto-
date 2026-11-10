@@ -12,6 +12,11 @@ workflows:
           test "${CM_BRANCH}" = "feature/adventure-book-foundation"
           test -z "${CM_PULL_REQUEST_DEST:-}"
           test -z "$(find native -name GoogleService-Info.plist -print -quit)"
+          # Historical release fingerprints apply only to their approved
+          # release commits. Validate this feature checkout against its own
+          # Git tree without bypassing any portable/native regression tests.
+          git diff --exit-code HEAD -- native/REACH native/REACHTests native/Configuration native/project.yml
+          git diff --cached --exit-code HEAD -- native/REACH native/REACHTests native/Configuration native/project.yml
           git rev-parse HEAD
           python3 native/scripts/run-portable-tests.py
           python3 -m unittest discover -s native/scripts -p 'test_*.py'
