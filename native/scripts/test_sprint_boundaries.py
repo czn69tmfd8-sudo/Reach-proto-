@@ -29,7 +29,7 @@ class SprintBoundaryTests(unittest.TestCase):
                     # Storage photo transport. All pre-existing project bytes,
                     # signing settings, target definitions and media deps must
                     # still match the historical baseline exactly.
-                    addition = b'      - package: Firebase\\n        product: FirebaseStorage\\n'
+                    addition = b'      - package: Firebase\n        product: FirebaseStorage\n'
                     self.assertEqual(current.count(addition), 1)
                     self.assertEqual(current.replace(addition, b''), original)
                 else:
