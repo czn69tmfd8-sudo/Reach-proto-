@@ -61,7 +61,7 @@ final class FirestoreAdventurePhotoTransport {
             }
             // Custom metadata is client supplied. Verify the actual remote
             // bytes, not merely the asserted hash, before recovering.
-            let remoteBytes = try await object.getData(maxSize: 15_728_640)
+            let remoteBytes = try await Self.downloadBytes(from: object, maxSize: 15_728_640)
             guard remoteBytes.count == bytes.count,
                   SHA256.hash(data: remoteBytes) == SHA256.hash(data: bytes) else {
                 throw AdventureBookRepositoryError.conflict
@@ -137,6 +137,26 @@ final class FirestoreAdventurePhotoTransport {
         }
     }
 
+    /// FirebaseStorage 12.19 exposes callback-based getData, returning a
+    /// StorageDownloadTask rather than an async Data value. The bridge limits
+    /// memory, propagates SDK failures, and cancels the SDK task on cancellation.
+    private static func downloadBytes(from reference: StorageReference,
+                                      maxSize: Int64) async throws -> Data {
+        guard maxSize > 0, maxSize <= 15_728_640 else {
+            throw AdventureBookRepositoryError.invalidMemory
+        }
+        let state = AdventureStorageDownloadState()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
+                state.start(continuation: continuation) { completion in
+                    reference.getData(maxSize: maxSize, completion: completion)
+                }
+            }
+        } onCancel: {
+            state.cancel()
+        }
+    }
+
     /// Authenticated SDK byte read, not a bearer-style download URL.
     func readPhoto(pairCode: String, memoryID: String, photoID: String,
                    maximumBytes: Int64 = 15_728_640) async throws -> Data {
@@ -148,6 +168,72 @@ final class FirestoreAdventurePhotoTransport {
                                                    memoryID: memoryID, photoID: photoID) else {
             throw AdventureBookRepositoryError.unauthorized
         }
-        return try await storage.reference(withPath: path).getData(maxSize: maximumBytes)
+        guard maximumBytes > 0, maximumBytes <= 15_728_640 else {
+            throw AdventureBookRepositoryError.invalidMemory
+        }
+        return try await Self.downloadBytes(from: storage.reference(withPath: path), maxSize: maximumBytes)
+    }
+}
+
+/// Protects the continuation from cancellation/completion races. The Firebase
+/// callback can arrive after cancellation; only the first result resumes Swift.
+private final class AdventureStorageDownloadState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Data, Error>?
+    private var task: StorageDownloadTask?
+    private var finished = false
+
+    func start(continuation: CheckedContinuation<Data, Error>,
+               create: (@escaping (Data?, Error?) -> Void) -> StorageDownloadTask) {
+        lock.lock()
+        if finished {
+            lock.unlock()
+            continuation.resume(throwing: CancellationError())
+            return
+        }
+        self.continuation = continuation
+        lock.unlock()
+
+        let created = create { [self] data, error in
+            finish(data: data, error: error)
+        }
+        lock.lock()
+        if finished {
+            lock.unlock()
+            created.cancel()
+        } else {
+            task = created
+            lock.unlock()
+        }
+    }
+
+    private func finish(data: Data?, error: Error?) {
+        lock.lock()
+        guard !finished else { lock.unlock(); return }
+        finished = true
+        let pending = continuation
+        continuation = nil
+        task = nil
+        lock.unlock()
+        if let error {
+            pending?.resume(throwing: error)
+        } else if let data {
+            pending?.resume(returning: data)
+        } else {
+            pending?.resume(throwing: AdventureBookRepositoryError.unavailable)
+        }
+    }
+
+    func cancel() {
+        lock.lock()
+        guard !finished else { lock.unlock(); return }
+        finished = true
+        let pending = continuation
+        continuation = nil
+        let download = task
+        task = nil
+        lock.unlock()
+        download?.cancel()
+        pending?.resume(throwing: CancellationError())
     }
 }
