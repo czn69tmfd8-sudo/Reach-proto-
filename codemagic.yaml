@@ -264,7 +264,8 @@ workflows:
           set -euo pipefail
           cd native/firebase
           npm ci
-          npx firebase emulators:exec --only firestore,storage 'node --test adventure-book.rules.test.mjs adventure-book.storage.test.mjs merge-live-adventure-rules.test.mjs' --project demo-reach-adventure
+          node --test merge-live-adventure-rules.test.mjs
+          npx firebase emulators:exec --only firestore,storage --project demo-reach-adventure --config firebase.adventure.json 'node --test --test-concurrency=1 adventure-book.rules.test.mjs adventure-book.storage.test.mjs'
       - name: Native simulator and unsigned iPhone target
         script: |
           set -euo pipefail
@@ -272,6 +273,9 @@ workflows:
           cd native
           xcodegen generate
           xcodebuild -resolvePackageDependencies -project REACH.xcodeproj -scheme REACH
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; ids=[x["udid"] for r,xs in d.items() if r.startswith("com.apple.CoreSimulator.SimRuntime.iOS-") for x in xs if x.get("isAvailable") and x["name"].startswith("iPhone")]; sys.exit("No iPhone simulator available") if not ids else print(ids[0])')
+          export DEVICE_ID
+          xcrun simctl bootstatus "$DEVICE_ID" -b
           bash scripts/run-simulator-tests.sh
           xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \
             -destination 'generic/platform=iOS' -derivedDataPath DeviceDerivedData \
