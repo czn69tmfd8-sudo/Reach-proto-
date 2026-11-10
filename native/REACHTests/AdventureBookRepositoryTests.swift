@@ -29,4 +29,25 @@ final class AdventureBookRepositoryTests: XCTestCase {
         XCTAssertNil(AdventureBookPaths.memory(pairCode: "ABCDEFGHJKLM", memoryID: "trip..backup"))
         XCTAssertNil(AdventureBookPaths.memory(pairCode: "ABCDEFGHJKLM", memoryID: "trip%2Fother"))
     }
+    func testPartnerCannotWriteOtherPersonsStory() {
+        XCTAssertNil(AdventureBookPaths.ownStoryWrite(
+            pairCode: "ABCDEFGHJKLM", memoryID: "summer-trip",
+            authorUID: "person-a", authenticatedUID: "person-b", expectedVersion: nil))
+    }
+
+    func testStoryCreateAndVersionedEditHaveDistinctPreconditions() {
+        let created = AdventureBookPaths.ownStoryWrite(
+            pairCode: "ABCDEFGHJKLM", memoryID: "summer-trip",
+            authorUID: "person-a", authenticatedUID: "person-a", expectedVersion: nil)
+        XCTAssertEqual(created?.path, "adventureBooks/ABCDEFGHJKLM/memories/summer-trip/stories/person-a")
+        XCTAssertNil(created?.expectedVersion)
+        let edited = AdventureBookPaths.ownStoryWrite(
+            pairCode: "ABCDEFGHJKLM", memoryID: "summer-trip",
+            authorUID: "person-a", authenticatedUID: "person-a", expectedVersion: "server-update-time")
+        XCTAssertEqual(edited?.expectedVersion, "server-update-time")
+        XCTAssertNil(AdventureBookPaths.ownStoryWrite(
+            pairCode: "ABCDEFGHJKLM", memoryID: "summer-trip",
+            authorUID: "person-a", authenticatedUID: "person-a", expectedVersion: ""))
+    }
+
 }
