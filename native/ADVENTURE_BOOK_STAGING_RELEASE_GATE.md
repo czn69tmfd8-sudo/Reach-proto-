@@ -33,8 +33,41 @@
 5. Exercise interrupted upload, retry with matching SHA-256, mismatch denial and offline reconnect. Never silently overwrite existing objects.
 6. Verify existing calling, audio, hand interaction, Together navigation and old scrapbook remain intact.
 
-## Known blockers as of this review
-- Native GitHub Actions jobs pending before any job starts. Portable Ubuntu and Firestore emulator tests have run, so this is not evidence of a Swift compilation failure.
-- Codemagic is configured for manual unsigned simulator validation; owner may need to select the feature branch and run it. Do not enable paid resources or uploads.
-- Native photo selection currently accepts only JPEG bytes; other Photos formats require explicit conversion before support.
-- Upload state is currently in-memory; durable recovery journal, cleanup and deletion are not yet implemented.
+## Current validation and unresolved gates (2026-11-09)
+- Codemagic isolated unsigned simulator build #8 at b21d033 completed successfully (4m 27s); this is not a signed physical-device build or evidence of two-device Firebase synchronization.
+- Existing historical baseline, portable Swift, and Firebase security emulator suites passed on b21d033 (69 Python, 181 portable Swift, 14 Firebase security). Re-run after any change to rules or native code.
+- Live UI has brown vintage-style cover, parchment pages, page navigation, partner stories, comments and authenticated photo picker/display. Textured leather, physical page-curl animation and full accessibility/visual polish are not demonstrated.
+- A durable photo recovery **journal** is implemented. Original image bytes are not persistently stored, so a killed app may require selecting the same photo again before cryptographic recovery. Client-side delete remains prohibited. No privileged orphan cleanup exists.
+- Listener callbacks ignore cached snapshots; server reads and pairing/member-lock revalidation precede display. Physical-device offline/reconnect, race and revocation behavior remain unverified.
+- Memory queries are capped at 50; child story/comment/photo collections are bounded. Pagination and scaling are not complete.
+- No confirmed current live staging Firestore/Storage rule exports or independent diff. The proposed Storage file is a complete ruleset, not an additive patch: **never deploy it directly over live staging rules**. Compare against current live rules and retain unrelated permissions.
+- Existing simple limit-only queries do not demonstrate a need for new composite indexes. Confirm against actual staging errors before adding any.
+- Authentication, Firebase project ID, Storage bucket, app signing, privacy permissions, staging plist and device entitlements must be confirmed before any physical-device build.
+- Do not use an unsigned simulator artifact on an iPhone; a signed archive/export and private distribution require separate explicit approval.
+
+## Staging preparation commands (safe, do not deploy)
+```sh
+git fetch origin feature/adventure-book-foundation
+git checkout feature/adventure-book-foundation
+git rev-parse HEAD
+python3 -m unittest discover -s native/scripts -p 'test_*.py'
+python3 native/scripts/run-portable-tests.py
+cd native/firebase
+npm ci
+node prepare-adventure-rules.mjs
+```
+Use `.github/workflows/adventure-book-historical-baseline.yml` for the exact isolated Firestore+Storage emulator execution. Its generated rules use a repository review baseline, **not necessarily current live staging**.
+
+## Staging-only deployment command (APPROVAL REQUIRED — DO NOT EXECUTE)
+After fetching and backing up the actual active staging rules and reviewing **both additive merges**, prepare a temporary Firebase config whose Firestore and Storage rule paths point exclusively to those reviewed merged files. Validate that the CLI target is the staging project and that no existing rules disappear. Only then, with explicit owner approval:
+```sh
+firebase deploy --project reach-staging-a4745 --only firestore:rules,storage --config ./adventure-staging-approved.firebase.json
+```
+Check CLI compatibility and exact resources before execution. Preserve immutable copies/checksums of both predeployment rule releases and approved merged files. Read back deployed rules, compare hashes and rerun pairing/calling/security smoke tests. If rollback is approved, restore the exact backed-up staging rules using a separate rollback config and explicit staging project target; never delete user data.
+
+## Two-iPhone test and distribution boundary
+- First obtain authorization for staging rules and signed internal device distribution (distinct approvals).
+- Keep `com.reachprototype.app` and the verified staging Firebase configuration consistent with existing working native pairing; never point this feature at production.
+- Install the signed staging build on device A, verify existing calling/hand interactions; then on paired device B. Confirm shared memories, independent story edits, comments, authenticated photo bytes, interrupted upload recovery, offline reconnect and stale edit conflict.
+- Under controlled test identities, confirm cross-couple denial, revocation and member-lock enforcement; clear visible private content and verify stored objects remain untouched.
+- Do not upload to TestFlight or distribute without separate approval.
