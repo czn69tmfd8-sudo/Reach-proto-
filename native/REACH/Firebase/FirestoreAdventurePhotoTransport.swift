@@ -58,6 +58,13 @@ final class FirestoreAdventurePhotoTransport {
                   remote.name == upload.photoID else {
                 throw AdventureBookRepositoryError.conflict
             }
+            // Custom metadata is client supplied. Verify the actual remote
+            // bytes, not merely the asserted hash, before recovering.
+            let remoteBytes = try await object.getData(maxSize: 15_728_640)
+            guard remoteBytes.count == bytes.count,
+                  SHA256.hash(data: remoteBytes) == SHA256.hash(data: bytes) else {
+                throw AdventureBookRepositoryError.conflict
+            }
             guard upload.begin(as: upload.ownerUID),
                   upload.uploaded(as: upload.ownerUID) else {
                 throw AdventureBookRepositoryError.conflict
