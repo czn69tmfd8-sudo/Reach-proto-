@@ -43,3 +43,12 @@ class AdventureBookSwiftSyntaxGuards(unittest.TestCase):
         self.assertIn("object.putData(bytes, metadata: metadata)", source)
         self.assertNotIn("try await object.getMetadata()", source)
         self.assertNotIn("try await object.putDataAsync", source)
+
+    def test_storage_metadata_crosses_continuation_as_sendable_snapshot(self):
+        source = (ROOT / "native/REACH/Firebase/FirestoreAdventurePhotoTransport.swift").read_text()
+        self.assertIn("private struct AdventureRemotePhotoMetadata: Sendable", source)
+        for field in ("ownerUID", "sha256", "size", "contentType", "name", "bucket", "generation"):
+            self.assertIn("let " + field + ":", source)
+        self.assertIn("continuation.resume(returning: snapshot)", source)
+        self.assertNotIn("continuation.resume(returning: metadata)", source)
+        self.assertNotIn("async throws -> StorageMetadata", source)
