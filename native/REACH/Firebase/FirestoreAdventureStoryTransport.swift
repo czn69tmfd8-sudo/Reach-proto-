@@ -45,7 +45,8 @@ final class FirestoreAdventureStoryTransport {
                       text: String, expectedVersion: Timestamp?) async throws {
         guard text.utf8.count <= 6000 else { throw AdventureBookRepositoryError.invalidMemory }
         let ref = try document(pairCode: pairCode, memoryID: memoryID, uid: uid)
-        let result = try await db.runTransaction { transaction, errorPointer -> Any? in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            db.runTransaction({ transaction, errorPointer -> Any? in
             do {
                 let current = try transaction.getDocument(ref)
                 if let expectedVersion {
@@ -68,7 +69,10 @@ final class FirestoreAdventureStoryTransport {
                 errorPointer?.pointee = error as NSError
                 return nil
             }
+            }, completion: { _, error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: ()) }
+            })
         }
-        _ = result
     }
 }
