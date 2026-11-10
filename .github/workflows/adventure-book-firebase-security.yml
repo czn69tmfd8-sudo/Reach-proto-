@@ -6,6 +6,7 @@ on:
     paths:
       - 'native/firebase/adventure-book*'
       - 'native/firebase/prepare-adventure-rules.mjs'
+      - 'native/firebase/merge-live-adventure-rules*'
       - '.github/workflows/adventure-book-firebase-security.yml'
   workflow_dispatch:
 permissions:
@@ -30,6 +31,8 @@ jobs:
           java-version: '21'
       - name: Install pinned Firebase emulator dependencies
         run: npm ci
+      - name: Test fail-closed offline additive rules merge
+        run: node --test merge-live-adventure-rules.test.mjs
       - name: Assemble review-only Firestore rules
         run: node prepare-adventure-rules.mjs
       - name: Run isolated Adventure Book Firestore security tests
