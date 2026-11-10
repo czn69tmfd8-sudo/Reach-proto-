@@ -1,3 +1,4 @@
+import CryptoKit
 import FirebaseAuth
 import FirebaseFirestore
 import PhotosUI
@@ -21,6 +22,13 @@ struct ReachAdventureBookLive: View {
     @State private var pendingPhoto: AdventurePhotoUpload?
     @State private var pendingPhotoBytes: Data?
     @State private var pendingPhotoPosition = 0
+    @State private var recoveryRecord: AdventurePhotoRecoveryRecord?
+
+    private var recoveryJournal: AdventurePhotoRecoveryJournal? {
+        guard let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return nil }
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return AdventurePhotoRecoveryJournal(fileURL: directory.appendingPathComponent("adventure-photo-recovery.json"))
+    }
     @State private var page = 0
     @State private var repository = FirestoreAdventureBookRepository()
 
@@ -112,10 +120,14 @@ struct ReachAdventureBookLive: View {
                 if !photoProgress.isEmpty {
                     Text(photoProgress).font(.caption)
                 }
-                if pendingPhoto != nil {
+                if pendingPhoto != nil && pendingPhotoBytes != nil {
                     Button("Retry incomplete photo") {
                         Task { await retryPendingPhoto() }
                     }.buttonStyle(.bordered)
+                }
+                if recoveryRecord != nil && pendingPhotoBytes == nil {
+                    Text("An earlier upload needs recovery. Reselect the same photograph; no replacement upload will occur without verification.")
+                        .font(.caption)
                 }
                 ForEach(memory.stories, id: \.authorUID) { story in
                     VStack(alignment: .leading, spacing: 6) {
@@ -178,6 +190,12 @@ struct ReachAdventureBookLive: View {
                 throw AdventureBookRepositoryError.notPaired
             }
             pairCode = code
+            if let saved = try recoveryJournal?.load(), saved.upload.ownerUID == uid,
+               saved.upload.pairCode == code {
+                recoveryRecord = saved
+                pendingPhoto = saved.upload
+                pendingPhotoPosition = saved.position
+            }
             let loaded = try await repository.load(pairCode: code)
             book = loaded
             error = nil
@@ -255,13 +273,27 @@ struct ReachAdventureBookLive: View {
                   !jpeg.isEmpty, jpeg.count <= 15_728_640 else {
                 throw AdventureBookRepositoryError.invalidMemory
             }
-            var operation = AdventurePhotoUpload(pairCode: memory.pairCode,
-                                                 memoryID: memory.id,
-                                                 photoID: UUID().uuidString.lowercased(),
-                                                 ownerUID: uid)
-            pendingPhoto = operation
+            let hash = SHA256.hash(data: jpeg).map { String(format: "%02x", $0) }.joined()
+            if let saved = recoveryRecord {
+                guard saved.upload.memoryID == memory.id,
+                      saved.canResume(as: uid, withHash: hash, byteCount: jpeg.count) else {
+                    throw AdventureBookRepositoryError.conflict
+                }
+                pendingPhoto = saved.upload
+                pendingPhotoPosition = saved.position
+            } else {
+                let operation = AdventurePhotoUpload(pairCode: memory.pairCode,
+                                                     memoryID: memory.id,
+                                                     photoID: UUID().uuidString.lowercased(),
+                                                     ownerUID: uid)
+                let record = AdventurePhotoRecoveryRecord(upload: operation,
+                    sha256: hash, byteCount: jpeg.count, caption: "", position: memory.photos.count)
+                try recoveryJournal?.save(record)
+                recoveryRecord = record
+                pendingPhoto = operation
+                pendingPhotoPosition = memory.photos.count
+            }
             pendingPhotoBytes = jpeg
-            pendingPhotoPosition = memory.photos.count
             await retryPendingPhoto()
         } catch {
             photoProgress = "Upload incomplete. Nothing was overwritten."
@@ -277,17 +309,33 @@ struct ReachAdventureBookLive: View {
                 photoProgress = "Uploading private photo…"
                 try await transport.uploadJPEG(bytes, upload: &operation)
                 pendingPhoto = operation
+                if let previous = recoveryRecord {
+                    let updated = AdventurePhotoRecoveryRecord(upload: operation,
+                        sha256: previous.sha256, byteCount: previous.byteCount,
+                        caption: previous.caption, position: previous.position)
+                    try recoveryJournal?.save(updated)
+                    recoveryRecord = updated
+                }
             }
             guard operation.phase == .uploadedAwaitingMetadata else {
                 throw AdventureBookRepositoryError.conflict
             }
             photoProgress = "Publishing private photo…"
             try await transport.publish(&operation, caption: "", position: pendingPhotoPosition)
+            try recoveryJournal?.clear()
+            recoveryRecord = nil
             pendingPhoto = nil
             pendingPhotoBytes = nil
             photoProgress = "Photo saved"
         } catch {
             pendingPhoto = operation
+            if let previous = recoveryRecord {
+                let updated = AdventurePhotoRecoveryRecord(upload: operation,
+                    sha256: previous.sha256, byteCount: previous.byteCount,
+                    caption: previous.caption, position: previous.position)
+                try? recoveryJournal?.save(updated)
+                recoveryRecord = updated
+            }
             photoProgress = "Photo incomplete — retry without replacing existing data"
             self.error = error.localizedDescription
         }
