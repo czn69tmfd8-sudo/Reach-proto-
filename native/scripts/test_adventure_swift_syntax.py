@@ -26,3 +26,20 @@ class AdventureBookSwiftSyntaxGuards(unittest.TestCase):
         self.assertNotIn(".getData(maxSize: maximumBytes)", source)
         self.assertNotIn("try await object.getData(", source)
         self.assertIn("guard !finished else", source)
+
+    def test_firestore_transactions_remain_atomic_callback_operations(self):
+        for name in ("FirestoreAdventureStoryTransport.swift",
+                     "FirestoreAdventureBookRepository.swift",
+                     "FirestoreAdventurePhotoTransport.swift"):
+            source = (ROOT / "native/REACH/Firebase" / name).read_text()
+            with self.subTest(file=name):
+                self.assertIn("db.runTransaction({", source)
+                self.assertIn("withCheckedThrowingContinuation", source)
+                self.assertNotIn("try await db.runTransaction", source)
+
+    def test_photo_sdk_calls_do_not_cross_actor_as_async_references(self):
+        source = (ROOT / "native/REACH/Firebase/FirestoreAdventurePhotoTransport.swift").read_text()
+        self.assertIn("object.getMetadata {", source)
+        self.assertIn("object.putData(bytes, metadata: metadata)", source)
+        self.assertNotIn("try await object.getMetadata()", source)
+        self.assertNotIn("try await object.putDataAsync", source)
