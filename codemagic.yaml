@@ -232,6 +232,41 @@ workflows:
       - native/DerivedData/Logs/Test/**
       - native/build-logs/**
 
+  reach-adventure-device-preview-simulator:
+    name: REACH Adventure Book separate-app preview preflight (unsigned simulator only)
+    instance_type: mac_mini_m2
+    max_build_duration: 45
+    environment:
+      xcode: latest
+    scripts:
+      - name: Verify isolated branch and preview configuration safety
+        script: |
+          set -euo pipefail
+          test "${CM_BRANCH}" = "feature/adventure-book-device-isolation"
+          test -z "${CM_PULL_REQUEST_DEST:-}"
+          test -z "$(find native -name GoogleService-Info.plist -print -quit)"
+          git rev-parse HEAD
+          python3 -m unittest discover -s native/scripts -p 'test_*.py'
+          python3 native/scripts/run-portable-tests.py
+      - name: Build and test independent simulator preview identity
+        script: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
+          python3 native/scripts/prepare-adventure-device-preview.py
+          cd native
+          xcodegen generate
+          xcodebuild -resolvePackageDependencies -project REACH.xcodeproj -scheme REACH
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; ids=[x["udid"] for r,xs in d.items() if r.startswith("com.apple.CoreSimulator.SimRuntime.iOS-") for x in xs if x.get("isAvailable") and x["name"].startswith("iPhone")]; sys.exit("No iPhone simulator available") if not ids else print(ids[0])')
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Debug \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Debug \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY="-" -parallel-testing-enabled NO test
+    artifacts:
+      - native/DerivedData/Logs/Test/**
+
   reach-ios-simulator:
     name: REACH iPhone simulator (local signing)
     instance_type: mac_mini_m2
