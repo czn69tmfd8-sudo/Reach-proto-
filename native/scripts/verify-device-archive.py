@@ -2,13 +2,16 @@
 """Fail export if an archive uses simulator identity or a non-staging client config."""
 from pathlib import Path
 from datetime import datetime, timezone
+import hashlib
+import json
 import plistlib
+import tempfile
 import subprocess
 import sys
 import argparse
 
-def verify(app, distribution="ad_hoc", expected_team=None):
-    app=Path(app)
+def verify(app, distribution="ad_hoc", expected_team=None, signing_report=None):
+    app=Path(app).resolve()
     with (app/'Info.plist').open('rb') as f: info=plistlib.load(f)
     with (app/'GoogleService-Info.plist').open('rb') as f: firebase=plistlib.load(f)
     if info.get('CFBundleIdentifier')!='com.reachprototype.app' or firebase.get('BUNDLE_ID')!='com.reachprototype.app' or firebase.get('PROJECT_ID')!='reach-staging-a4745':
@@ -25,6 +28,48 @@ def verify(app, distribution="ad_hoc", expected_team=None):
         capture_output=True,check=True).stdout)
     validate_profile(profile, entitlements, distribution=distribution, expected_team=expected_team)
     subprocess.run(['codesign','--verify','--deep','--strict',str(app)],check=True,capture_output=True)
+
+    if signing_report:
+        with tempfile.TemporaryDirectory() as directory:
+            subprocess.run(['codesign', '-d', '--extract-certificates', str(app)],
+                           cwd=directory, check=True, capture_output=True)
+            leaf = Path(directory) / 'codesign0'
+            certificate = leaf.read_bytes()
+            subprocess.run(['openssl', 'x509', '-inform', 'DER', '-in', str(leaf),
+                            '-noout', '-checkend', '0'], check=True, capture_output=True)
+        report = signing_metadata(info, profile, entitlements, certificate)
+        Path(signing_report).write_text(json.dumps(report, indent=2) + '\n')
+
+
+def signing_metadata(info, profile, entitlements, certificate):
+    if not certificate or certificate not in profile.get('DeveloperCertificates', []):
+        raise ValueError('The actual signing certificate is not authorized by the provisioning profile.')
+
+    identity = entitlements['application-identifier']
+    prefix = identity.split('.', 1)[0]
+    if prefix not in profile.get('ApplicationIdentifierPrefix', []):
+        raise ValueError('The provisioning profile does not authorize the signed application prefix.')
+    groups = entitlements.get('keychain-access-groups', [])
+    allowed = profile['Entitlements'].get('keychain-access-groups', [])
+    if not isinstance(groups, list) or any(
+        not isinstance(group, str) or not any(
+            pattern == group or (pattern.endswith('.*') and group.startswith(pattern[:-1]))
+            for pattern in allowed
+        ) for group in groups
+    ):
+        raise ValueError('The provisioning profile does not authorize the signed Keychain groups.')
+    return {
+        'bundleID': info['CFBundleIdentifier'],
+        'version': info['CFBundleShortVersionString'],
+        'build': info['CFBundleVersion'],
+        'teamID': entitlements['com.apple.developer.team-identifier'],
+        'applicationIdentifier': identity,
+        'keychainAccessGroups': groups,
+        'applicationGroups': entitlements.get('com.apple.security.application-groups', []),
+        'signingCertificateSHA256': hashlib.sha256(certificate).hexdigest(),
+        'profileExpirationUTC': profile['ExpirationDate'].replace(tzinfo=timezone.utc).isoformat(),
+        'firebaseProject': 'reach-staging-a4745',
+    }
 
 
 def validate_profile(profile, entitlements, now=None, distribution="ad_hoc", expected_team=None):
@@ -57,11 +102,12 @@ if __name__=='__main__':
     parser.add_argument('app')
     parser.add_argument('--distribution',choices=['ad_hoc','app_store'],default='ad_hoc')
     parser.add_argument('--expected-team')
+    parser.add_argument('--signing-report', type=Path)
     args=parser.parse_args()
     try:
         if args.distribution == 'app_store' and not args.expected_team:
             raise ValueError('TestFlight verification requires the expected Apple Team ID.')
-        verify(args.app, args.distribution, args.expected_team)
+        verify(args.app, args.distribution, args.expected_team, args.signing_report)
         print('Device archive staging configuration and distribution signature verified.')
     except Exception:
         print('Device archive verification failed; no IPA should be distributed.')

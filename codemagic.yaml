@@ -296,6 +296,92 @@ workflows:
     artifacts:
       - native/build-logs/tests.log
 
+  reach-adventure-single-app-signed-archive-hold:
+    name: REACH Adventure Book original-app signed archive HOLD (no IPA export or upload)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    inputs:
+      archive_approval:
+        description: Authorize archive only after confirming Build 15 is unused
+        type: choice
+        options: ["HOLD", "APPROVE_SINGLE_APP_ARCHIVE_ONLY"]
+        default: "HOLD"
+    environment:
+      groups:
+        - reach-staging
+      vars:
+        REACH_APPLE_TEAM_ID: GFUK853ZT5
+        REACH_IOS_BUILD_NUMBER: "15"
+        REACH_SIGNED_ARCHIVE_APPROVAL: ${{ inputs.archive_approval }}
+      xcode: latest
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.reachprototype.app
+    # Manual and held by default. No IPA export, publishing, or installation.
+    scripts:
+      - name: Verify original app identity, staging client and explicit archive authorization
+        script: |
+          set -euo pipefail
+          test "$CM_BRANCH" = "feature/adventure-book-single-app-integration"
+          test -z "${CM_PULL_REQUEST_DEST:-}"
+          test "$REACH_SIGNED_ARCHIVE_APPROVAL" = "APPROVE_SINGLE_APP_ARCHIVE_ONLY"
+          test "$REACH_APPLE_TEAM_ID" = "GFUK853ZT5"
+          test "$REACH_IOS_BUILD_NUMBER" = "15"
+          python3 native/scripts/verify-sprint-source.py b9d170153bcd664ad6d124f01c1e3ff813ec43614dc9ae6b10b6545e69f01810
+          grep -q 'PRODUCT_BUNDLE_IDENTIFIER: com.reachprototype.app' native/project.yml
+          grep -q 'static let nativeBundleID = "com.reachprototype.app"' native/REACH/Firebase/ReachEnvironment.swift
+          test -z "$(find native -name GoogleService-Info.plist -print -quit)"
+          python3 native/scripts/prepare-store-export.py inputs
+      - name: Generate the original project, rerun XCTest, then apply existing signing
+        script: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
+          cd native
+          xcodegen generate
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; ids=[x["udid"] for r,xs in d.items() if r.startswith("com.apple.CoreSimulator.SimRuntime.iOS-") for x in xs if x.get("isAvailable") and x["name"].startswith("iPhone")]; sys.exit("No iPhone simulator available") if not ids else print(ids[0])')
+          export DEVICE_ID
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          bash scripts/run-simulator-tests.sh
+          python3 scripts/prepare-store-export.py test-results build-logs/test-summary.json --expected-tests 207
+          (cd .. && python3 native/scripts/install-staging-config.py --required)
+          xcodegen generate
+          xcode-project use-profiles
+          python3 scripts/prepare-store-export.py export "$HOME/export_options.plist"
+      - name: Archive original REACH bundle without exporting or distributing
+        script: |
+          set -euo pipefail
+          cd native
+          mkdir -p build-logs
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build/REACH-AdventureBook.xcarchive \
+            DEVELOPMENT_TEAM="$REACH_APPLE_TEAM_ID" MARKETING_VERSION="0.1.0" \
+            CURRENT_PROJECT_VERSION="$REACH_IOS_BUILD_NUMBER" archive 2>&1 | tee build-logs/build15-archive.log
+          python3 scripts/verify-device-archive.py \
+            build/REACH-AdventureBook.xcarchive/Products/Applications/REACH.app \
+            --distribution app_store --expected-team "$REACH_APPLE_TEAM_ID" \
+            --signing-report build-logs/build15-signing.json
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+          app = Path('build/REACH-AdventureBook.xcarchive/Products/Applications/REACH.app')
+          info = plistlib.loads((app/'Info.plist').read_bytes())
+          assert info['CFBundleIdentifier'] == 'com.reachprototype.app'
+          assert info['CFBundleShortVersionString'] == '0.1.0'
+          assert info['CFBundleVersion'] == __import__('os').environ['REACH_IOS_BUILD_NUMBER']
+          assert (app/'PrivacyInfo.xcprivacy').is_file()
+          assert info.get('NSCameraUsageDescription') and info.get('NSMicrophoneUsageDescription')
+          assert (app/'Assets.car').stat().st_size > 0
+          print('Original REACH signed archive identity and build version verified')
+          PY
+          ditto -c -k --keepParent build/REACH-AdventureBook.xcarchive build/REACH-Build15-verified.xcarchive.zip
+    artifacts:
+      - native/build/REACH-Build15-verified.xcarchive.zip
+      - native/build-logs/build15-signing.json
+      - native/build-logs/build15-archive.log
+      - native/build-logs/test-summary.json
+      - native/build/REACH-AdventureBook.xcarchive/Info.plist
+      - native/build/REACH-AdventureBook.xcarchive/dSYMs/**
+
   reach-ios-simulator:
     name: REACH iPhone simulator (local signing)
     instance_type: mac_mini_m2
@@ -389,72 +475,6 @@ workflows:
       - native/build-logs/**
       - native/TestResults.xcresult
       - native/DerivedData/Build/Products/Debug-iphonesimulator/REACH.app
-
-  reach-adventure-single-app-signed-archive-hold:
-    name: REACH Adventure Book original-app signed archive HOLD (no IPA export or upload)
-    instance_type: mac_mini_m2
-    max_build_duration: 60
-    environment:
-      groups:
-        - reach-staging
-      vars:
-        REACH_APPLE_TEAM_ID: GFUK853ZT5
-        REACH_IOS_BUILD_NUMBER: "14"
-        REACH_SIGNED_ARCHIVE_APPROVAL: HOLD
-      xcode: latest
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.reachprototype.app
-    # HOLD: Owner must separately authorize signed archive and change approval
-    # variable in Codemagic. No export, publishing, or installation is configured.
-    scripts:
-      - name: Verify original app identity, staging client and explicit archive authorization
-        script: |
-          set -euo pipefail
-          test "$CM_BRANCH" = "feature/adventure-book-single-app-integration"
-          test -z "${CM_PULL_REQUEST_DEST:-}"
-          test "$REACH_SIGNED_ARCHIVE_APPROVAL" = "APPROVE_SINGLE_APP_ARCHIVE_ONLY"
-          test "$REACH_APPLE_TEAM_ID" = "GFUK853ZT5"
-          test "$REACH_IOS_BUILD_NUMBER" -gt 6
-          test "$REACH_IOS_BUILD_NUMBER" -lt 10000
-          grep -q 'PRODUCT_BUNDLE_IDENTIFIER: com.reachprototype.app' native/project.yml
-          grep -q 'static let nativeBundleID = "com.reachprototype.app"' native/REACH/Firebase/ReachEnvironment.swift
-          test -z "$(find native -name GoogleService-Info.plist -print -quit)"
-          python3 native/scripts/install-staging-config.py --required
-          python3 native/scripts/prepare-store-export.py inputs
-      - name: Generate Xcode project and apply existing Apple signing identities
-        script: |
-          set -euo pipefail
-          if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
-          cd native
-          xcodegen generate
-          xcode-project use-profiles
-      - name: Archive original REACH bundle without exporting or distributing
-        script: |
-          set -euo pipefail
-          cd native
-          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \
-            -destination 'generic/platform=iOS' -archivePath build/REACH-AdventureBook.xcarchive \
-            DEVELOPMENT_TEAM="$REACH_APPLE_TEAM_ID" MARKETING_VERSION="0.1.0" \
-            CURRENT_PROJECT_VERSION="$REACH_IOS_BUILD_NUMBER" archive
-          python3 scripts/verify-device-archive.py \
-            build/REACH-AdventureBook.xcarchive/Products/Applications/REACH.app \
-            --distribution app_store --expected-team "$REACH_APPLE_TEAM_ID"
-          python3 - <<'PY'
-          import plistlib
-          from pathlib import Path
-          app = Path('build/REACH-AdventureBook.xcarchive/Products/Applications/REACH.app')
-          info = plistlib.loads((app/'Info.plist').read_bytes())
-          assert info['CFBundleIdentifier'] == 'com.reachprototype.app'
-          assert info['CFBundleShortVersionString'] == '0.1.0'
-          assert info['CFBundleVersion'] == __import__('os').environ['REACH_IOS_BUILD_NUMBER']
-          assert (app/'PrivacyInfo.xcprivacy').is_file()
-          assert info.get('NSCameraUsageDescription') and info.get('NSMicrophoneUsageDescription')
-          print('Original REACH signed archive identity and build version verified')
-          PY
-    artifacts:
-      - native/build/REACH-AdventureBook.xcarchive/Info.plist
-      - native/build/REACH-AdventureBook.xcarchive/dSYMs/**
 
   reach-ios-device:
     name: REACH staging registered iPhones (manual, no publishing)

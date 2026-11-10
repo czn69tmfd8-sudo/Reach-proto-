@@ -31,6 +31,26 @@ class DeviceArchiveTests(unittest.TestCase):
         profile={'ExpirationDate':datetime(2030,1,1), 'TeamIdentifier':['TESTTEAM00'],
           'Entitlements':deepcopy(entitlements),'ProvisionedDevices':['test-device-udid']}
         return entitlements,profile
+    def test_signing_report_requires_profile_authorized_certificate_prefix_and_groups(self):
+        entitlements, profile = self.signing_data()
+        entitlements['keychain-access-groups'] = ['TESTTEAM00.com.reachprototype.app']
+        profile['ApplicationIdentifierPrefix'] = ['TESTTEAM00']
+        profile['DeveloperCertificates'] = [b'test-leaf']
+        profile['Entitlements']['keychain-access-groups'] = ['TESTTEAM00.*']
+        info = {'CFBundleIdentifier': 'com.reachprototype.app',
+                'CFBundleShortVersionString': '0.1.0', 'CFBundleVersion': '15'}
+        report = archive.signing_metadata(info, profile, entitlements, b'test-leaf')
+        self.assertEqual(report['keychainAccessGroups'], entitlements['keychain-access-groups'])
+        self.assertEqual(report['applicationIdentifier'], entitlements['application-identifier'])
+        self.assertNotIn('DeveloperCertificates', report)
+        for change in (
+            {'DeveloperCertificates': [b'other-leaf']},
+            {'ApplicationIdentifierPrefix': ['OTHERTEAM0']},
+            {'Entitlements': {'keychain-access-groups': ['OTHERTEAM0.*']}},
+        ):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                archive.signing_metadata(info, {**profile, **change}, entitlements, b'test-leaf')
+
     def test_device_config_requires_profile_and_signature_checks(self):
         entitlements,profile=self.signing_data()
         with tempfile.TemporaryDirectory() as t,patch.object(archive.subprocess,'run',side_effect=[

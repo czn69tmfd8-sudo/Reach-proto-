@@ -5,6 +5,7 @@ on:
     branches:
       - native-reach
       - feature/adventure-book-foundation
+      - feature/adventure-book-single-app-integration
       - build-7-small-visual-fixes
       - fix/build7-daily-moment-swift-keypath
       - diagnose-staging-hand-auth
