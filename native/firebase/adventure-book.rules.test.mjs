@@ -5,7 +5,7 @@ import {initializeTestEnvironment,assertSucceeds,assertFails} from '@firebase/ru
 import {doc,setDoc,getDoc,updateDoc,deleteDoc,collection,getDocs,query,limit,serverTimestamp,writeBatch} from 'firebase/firestore';
 
 let env;
-const A='ABCDEFGHJKLM', B='NPQRSTUVWXYZ2';
+const A='ABCDEFGHJKLM', B='NPQRSTUVWXYZ';
 const root='nativeStaging/v1/';
 const db=u=>u?env.authenticatedContext(u).firestore():env.unauthenticatedContext().firestore();
 const memory=(d,c=A,id='trip')=>doc(d,'adventureBooks',c,'memories',id);
@@ -97,7 +97,6 @@ test('concurrent stale update preconditions reject overwrite of newer story',asy
  await assertSucceeds(setDoc(story(a),{authorUid:'a',text:'First',updatedAt:serverTimestamp()}));
  const first=await getDoc(story(a));
  const version=first.data().updatedAt;
- const x=writeBatch(a),y=writeBatch(a);
  // Firestore client transactions and server updateTime preconditions must be used by
  // the real transport. This test only verifies independent documents and edit authorization.
  await assertSucceeds(updateDoc(story(a),{text:'Second',updatedAt:serverTimestamp()}));
