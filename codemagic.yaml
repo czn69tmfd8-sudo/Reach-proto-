@@ -265,7 +265,9 @@ workflows:
           cd native/firebase
           npm ci
           node --test merge-live-adventure-rules.test.mjs
-          npx firebase emulators:exec --only firestore,storage --project demo-reach-adventure --config firebase.adventure.json 'node --test --test-concurrency=1 adventure-book.rules.test.mjs adventure-book.storage.test.mjs'
+          node prepare-adventure-rules.mjs
+          printf '%s\\n' '{"firestore":{"rules":"adventure-book.combined.generated.rules"},"storage":{"rules":"adventure-book.storage.proposed.rules"},"emulators":{"firestore":{"port":8080},"storage":{"port":9199},"ui":{"enabled":false}}}' > adventure-emulator.generated.json
+          npx firebase emulators:exec --only firestore,storage --project demo-reach-adventure --config adventure-emulator.generated.json 'node --test --test-concurrency=1 adventure-book.rules.test.mjs adventure-book.storage.test.mjs'
       - name: Native simulator and unsigned iPhone target
         script: |
           set -euo pipefail
