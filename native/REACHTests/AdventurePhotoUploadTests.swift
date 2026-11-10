@@ -2,6 +2,20 @@ import XCTest
 @testable import REACH
 
 final class AdventurePhotoUploadTests: XCTestCase {
+    func testStagingPhotoGateDefaultsClosedAndRequiresAllIndependentApprovals() {
+        XCTAssertFalse(AdventurePhotoFeatureGate.liveUploadsEnabled)
+        XCTAssertFalse(AdventurePhotoFeatureGate.uploadsEnabled(isStaging: false,
+            bucketVerified: true, rulesApproved: true, releaseApproved: true))
+        XCTAssertFalse(AdventurePhotoFeatureGate.uploadsEnabled(isStaging: true,
+            bucketVerified: false, rulesApproved: true, releaseApproved: true))
+        XCTAssertFalse(AdventurePhotoFeatureGate.uploadsEnabled(isStaging: true,
+            bucketVerified: true, rulesApproved: false, releaseApproved: true))
+        XCTAssertFalse(AdventurePhotoFeatureGate.uploadsEnabled(isStaging: true,
+            bucketVerified: true, rulesApproved: true, releaseApproved: false))
+        XCTAssertTrue(AdventurePhotoFeatureGate.uploadsEnabled(isStaging: true,
+            bucketVerified: true, rulesApproved: true, releaseApproved: true))
+    }
+
     func testInterruptedUploadNeverBecomesPublishedWithoutMetadata() {
         var upload = AdventurePhotoUpload(pairCode: "ABCDEFGHJKLM", memoryID: "trip",
                                           photoID: "unique-photo", ownerUID: "a")
