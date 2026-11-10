@@ -33,10 +33,29 @@ struct AdventureLeatherCover: View {
                     Rectangle().fill(AdventureBookPalette.gold.opacity(0.2)).frame(width: 2)
                     Spacer()
                 }
+                HStack {
+                    Spacer()
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(LinearGradient(colors: [
+                            Color(red: 0.22, green: 0.11, blue: 0.08),
+                            Color(red: 0.53, green: 0.29, blue: 0.17)
+                        ], startPoint: .leading, endPoint: .trailing))
+                        .frame(width: 52, height: 48)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 5)
+                                .strokeBorder(AdventureBookPalette.gold.opacity(0.8), lineWidth: 1.5)
+                        }
+                        .overlay {
+                            Image(systemName: "circle.circle")
+                                .foregroundStyle(AdventureBookPalette.gold)
+                        }
+                        .offset(x: 12, y: 18)
+                }
                 VStack(spacing: 21) {
                     Spacer()
-                    Image(systemName: "leaf")
-                        .font(.system(size: 30, weight: .ultraLight))
+                    Image(systemName: "safari")
+                        .font(.system(size: 42, weight: .ultraLight))
+                        .accessibilityHidden(true)
                     Text("OUR ADVENTURE\nBOOK")
                         .font(.system(size: 34, weight: .semibold, design: .serif))
                         .tracking(2.2)
@@ -50,6 +69,11 @@ struct AdventureLeatherCover: View {
                     Text("Two hearts · One unfolding story")
                         .font(.system(size: 15, design: .serif)).italic()
                     Spacer()
+                    Image(systemName: "safari")
+                        .font(.system(size: 46, weight: .ultraLight))
+                        .rotationEffect(.degrees(20))
+                        .opacity(0.55)
+                        .accessibilityHidden(true)
                     Label("Touch to open", systemImage: "book.pages")
                         .font(.system(size: 13, weight: .medium, design: .serif))
                         .padding(.bottom, 24)
