@@ -266,7 +266,18 @@ workflows:
           npm ci
           node --test merge-live-adventure-rules.test.mjs
           node prepare-adventure-rules.mjs
-          printf '%s\\n' '{"firestore":{"rules":"adventure-book.combined.generated.rules"},"storage":{"rules":"adventure-book.storage.proposed.rules"},"emulators":{"firestore":{"port":8080},"storage":{"port":9199},"ui":{"enabled":false}}}' > adventure-emulator.generated.json
+          python3 -m unittest -v test_adventure_emulator_config.py
+          python3 prepare-adventure-emulator-config.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          config = json.loads(Path('adventure-emulator.generated.json').read_text())
+          assert config['firestore']['rules'] == 'adventure-book.combined.generated.rules'
+          assert config['storage']['rules'] == 'adventure-book.storage.proposed.rules'
+          assert config['emulators']['firestore']['port'] == 8080
+          assert config['emulators']['storage']['port'] == 9199
+          print('Both security rules files and emulator endpoints configured')
+          PY
           npx firebase emulators:exec --only firestore,storage --project demo-reach-adventure --config adventure-emulator.generated.json 'node --test --test-concurrency=1 adventure-book.rules.test.mjs adventure-book.storage.test.mjs'
       - name: Native simulator and unsigned iPhone target
         script: |
