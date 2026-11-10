@@ -1,0 +1,46 @@
+// REVIEW-ONLY Firebase Storage rules. NOT DEPLOYED.
+// Object paths correspond exactly to AdventureBookPaths.photo.
+// Storage and Firestore rules must be deployed together only after emulator validation.
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function pairPath(code) {
+      return /databases/(default)/documents/nativeStaging/v1/pairInvites/$(code);
+    }
+    function lockPath(uid) {
+      return /databases/(default)/documents/nativeStaging/v1/memberLocks/$(uid);
+    }
+    function memoryPath(code, memoryID) {
+      return /databases/(default)/documents/adventureBooks/$(code)/memories/$(memoryID);
+    }
+    function paired(code) {
+      return request.auth != null
+        && code.matches('[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{12}')
+        && firestore.exists(pairPath(code))
+        && validPair(firestore.get(pairPath(code)).data, code);
+    }
+    function validPair(p, code) {
+      return p.get('revoked', false) == false
+        && p.hostUid is string && p.partnerUid is string
+        && p.hostUid != p.partnerUid
+        && request.auth.uid in [p.hostUid, p.partnerUid]
+        && firestore.exists(lockPath(p.hostUid))
+        && firestore.exists(lockPath(p.partnerUid))
+        && firestore.get(lockPath(p.hostUid)).data.pairCode == code
+        && firestore.get(lockPath(p.partnerUid)).data.pairCode == code;
+    }
+    match /adventureBook/{code}/{memoryID}/{photoID} {
+      allow read: if paired(code) && firestore.exists(memoryPath(code, memoryID));
+      // Immutable uploads prevent another partner (or a retry) overwriting a photo.
+      // The upload client must provide the signed-in owner and a unique photo ID.
+      allow create: if paired(code)
+        && memoryID.matches('[A-Za-z0-9_-]{1,128}')
+        && photoID.matches('[A-Za-z0-9_-]{1,128}')
+        && firestore.exists(memoryPath(code, memoryID))
+        && request.resource.size > 0 && request.resource.size <= 15728640
+        && request.resource.contentType.matches('image/(jpeg|png|heic|heif)')
+        && request.resource.metadata.ownerUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+  }
+}
