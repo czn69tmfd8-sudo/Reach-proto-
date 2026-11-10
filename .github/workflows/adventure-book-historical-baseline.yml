@@ -6,6 +6,8 @@ on:
       - 'codemagic.yaml'
       - 'native/scripts/preflight-historical-baselines.py'
       - 'native/scripts/test_sprint_boundaries.py'
+      - 'native/scripts/test_adventure_swift_syntax.py'
+      - 'native/REACH/Firebase/FirestoreAdventureBookRepository.swift'
       - 'native/project.yml'
       - '.github/workflows/adventure-book-historical-baseline.yml'
   workflow_dispatch:
