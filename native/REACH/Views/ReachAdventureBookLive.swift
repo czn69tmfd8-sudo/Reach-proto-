@@ -1,5 +1,6 @@
 import FirebaseAuth
 import FirebaseFirestore
+import PhotosUI
 import SwiftUI
 
 /// Staging-only live Adventure Book surface. The existing preview remains
@@ -13,6 +14,9 @@ struct ReachAdventureBookLive: View {
     @State private var selectedMemory: AdventureMemory?
     @State private var selectedStoryVersion: Timestamp?
     @State private var commentDraft = ""
+    @State private var photoSelection: PhotosPickerItem?
+    @State private var uploadingPhotoFor: AdventureMemory?
+    @State private var photoProgress = ""
     @State private var page = 0
     @State private var repository = FirestoreAdventureBookRepository()
 
@@ -51,6 +55,7 @@ struct ReachAdventureBookLive: View {
             }
         }
         .task { await connect() }
+        .task(id: photoSelection) { await uploadSelectedPhoto() }
         .onDisappear { repository.stopObserving() }
         .sheet(isPresented: $showingNewMemory) {
             AdventureMemoryDraftEditor { title, date, story in
@@ -91,9 +96,17 @@ struct ReachAdventureBookLive: View {
                 Text(memory.title).font(.system(.title2, design: .serif).bold())
                 Text(memory.occurredAt, style: .date).font(.caption)
                 ForEach(memory.photos) { photo in
-                    Label(photo.caption.isEmpty ? "Private photograph" : photo.caption,
-                          systemImage: "photo")
-                        .font(.caption)
+                    AdventureAuthenticatedPhoto(pairCode: memory.pairCode,
+                                                memoryID: memory.id, photo: photo)
+                }
+                PhotosPicker(selection: $photoSelection, matching: .images) {
+                    Label("Choose photo", systemImage: "photo.badge.plus")
+                }
+                .onChange(of: photoSelection) { _, selection in
+                    if selection != nil { uploadingPhotoFor = memory }
+                }
+                if !photoProgress.isEmpty {
+                    Text(photoProgress).font(.caption)
                 }
                 ForEach(memory.stories, id: \.authorUID) { story in
                     VStack(alignment: .leading, spacing: 6) {
@@ -216,5 +229,75 @@ struct ReachAdventureBookLive: View {
         guard let code = pairCode else { return }
         do { try await repository.postComment(pairCode: code, memoryID: memoryID, text: text) }
         catch { self.error = error.localizedDescription }
+    }
+    private func uploadSelectedPhoto() async {
+        guard let selection = photoSelection, let memory = uploadingPhotoFor,
+              let uid = Auth.auth().currentUser?.uid else { return }
+        defer { photoSelection = nil; uploadingPhotoFor = nil }
+        do {
+            photoProgress = "Preparing private photo…"
+            guard let original = try await selection.loadTransferable(type: Data.self) else {
+                throw AdventureBookRepositoryError.invalidMemory
+            }
+            // Only actual JPEG bytes are currently accepted. Do not upload
+            // HEIC/PNG bytes under a forged JPEG content type.
+            guard original.starts(with: [0xff, 0xd8, 0xff]) else {
+                throw AdventureBookRepositoryError.invalidMemory
+            }
+            var operation = AdventurePhotoUpload(pairCode: memory.pairCode,
+                                                 memoryID: memory.id,
+                                                 photoID: UUID().uuidString.lowercased(),
+                                                 ownerUID: uid)
+            let transport = FirestoreAdventurePhotoTransport()
+            photoProgress = "Uploading private photo…"
+            try await transport.uploadJPEG(original, upload: &operation)
+            photoProgress = "Publishing photo…"
+            try await transport.publish(&operation, caption: "", position: memory.photos.count)
+            photoProgress = "Photo saved"
+        } catch {
+            photoProgress = "Upload incomplete. Nothing was overwritten."
+            self.error = error.localizedDescription
+        }
+    }
+
+}
+
+private struct AdventureAuthenticatedPhoto: View {
+    let pairCode: String
+    let memoryID: String
+    let photo: AdventureMemory.Photo
+    @State private var image: UIImage?
+    @State private var error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let image {
+                Image(uiImage: image)
+                    .resizable().scaledToFit()
+                    .frame(maxHeight: 230)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+            } else if let error {
+                Label(error, systemImage: "lock.fill").font(.caption)
+            } else {
+                ProgressView("Loading private photo…")
+            }
+            if !photo.caption.isEmpty {
+                Text(photo.caption).font(.caption)
+            }
+        }
+        .task(id: photo.id) {
+            do {
+                let bytes = try await FirestoreAdventurePhotoTransport()
+                    .readPhoto(pairCode: pairCode, memoryID: memoryID, photoID: photo.id)
+                guard let decoded = UIImage(data: bytes) else {
+                    throw AdventureBookRepositoryError.unavailable
+                }
+                image = decoded
+            } catch {
+                image = nil
+                self.error = "Photo unavailable"
+            }
+        }
+        .onDisappear { image = nil }
     }
 }
