@@ -303,7 +303,7 @@ struct ReachAdventureBookLive: View {
     }
 
     private func saveStory(memoryID: String, text: String) async {
-        guard let code = pairCode, let uid = Auth.auth().currentUser?.uid else { return }
+        guard let code = pairCode, Auth.auth().currentUser != nil else { return }
         do {
             // Use the exact version captured when the editor opened.
             // Transaction retries reject a stale version if the partner or
