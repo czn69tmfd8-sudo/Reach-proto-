@@ -1,4 +1,38 @@
 workflows:
+  reach-adventure-book-simulator-validation:
+    name: REACH Adventure Book isolated simulator validation (no distribution)
+    instance_type: mac_mini_m2
+    max_build_duration: 45
+    environment:
+      xcode: latest
+    scripts:
+      - name: Verify isolated feature branch and run portable tests
+        script: |
+          set -euo pipefail
+          test "${CM_BRANCH}" = "feature/adventure-book-foundation"
+          test -z "${CM_PULL_REQUEST_DEST:-}"
+          test -z "$(find native -name GoogleService-Info.plist -print -quit)"
+          git rev-parse HEAD
+          python3 native/scripts/run-portable-tests.py
+          python3 -m unittest discover -s native/scripts -p 'test_*.py'
+      - name: Generate and validate unsigned simulator build
+        script: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
+          cd native
+          xcodegen generate
+          xcodebuild -resolvePackageDependencies -project REACH.xcodeproj -scheme REACH
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; ids=[x["udid"] for r,xs in d.items() if r.startswith("com.apple.CoreSimulator.SimRuntime.iOS-") for x in xs if x.get("isAvailable") and x["name"].startswith("iPhone")]; sys.exit("No iPhone simulator available") if not ids else print(ids[0])')
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Debug \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Debug \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY="-" -parallel-testing-enabled NO test
+    artifacts:
+      - native/DerivedData/Logs/Test/**
+      - native/build-logs/**
+
   reach-ios-relationship-validation:
     name: REACH relationship validation only (simulator signing, no uploads)
     instance_type: mac_mini_m2
