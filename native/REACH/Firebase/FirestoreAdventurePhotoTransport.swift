@@ -1,3 +1,4 @@
+import CryptoKit
 import FirebaseAuth
 import FirebaseCore
 import FirebaseFirestore
@@ -36,12 +37,14 @@ final class FirestoreAdventurePhotoTransport {
               bytes.starts(with: [0xff, 0xd8, 0xff]) else {
             throw AdventureBookRepositoryError.invalidMemory
         }
+        let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
         let object = storage.reference(withPath: path)
         if upload.phase == .retryRequired {
             if let remote = try? await object.getMetadata() {
                 guard remote.customMetadata?["ownerUid"] == upload.ownerUID,
                       remote.size == Int64(bytes.count),
-                      remote.contentType == "image/jpeg" else {
+                      remote.contentType == "image/jpeg",
+                      remote.customMetadata?["sha256"] == digest else {
                     throw AdventureBookRepositoryError.conflict
                 }
                 // An interrupted request may have succeeded. Do not re-upload.
@@ -60,7 +63,7 @@ final class FirestoreAdventurePhotoTransport {
         }
         let metadata = StorageMetadata()
         metadata.contentType = "image/jpeg"
-        metadata.customMetadata = ["ownerUid": upload.ownerUID]
+        metadata.customMetadata = ["ownerUid": upload.ownerUID, "sha256": digest]
         do {
             _ = try await object.putDataAsync(bytes, metadata: metadata)
             guard upload.uploaded(as: upload.ownerUID) else {
