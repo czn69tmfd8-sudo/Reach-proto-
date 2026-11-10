@@ -253,6 +253,7 @@ workflows:
           set -euo pipefail
           if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
           python3 native/scripts/prepare-adventure-device-preview.py
+          python3 native/scripts/generate-adventure-preview-icon.py
           cd native
           xcodegen generate
           xcodebuild -resolvePackageDependencies -project REACH.xcodeproj -scheme REACH
