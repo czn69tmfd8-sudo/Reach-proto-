@@ -1,6 +1,5 @@
 """Guard new native Adventure Book Swift sources against escaped key-path syntax."""
 from pathlib import Path
-import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -16,4 +15,4 @@ class AdventureBookSwiftSyntaxGuards(unittest.TestCase):
             with self.subTest(path=str(path.relative_to(ROOT))):
                 # A Swift key path uses one backslash, e.g. map(\\.id).
                 # A second backslash is a syntax error (not string escaping).
-                self.assertIsNone(re.search(r"\\\\\\[.([]", source))
+                self.assertNotIn(chr(92) * 2 + ".", source)
