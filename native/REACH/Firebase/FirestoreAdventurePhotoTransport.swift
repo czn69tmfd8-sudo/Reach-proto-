@@ -5,6 +5,18 @@ import FirebaseFirestore
 import FirebaseStorage
 import Foundation
 
+/// Immutable snapshot of only the fields needed to verify an existing
+/// Storage object. Firebase StorageMetadata itself is not Sendable.
+private struct AdventureRemotePhotoMetadata: Sendable {
+    let ownerUID: String?
+    let sha256: String?
+    let size: Int64
+    let contentType: String?
+    let name: String?
+    let bucket: String?
+    let generation: String?
+}
+
 /// Private staging-only photo transport. No download URLs are generated.
 /// Storage objects are immutable; publication occurs only after upload success.
 @MainActor
@@ -42,7 +54,7 @@ final class FirestoreAdventurePhotoTransport {
         if upload.phase == .retryRequired {
             // A missing object and a denied/timeout metadata read are distinct.
             // Never infer absence from an arbitrary Storage SDK exception.
-            let remote: StorageMetadata
+            let remote: AdventureRemotePhotoMetadata
             do {
                 remote = try await Self.metadata(from: object)
             } catch {
@@ -51,10 +63,10 @@ final class FirestoreAdventurePhotoTransport {
                 // never be silently reused after uncertain prior uploads.
                 throw AdventureBookRepositoryError.unavailable
             }
-            guard remote.customMetadata?["ownerUid"] == upload.ownerUID,
+            guard remote.ownerUID == upload.ownerUID,
                   remote.size == Int64(bytes.count),
                   remote.contentType == "image/jpeg",
-                  remote.customMetadata?["sha256"] == digest,
+                  remote.sha256 == digest,
                   remote.name == upload.photoID,
                   remote.bucket == object.bucket else {
                 throw AdventureBookRepositoryError.conflict
@@ -144,11 +156,22 @@ final class FirestoreAdventurePhotoTransport {
 
     /// Callback-based SDK operations keep Firebase references on the owning
     /// actor. Only Sendable result values cross the continuation boundary.
-    private static func metadata(from object: StorageReference) async throws -> StorageMetadata {
+    private static func metadata(from object: StorageReference) async throws -> AdventureRemotePhotoMetadata {
         try await withCheckedThrowingContinuation { continuation in
             object.getMetadata { metadata, error in
                 if let error { continuation.resume(throwing: error) }
-                else if let metadata { continuation.resume(returning: metadata) }
+                else if let metadata {
+                    let snapshot = AdventureRemotePhotoMetadata(
+                        ownerUID: metadata.customMetadata?["ownerUid"],
+                        sha256: metadata.customMetadata?["sha256"],
+                        size: metadata.size,
+                        contentType: metadata.contentType,
+                        name: metadata.name,
+                        bucket: metadata.bucket,
+                        generation: metadata.generation
+                    )
+                    continuation.resume(returning: snapshot)
+                }
                 else { continuation.resume(throwing: AdventureBookRepositoryError.unavailable) }
             }
         }
