@@ -192,9 +192,17 @@ struct ReachAdventureBookLive: View {
             pairCode = code
             if let saved = try recoveryJournal?.load(), saved.upload.ownerUID == uid,
                saved.upload.pairCode == code {
-                recoveryRecord = saved
-                pendingPhoto = saved.upload
-                pendingPhotoPosition = saved.position
+                var recovered = saved.upload
+                guard recovered.prepareForRecovery(as: uid) else {
+                    throw AdventureBookRepositoryError.conflict
+                }
+                let restored = AdventurePhotoRecoveryRecord(upload: recovered,
+                    sha256: saved.sha256, byteCount: saved.byteCount,
+                    caption: saved.caption, position: saved.position)
+                try recoveryJournal?.save(restored)
+                recoveryRecord = restored
+                pendingPhoto = recovered
+                pendingPhotoPosition = restored.position
             }
             let loaded = try await repository.load(pairCode: code)
             book = loaded
