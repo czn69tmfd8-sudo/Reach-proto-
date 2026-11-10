@@ -37,8 +37,24 @@ test('reject forged owner, oversized upload and wrong content type',async()=>{
  await assertFails(uploadBytes(object('a','large'),new Uint8Array(15728641),{contentType:'image/jpeg',customMetadata:{ownerUid:'a'}}));
 });
 test('revocation blocks authenticated SDK reads and writes without deleting stored bytes',async()=>{
+ console.log('REVOCATION phase=initial-upload');
  await assertSucceeds(uploadBytes(object('a'),bytes,{contentType:'image/jpeg',customMetadata:{ownerUid:'a'}}));
+ console.log('REVOCATION phase=admin-revoke');
  await env.withSecurityRulesDisabled(async c=>updateDoc(doc(c.firestore(),root+'pairInvites',code),{revoked:true}));
- await assert.rejects(async()=>getBytes(object('a')),e=>e.code==='storage/unauthorized','revoked user must not download');
- await assert.rejects(async()=>uploadBytes(object('a','later'),bytes,{contentType:'image/jpeg',customMetadata:{ownerUid:'a'}}),e=>e.code==='storage/unauthorized','revoked user must not upload');
+ console.log('REVOCATION phase=read-assert');
+ try {
+   await assert.rejects(async()=>getBytes(object('a')),e=>e.code==='storage/unauthorized','revoked user must not download');
+   console.log('REVOCATION read-assert=passed');
+ } catch(e) {
+   console.log('REVOCATION read-assert=failed code='+e?.code+' message='+e?.message);
+   throw e;
+ }
+ console.log('REVOCATION phase=upload-assert');
+ try {
+   await assert.rejects(async()=>uploadBytes(object('a','later'),bytes,{contentType:'image/jpeg',customMetadata:{ownerUid:'a'}}),e=>e.code==='storage/unauthorized','revoked user must not upload');
+   console.log('REVOCATION upload-assert=passed');
+ } catch(e) {
+   console.log('REVOCATION upload-assert=failed code='+e?.code+' message='+e?.message);
+   throw e;
+ }
 });
