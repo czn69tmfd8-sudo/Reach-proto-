@@ -71,3 +71,19 @@ Check CLI compatibility and exact resources before execution. Preserve immutable
 - Install the signed staging build on device A, verify existing calling/hand interactions; then on paired device B. Confirm shared memories, independent story edits, comments, authenticated photo bytes, interrupted upload recovery, offline reconnect and stale edit conflict.
 - Under controlled test identities, confirm cross-couple denial, revocation and member-lock enforcement; clear visible private content and verify stored objects remain untouched.
 - Do not upload to TestFlight or distribute without separate approval.
+
+## Live-rule retrieval blocked — exact read-only handoff
+This development environment has a GitHub connection but no authenticated Firebase Rules API/CLI session. The historical `native/firebase/fixtures/deployed-staging-2026-11-05.rules` is **not** proof of the currently active Firestore rules. No live Storage rules export is present. Do not substitute either proposed rules file for the actual deployed rules.
+
+**iPhone read-only steps:** Sign in to [Firebase Console](https://console.firebase.google.com/) using the account with Viewer access to `reach-staging-a4745`. Select that exact project (not `reach-prototype-d70ef`). Open **Build → Firestore Database → Rules** and copy the full currently published rules (not a draft). Then open **Build → Storage → Rules** and copy the full published rules. If the Rules tabs or published source cannot be viewed, ask the project owner for Firebase project Viewer / Firebase Rules Viewer access sufficient to read active rules releases; do **not** request Editor/Owner or deployment privileges. Share both exports privately for review; avoid pasting any secrets or service-account credentials. Also record the exact Storage bucket name shown under Storage → Files, Firestore database ID, and any active composite indexes from Firestore Database → Indexes.
+
+**Alternative read-only API:** An authorized operator may use `firebase rules:list --project reach-staging-a4745` if supported by their installed CLI, or the Firebase Rules REST API `projects.rulesets.list` and `projects.releases.get` / `projects.rulesets.get` with appropriate read permissions. Never assume the most recently created ruleset is active: resolve the active release. Do not run `firebase deploy` or `firebase use` to change the target.
+
+**Offline review after both exports arrive:** From `native/firebase` run
+```sh
+node merge-live-adventure-rules.mjs /path/to/active-firestore.rules /path/to/active-storage.rules /path/to/private-review/merged
+node --test merge-live-adventure-rules.test.mjs
+```
+The merger writes a review-only Firestore candidate, Storage candidate, and SHA-256 manifest. Its syntactic guard is **not a security proof**: an independent diff must verify all existing match blocks, overlapping wildcard rules, helper names, and denies. Reconfigure Firebase emulator tests to use **those exact merged candidates**, including legacy regression tests, before requesting deployment approval. Never commit private live-rule exports to a public branch without an explicit disclosure review.
+
+**Decision gate:** Until the current active Firestore and Storage rules are available and independently diffed, the full merged candidate, exact deployment diff, and rollback release IDs remain **blocked**. No deployment approval is being requested.
