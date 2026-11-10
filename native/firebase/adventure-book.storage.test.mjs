@@ -39,6 +39,6 @@ test('reject forged owner, oversized upload and wrong content type',async()=>{
 test('revocation blocks authenticated SDK reads and writes without deleting stored bytes',async()=>{
  await assertSucceeds(uploadBytes(object('a'),bytes,{contentType:'image/jpeg',customMetadata:{ownerUid:'a'}}));
  await env.withSecurityRulesDisabled(async c=>updateDoc(doc(c.firestore(),root+'pairInvites',code),{revoked:true}));
- await assert.rejects(getBytes(object('a')),e=>e.code==='storage/unauthorized','revoked user must not download');
- await assert.rejects(uploadBytes(object('a','later'),bytes,{contentType:'image/jpeg',customMetadata:{ownerUid:'a'}}),e=>e.code==='storage/unauthorized','revoked user must not upload');
+ await assert.rejects(async()=>getBytes(object('a')),e=>e.code==='storage/unauthorized','revoked user must not download');
+ await assert.rejects(async()=>uploadBytes(object('a','later'),bytes,{contentType:'image/jpeg',customMetadata:{ownerUid:'a'}}),e=>e.code==='storage/unauthorized','revoked user must not upload');
 });
