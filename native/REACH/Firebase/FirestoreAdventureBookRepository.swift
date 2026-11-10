@@ -11,8 +11,11 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     private let db: Firestore
     private let stories: FirestoreAdventureStoryTransport
     private var listener: ListenerRegistration?
-    private var childListeners: [ListenerRegistration] = []
+    private var childListeners: [String: [ListenerRegistration]] = [:]
     private var observingCode: String?
+    private var observationGeneration = 0
+    private var refreshInFlight = false
+    private var refreshRequested = false
 
     init(db: Firestore = Firestore.firestore()) {
         self.db = db
@@ -169,77 +172,103 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
             .setData(["authorUid": uid, "text": text, "createdAt": FieldValue.serverTimestamp()])
     }
 
-    /// Listener invalidation triggers a fresh server-backed, authorization-
-    /// checked load. Never expose unverified cached listener payloads.
+    /// Listener payloads are never used as authorized content. All visible
+    /// updates come from fresh server reads after revalidating both member locks.
     func observe(pairCode: String, onChange: @escaping @MainActor (Result<AdventureBook, Error>) -> Void) async throws {
         _ = try await verifiedCode(pairCode)
         stopObserving()
         observingCode = pairCode
-        listener = memoriesCollection(pairCode).limit(to: 50).addSnapshotListener { [weak self] _, error in
+        let generation = observationGeneration
+        listener = memoriesCollection(pairCode).limit(to: 50).addSnapshotListener {
+            [weak self] snapshot, error in
             Task { @MainActor [weak self] in
-                guard let self else { return }
+                guard let self, self.observationGeneration == generation else { return }
                 if let error {
                     self.stopObserving()
                     onChange(.failure(error))
                     return
                 }
-                guard self.observingCode == pairCode else { return }
+                guard snapshot?.metadata.isFromCache == false else { return }
+                self.scheduleRefresh(pairCode: pairCode, generation: generation, onChange: onChange)
+            }
+        }
+        scheduleRefresh(pairCode: pairCode, generation: generation, onChange: onChange)
+    }
+
+    /// Coalesce notifications: installing child listeners causes initial
+    /// snapshots, which otherwise cause an unbounded refresh/reinstall loop.
+    private func scheduleRefresh(
+        pairCode: String, generation: Int,
+        onChange: @escaping @MainActor (Result<AdventureBook, Error>) -> Void
+    ) {
+        guard observingCode == pairCode, observationGeneration == generation else { return }
+        refreshRequested = true
+        guard !refreshInFlight else { return }
+        refreshInFlight = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            while self.refreshRequested && self.observationGeneration == generation {
+                self.refreshRequested = false
                 do {
-                    let book = try await self.load(pairCode: pairCode)
-                    guard self.observingCode == pairCode else { return }
-                    self.installChildListeners(for: book, pairCode: pairCode, onChange: onChange)
-                    onChange(.success(book))
-                }
-                catch {
-                    self.listener?.remove()
-                    self.listener = nil
+                    let latest = try await self.load(pairCode: pairCode)
+                    guard self.observationGeneration == generation else { break }
+                    self.installChildListeners(for: latest, pairCode: pairCode,
+                                               generation: generation, onChange: onChange)
+                    onChange(.success(latest))
+                } catch {
+                    guard self.observationGeneration == generation else { break }
+                    self.stopObserving()
                     onChange(.failure(error))
+                    break
                 }
+            }
+            if self.observationGeneration == generation {
+                self.refreshInFlight = false
             }
         }
     }
 
     private func installChildListeners(
-        for book: AdventureBook, pairCode: String,
+        for book: AdventureBook, pairCode: String, generation: Int,
         onChange: @escaping @MainActor (Result<AdventureBook, Error>) -> Void
     ) {
-        childListeners.forEach { $0.remove() }
-        childListeners = []
-        guard observingCode == pairCode else { return }
-        for memory in book.memories {
+        let existingIDs = Set(book.memories.map(\\.id))
+        let currentIDs = Set(childListeners.keys)
+        for removed in currentIDs.subtracting(existingIDs) {
+            childListeners.removeValue(forKey: removed)?.forEach { $0.remove() }
+        }
+        for memory in book.memories where childListeners[memory.id] == nil {
             let base = memoriesCollection(pairCode).document(memory.id)
+            var registrations: [ListenerRegistration] = []
             for name in ["stories", "comments", "photos"] {
                 let registration = base.collection(name).limit(to: 50).addSnapshotListener {
                     [weak self] snapshot, error in
                     Task { @MainActor [weak self] in
-                        guard let self, self.observingCode == pairCode else { return }
+                        guard let self, self.observationGeneration == generation else { return }
                         if let error {
                             self.stopObserving()
                             onChange(.failure(error))
                             return
                         }
                         guard snapshot?.metadata.isFromCache == false else { return }
-                        do {
-                            let refreshed = try await self.load(pairCode: pairCode)
-                            guard self.observingCode == pairCode else { return }
-                            onChange(.success(refreshed))
-                        }
-                        catch {
-                            self.stopObserving()
-                            onChange(.failure(error))
-                        }
+                        self.scheduleRefresh(pairCode: pairCode, generation: generation, onChange: onChange)
                     }
                 }
-                childListeners.append(registration)
+                registrations.append(registration)
             }
+            childListeners[memory.id] = registrations
         }
     }
 
     func stopObserving() {
+        observationGeneration += 1
         listener?.remove()
         listener = nil
-        childListeners.forEach { $0.remove() }
-        childListeners = []
+        childListeners.values.flatMap { $0 }.forEach { $0.remove() }
+        childListeners = [:]
         observingCode = nil
+        refreshRequested = false
+        refreshInFlight = false
     }
+
 }
