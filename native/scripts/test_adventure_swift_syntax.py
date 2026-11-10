@@ -52,3 +52,12 @@ class AdventureBookSwiftSyntaxGuards(unittest.TestCase):
         self.assertIn("continuation.resume(returning: snapshot)", source)
         self.assertNotIn("continuation.resume(returning: metadata)", source)
         self.assertNotIn("async throws -> StorageMetadata", source)
+
+    def test_storage_generation_matches_firebase_int64(self):
+        source = (ROOT / "native/REACH/Firebase/FirestoreAdventurePhotoTransport.swift").read_text()
+        self.assertIn("let generation: Int64", source)
+        self.assertIn("generation: metadata.generation", source)
+        self.assertNotIn("let generation: String?", source)
+        self.assertIn("remote.name == upload.photoID", source)
+        self.assertIn("remote.bucket == object.bucket", source)
+        self.assertIn("SHA256.hash(data: remoteBytes) == SHA256.hash(data: bytes)", source)
