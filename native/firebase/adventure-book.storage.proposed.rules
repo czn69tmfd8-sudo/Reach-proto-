@@ -33,7 +33,7 @@ service firebase.storage {
       allow read: if paired(code) && firestore.exists(memoryPath(code, memoryID));
       // Immutable uploads prevent another partner (or a retry) overwriting a photo.
       // The upload client must provide the signed-in owner and a unique photo ID.
-      allow create: if paired(code)
+      allow create: if resource == null && paired(code)
         && memoryID.matches('[A-Za-z0-9_-]{1,128}')
         && photoID.matches('[A-Za-z0-9_-]{1,128}')
         && firestore.exists(memoryPath(code, memoryID))
