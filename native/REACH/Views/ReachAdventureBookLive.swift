@@ -139,8 +139,18 @@ struct ReachAdventureBookLive: View {
                 Image(systemName: "leaf").foregroundStyle(AdventureBookPalette.gold)
                 Text(memory.occurredAt, style: .date).font(.caption)
                 ForEach(memory.photos) { photo in
-                    AdventureAuthenticatedPhoto(pairCode: memory.pairCode,
-                                                memoryID: memory.id, photo: photo)
+                    VStack(spacing: 8) {
+                        AdventureAuthenticatedPhoto(pairCode: memory.pairCode,
+                                                    memoryID: memory.id, photo: photo)
+                        if !photo.caption.isEmpty {
+                            Text(photo.caption)
+                                .font(.system(.subheadline, design: .serif)).italic()
+                        }
+                    }
+                    .padding(9)
+                    .background(.white.opacity(0.65), in: RoundedRectangle(cornerRadius: 4))
+                    .rotationEffect(.degrees(memory.photos.first?.id == photo.id ? -1.2 : 1.2))
+                    .shadow(color: .black.opacity(0.15), radius: 5, x: 2, y: 4)
                 }
                 if AdventurePhotoFeatureGate.liveUploadsEnabled {
                     PhotosPicker(selection: $photoSelection, matching: .images) {
@@ -174,9 +184,14 @@ struct ReachAdventureBookLive: View {
                 Button("Write or edit my story") { Task { await openStoryEditor(memory) } }
                     .buttonStyle(.bordered)
                 Divider()
-                Text("Our conversation").font(.headline)
+                Label("Our Conversation", systemImage: "bubble.left.and.bubble.right")
+                    .font(.system(.headline, design: .serif))
                 ForEach(memory.comments) { comment in
-                    Text(comment.text).font(.subheadline)
+                    Text(comment.text)
+                        .font(.system(.subheadline, design: .serif))
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.white.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
                 }
                 TextField("Leave a comment", text: $commentDraft)
                     .textFieldStyle(.roundedBorder)
@@ -191,19 +206,23 @@ struct ReachAdventureBookLive: View {
     }
 
     private var addPage: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            Image(systemName: "heart.text.square").font(.system(size: 52))
-            Text("Our next adventure").font(.system(.title, design: .serif).bold())
-            Button("Add a memory") { showingNewMemory = true }
-                .buttonStyle(.borderedProminent).disabled(busy)
-            Spacer()
+        AdventureParchmentPage {
+            VStack(spacing: 22) {
+                Spacer(minLength: 55)
+                Image(systemName: "heart.text.square")
+                    .font(.system(size: 52))
+                    .foregroundStyle(AdventureBookPalette.gold)
+                Text("Our Next Adventure")
+                    .font(.system(.title, design: .serif).bold())
+                Text("Every memory deserves its own chapter.")
+                    .font(.system(.body, design: .serif)).italic()
+                    .multilineTextAlignment(.center)
+                Button("Add a Memory") { showingNewMemory = true }
+                    .buttonStyle(.borderedProminent).disabled(busy)
+                Spacer(minLength: 55)
+            }
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .foregroundStyle(Color(red: 0.29, green: 0.16, blue: 0.13))
-        .background(Color(red: 0.96, green: 0.89, blue: 0.75),
-                    in: RoundedRectangle(cornerRadius: 12))
-        .padding(5)
     }
 
     private func connect() async {
