@@ -27,7 +27,11 @@ struct AdventurePhotoRecoveryJournal {
 
     func save(_ record: AdventurePhotoRecoveryRecord) throws {
         let data = try JSONEncoder().encode(record)
+        #if canImport(Darwin)
         try data.write(to: fileURL, options: [.atomic, .completeFileProtection])
+        #else
+        try data.write(to: fileURL, options: .atomic)
+        #endif
     }
 
     func load() throws -> AdventurePhotoRecoveryRecord? {
