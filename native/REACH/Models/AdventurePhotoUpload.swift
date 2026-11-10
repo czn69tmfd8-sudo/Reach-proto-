@@ -69,7 +69,7 @@ struct AdventurePhotoUpload: Equatable, Sendable, Codable {
 /// Fail-closed staging-only gate. A bucket being configured is not permission
 /// to upload: the reviewed Storage rules and release approval are independent.
 enum AdventurePhotoFeatureGate {
-    static let stagingBucketVerified = false
+    static let stagingBucketVerified = true
     static let stagingStorageRulesApproved = false
     static let stagingPhotoReleaseApproved = false
 
