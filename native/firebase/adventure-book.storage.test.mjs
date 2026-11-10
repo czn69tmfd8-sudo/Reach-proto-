@@ -64,10 +64,10 @@ test('interrupted upload retains immutable object; identical retry cannot overwr
  const meta={contentType:'image/jpeg',customMetadata:{ownerUid:'a',sha256:'a'.repeat(64)}};
  await assertSucceeds(uploadBytes(target,bytes,meta));
  const saved=await assertSucceeds(getBytes(object('b','recovery-photo')));
- assert.deepEqual(Array.from(saved),Array.from(bytes));
+ assert.deepEqual(Array.from(new Uint8Array(saved)),Array.from(bytes));
  await assertFails(uploadBytes(target,bytes,meta));
  const unchanged=await assertSucceeds(getBytes(object('b','recovery-photo')));
- assert.deepEqual(Array.from(unchanged),Array.from(bytes));
+ assert.deepEqual(Array.from(new Uint8Array(unchanged)),Array.from(bytes));
  await assertFails(deleteObject(target));
 });
 test('revoked user cannot recover remote object or delete orphan',async()=>{
