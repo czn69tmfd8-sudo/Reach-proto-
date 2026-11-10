@@ -24,6 +24,17 @@ final class AdventurePhotoUploadTests: XCTestCase {
         XCTAssertFalse(upload.uploaded(as: "b"))
         XCTAssertFalse(upload.interrupted(as: "b"))
     }
+    func testRestartCannotBlindlyReplaceUncertainUpload() {
+        var upload = AdventurePhotoUpload(pairCode: "ABCDEFGHJKLM", memoryID: "trip",
+                                          photoID: "unique-photo", ownerUID: "a")
+        XCTAssertTrue(upload.begin(as: "a"))
+        XCTAssertFalse(upload.prepareForRecovery(as: "b"))
+        XCTAssertTrue(upload.prepareForRecovery(as: "a"))
+        XCTAssertEqual(upload.phase, .retryRequired)
+        XCTAssertFalse(upload.begin(as: "b"))
+        XCTAssertFalse(upload.metadataCommitted(as: "a"))
+    }
+
     func testRecoveryRecordRejectsWrongOwnerHashOrLength() {
         var upload = AdventurePhotoUpload(pairCode: "ABCDEFGHJKLM", memoryID: "trip",
                                           photoID: "unique-photo", ownerUID: "a")
