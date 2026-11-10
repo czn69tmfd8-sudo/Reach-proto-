@@ -29,6 +29,7 @@ struct ReachAdventureBookLive: View {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return AdventurePhotoRecoveryJournal(fileURL: directory.appendingPathComponent("adventure-photo-recovery.json"))
     }
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var page = 0
     @State private var repository = FirestoreAdventureBookRepository()
 
@@ -46,21 +47,23 @@ struct ReachAdventureBookLive: View {
             if let book {
                 let ordered = book.orderedMemories
                 TabView(selection: $page) {
-                    cover.tag(0)
+                    AdventureLeatherCover { withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4)) { page = 1 } }.tag(0)
+                    galleryPage(ordered).tag(1)
                     ForEach(Array(ordered.enumerated()), id: \.element.id) { index, memory in
-                        memoryPage(memory).tag(index + 1)
+                        memoryPage(memory).tag(index + 2)
                     }
-                    addPage.tag(ordered.count + 1)
+                    addPage.tag(ordered.count + 2)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: 520)
+                .frame(height: min(max(UIScreen.main.bounds.height * 0.65, 440), 710))
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.38), value: page)
                 HStack {
                     Button("Previous") { page = max(0, page - 1) }.disabled(page == 0)
                     Spacer()
-                    Text("Page \(page + 1) of \(ordered.count + 2)").font(.caption)
+                    Text("Page \(page + 1) of \(ordered.count + 3)").font(.caption)
                     Spacer()
-                    Button("Next") { page = min(ordered.count + 1, page + 1) }
-                        .disabled(page == ordered.count + 1)
+                    Button("Next") { page = min(ordered.count + 2, page + 1) }
+                        .disabled(page == ordered.count + 2)
                 }.buttonStyle(.bordered)
             } else if error == nil {
                 ProgressView("Checking private pairing and loading our book…")
@@ -83,41 +86,75 @@ struct ReachAdventureBookLive: View {
         }
     }
 
-    private var cover: some View {
-        VStack(spacing: 22) {
-            Spacer()
-            Image(systemName: "book.closed.fill").font(.system(size: 72))
-            Text("Our Adventure\nBook")
-                .font(.system(size: 38, weight: .bold, design: .serif))
-                .multilineTextAlignment(.center)
-            Image(systemName: "heart.fill").foregroundStyle(.pink)
-            Text("The story we're writing together")
-                .font(.system(.subheadline, design: .serif)).italic()
-            Spacer()
+    private func galleryPage(_ memories: [AdventureMemory]) -> some View {
+        AdventureParchmentPage {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Our Shared Memories")
+                    .font(.system(.title, design: .serif).bold())
+                Text("Every chapter is ours to revisit")
+                    .font(.system(.subheadline, design: .serif)).italic()
+                Image(systemName: "leaf")
+                    .foregroundStyle(AdventureBookPalette.gold)
+                if memories.isEmpty {
+                    Text("Our story begins with the first memory we add.")
+                        .font(.system(.body, design: .serif))
+                }
+                ForEach(Array(memories.enumerated()), id: \.element.id) { index, memory in
+                    Button {
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.38)) {
+                            page = index + 2
+                        }
+                    } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .font(.title2)
+                                .frame(width: 54, height: 54)
+                                .background(.white.opacity(0.55),
+                                            in: RoundedRectangle(cornerRadius: 7))
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(memory.title)
+                                    .font(.system(.headline, design: .serif))
+                                Text(memory.occurredAt, style: .date)
+                                    .font(.caption)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                        }
+                        .foregroundStyle(AdventureBookPalette.ink)
+                        .padding(11)
+                        .background(.white.opacity(0.32),
+                                    in: RoundedRectangle(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Open memory page")
+                }
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .foregroundStyle(.orange)
-        .background(Color(red: 0.32, green: 0.16, blue: 0.12),
-                    in: RoundedRectangle(cornerRadius: 20))
-        .padding(5)
     }
 
     private func memoryPage(_ memory: AdventureMemory) -> some View {
-        ScrollView {
+        AdventureParchmentPage {
             VStack(alignment: .leading, spacing: 14) {
-                Text(memory.title).font(.system(.title2, design: .serif).bold())
+                Text(memory.title).font(.system(.title, design: .serif).bold())
+                Image(systemName: "leaf").foregroundStyle(AdventureBookPalette.gold)
                 Text(memory.occurredAt, style: .date).font(.caption)
                 ForEach(memory.photos) { photo in
                     AdventureAuthenticatedPhoto(pairCode: memory.pairCode,
                                                 memoryID: memory.id, photo: photo)
                 }
-                if AdventurePhotoFeatureGate.liveUploadsEnabled {\n                PhotosPicker(selection: $photoSelection, matching: .images) {
+                if AdventurePhotoFeatureGate.liveUploadsEnabled {
+                PhotosPicker(selection: $photoSelection, matching: .images) {
                     Label("Choose photo", systemImage: "photo.badge.plus")
                 }
                 .onChange(of: photoSelection) { _, selection in
                     if selection != nil { uploadingPhotoFor = memory }
                 }
-                } else {\n                    Label("Photos will be available after secure Storage activation. Memories, stories and comments still work.", systemImage: "photo.on.rectangle.angled")\n                        .font(.caption)\n                        .foregroundStyle(.secondary)\n                }\n                if !photoProgress.isEmpty {
+                } else {
+                    Label("Photos will be available after secure Storage activation. Memories, stories and comments still work.", systemImage: "photo.on.rectangle.angled")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if !photoProgress.isEmpty {
                     Text(photoProgress).font(.caption)
                 }
                 if AdventurePhotoFeatureGate.liveUploadsEnabled && pendingPhoto != nil && pendingPhotoBytes != nil {
@@ -129,15 +166,11 @@ struct ReachAdventureBookLive: View {
                     Text("An earlier upload needs recovery. Reselect the same photograph; no replacement upload will occur without verification.")
                         .font(.caption)
                 }
-                ForEach(memory.stories, id: \.authorUID) { story in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(story.authorUID == Auth.auth().currentUser?.uid ? "My story" : "Partner's story")
-                            .font(.caption.weight(.bold))
-                        Text(story.text).font(.system(.subheadline, design: .serif)).italic()
-                    }
-                    .padding(10).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.white.opacity(0.5), in: RoundedRectangle(cornerRadius: 9))
-                }
+                let ownUID = Auth.auth().currentUser?.uid
+                let ownStory = memory.stories.first(where: { $0.authorUID == ownUID })?.text ?? ""
+                let partnerStory = memory.stories.first(where: { $0.authorUID != ownUID })?.text ?? ""
+                AdventureStoryCard(heading: "Aaron’s Story", text: partnerStory)
+                AdventureStoryCard(heading: "My Story", text: ownStory)
                 Button("Write or edit my story") { Task { await openStoryEditor(memory) } }
                     .buttonStyle(.bordered)
                 Divider()
@@ -153,13 +186,8 @@ struct ReachAdventureBookLive: View {
                     Task { await postComment(memoryID: memory.id, text: text) }
                 }
                 .disabled(busy || commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }.padding(18)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .foregroundStyle(Color(red: 0.29, green: 0.16, blue: 0.13))
-        .background(Color(red: 0.96, green: 0.89, blue: 0.75),
-                    in: RoundedRectangle(cornerRadius: 12))
-        .padding(5)
     }
 
     private var addPage: some View {
@@ -272,7 +300,8 @@ struct ReachAdventureBookLive: View {
         catch { self.error = error.localizedDescription }
     }
     private func uploadSelectedPhoto() async {
-        guard AdventurePhotoFeatureGate.liveUploadsEnabled,\n              let selection = photoSelection, let memory = uploadingPhotoFor,
+        guard AdventurePhotoFeatureGate.liveUploadsEnabled,
+              let selection = photoSelection, let memory = uploadingPhotoFor,
               let uid = Auth.auth().currentUser?.uid else { return }
         defer { photoSelection = nil; uploadingPhotoFor = nil }
         do {
@@ -316,7 +345,8 @@ struct ReachAdventureBookLive: View {
     }
 
     private func retryPendingPhoto() async {
-        guard AdventurePhotoFeatureGate.liveUploadsEnabled,\n              var operation = pendingPhoto, let bytes = pendingPhotoBytes else { return }
+        guard AdventurePhotoFeatureGate.liveUploadsEnabled,
+              var operation = pendingPhoto, let bytes = pendingPhotoBytes else { return }
         let transport = FirestoreAdventurePhotoTransport()
         do {
             if operation.phase == .prepared || operation.phase == .retryRequired {
