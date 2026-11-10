@@ -1,0 +1,102 @@
+// REVIEW-ONLY additive Firestore rules for staging. NOT DEPLOYED.
+// Insert inside service cloud.firestore / match /databases/{database}/documents.
+// Uses the existing nativeStaging/v1 pairInvites and memberLocks; never changes pairing.
+function adventurePairPath(code) {
+  return /databases/$(database)/documents/nativeStaging/v1/pairInvites/$(code);
+}
+function adventureLockPath(uid) {
+  return /databases/$(database)/documents/nativeStaging/v1/memberLocks/$(uid);
+}
+function adventureCode(code) {
+  return code is string && code.matches('[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{12}');
+}
+function adventureAuthorized(code) {
+  return request.auth != null && adventureCode(code)
+    && exists(adventurePairPath(code))
+    && adventurePairAuthorized(get(adventurePairPath(code)).data, code);
+}
+function adventurePairAuthorized(pair, code) {
+  return pair.get('revoked', false) == false
+    && pair.hostUid is string && pair.partnerUid is string
+    && pair.hostUid != pair.partnerUid
+    && request.auth.uid in [pair.hostUid, pair.partnerUid]
+    && exists(adventureLockPath(pair.hostUid))
+    && exists(adventureLockPath(pair.partnerUid))
+    && get(adventureLockPath(pair.hostUid)).data.pairCode == code
+    && get(adventureLockPath(pair.partnerUid)).data.pairCode == code;
+}
+function adventureMemoryShape(data, code) {
+  return data.keys().hasOnly(['pairCode','creatorUid','title','occurredAt','pageOrder','createdAt'])
+    && data.keys().hasAll(['pairCode','creatorUid','title','occurredAt','pageOrder','createdAt'])
+    && data.pairCode == code
+    && data.creatorUid is string
+    && data.title is string && data.title.size() > 0 && data.title.toUtf8().size() <= 120
+    && data.occurredAt is timestamp && data.createdAt is timestamp
+    && data.pageOrder is int && data.pageOrder >= 0;
+}
+match /adventureBooks/{code}/memories/{memoryID} {
+  allow get: if adventureAuthorized(code);
+  allow list: if adventureAuthorized(code) && request.query.limit != null && request.query.limit <= 50;
+  allow create: if adventureAuthorized(code) && memoryID.matches('[A-Za-z0-9_-]{1,128}')
+    && adventureMemoryShape(request.resource.data, code)
+    && request.resource.data.creatorUid == request.auth.uid
+    && request.resource.data.createdAt == request.time;
+  allow update: if adventureAuthorized(code) && adventureMemoryShape(request.resource.data, code)
+    && request.resource.data.creatorUid == resource.data.creatorUid
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','occurredAt','pageOrder'])
+    && request.resource.data.createdAt == resource.data.createdAt
+    && request.resource.data.pairCode == resource.data.pairCode;
+  // No implicit deletion on revocation. Explicit deletion needs a separate consent workflow.
+  allow delete: if false;
+
+  match /stories/{authorUID} {
+    allow get: if adventureAuthorized(code);
+    allow list: if adventureAuthorized(code) && request.query.limit != null && request.query.limit <= 2;
+    allow create: if adventureAuthorized(code) && request.auth.uid == authorUID
+      && exists(/databases/$(database)/documents/adventureBooks/$(code)/memories/$(memoryID))
+      && request.resource.data.keys().hasOnly(['authorUid','text','updatedAt'])
+      && request.resource.data.keys().hasAll(['authorUid','text','updatedAt'])
+      && request.resource.data.authorUid == authorUID
+      && request.resource.data.text is string && request.resource.data.text.toUtf8().size() <= 6000
+      && request.resource.data.updatedAt == request.time;
+    allow update: if adventureAuthorized(code) && request.auth.uid == authorUID
+      && resource.data.authorUid == authorUID
+      && request.resource.data.keys().hasOnly(['authorUid','text','updatedAt'])
+      && request.resource.data.keys().hasAll(['authorUid','text','updatedAt'])
+      && request.resource.data.authorUid == authorUID
+      && request.resource.data.text is string && request.resource.data.text.toUtf8().size() <= 6000
+      && request.resource.data.updatedAt == request.time;
+    allow delete: if false;
+  }
+  match /comments/{commentID} {
+    allow get: if adventureAuthorized(code);
+    allow list: if adventureAuthorized(code) && request.query.limit != null && request.query.limit <= 50;
+    allow create: if adventureAuthorized(code) && commentID.matches('[A-Za-z0-9_-]{1,128}')
+      && exists(/databases/$(database)/documents/adventureBooks/$(code)/memories/$(memoryID))
+      && request.resource.data.keys().hasOnly(['authorUid','text','createdAt'])
+      && request.resource.data.keys().hasAll(['authorUid','text','createdAt'])
+      && request.resource.data.authorUid == request.auth.uid
+      && request.resource.data.text is string && request.resource.data.text.size() > 0
+      && request.resource.data.text.toUtf8().size() <= 2000
+      && request.resource.data.createdAt == request.time;
+    allow update, delete: if false;
+  }
+  match /photos/{photoID} {
+    allow get: if adventureAuthorized(code);
+    allow list: if adventureAuthorized(code) && request.query.limit != null && request.query.limit <= 50;
+    allow create: if adventureAuthorized(code) && photoID.matches('[A-Za-z0-9_-]{1,128}')
+      && exists(/databases/$(database)/documents/adventureBooks/$(code)/memories/$(memoryID))
+      && request.resource.data.keys().hasOnly(['ownerUid','storagePath','caption','position','createdAt'])
+      && request.resource.data.keys().hasAll(['ownerUid','storagePath','caption','position','createdAt'])
+      && request.resource.data.ownerUid == request.auth.uid
+      && request.resource.data.storagePath == 'adventureBook/' + code + '/' + memoryID + '/' + photoID
+      && request.resource.data.caption is string && request.resource.data.caption.toUtf8().size() <= 500
+      && request.resource.data.position is int && request.resource.data.position >= 0
+      && request.resource.data.createdAt == request.time;
+    allow update: if adventureAuthorized(code) && resource.data.ownerUid == request.auth.uid
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['caption','position'])
+      && request.resource.data.caption is string && request.resource.data.caption.toUtf8().size() <= 500
+      && request.resource.data.position is int && request.resource.data.position >= 0;
+    allow delete: if false;
+  }
+}

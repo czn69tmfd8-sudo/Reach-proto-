@@ -1,0 +1,56 @@
+name: Adventure Book historical baseline and portable regression
+on:
+  push:
+    branches: [feature/adventure-book-foundation]
+    paths:
+      - 'codemagic.yaml'
+      - 'native/scripts/preflight-historical-baselines.py'
+      - 'native/scripts/test_sprint_boundaries.py'
+      - 'native/scripts/test_adventure_swift_syntax.py'
+      - 'native/REACH/Firebase/FirestoreAdventureBookRepository.swift'
+      - 'native/REACH/Firebase/FirestoreAdventurePhotoTransport.swift'
+      - 'native/REACH/Firebase/FirestoreAdventureStoryTransport.swift'
+      - 'native/project.yml'
+      - 'native/REACH/Models/AdventurePhotoUpload.swift'
+      - 'native/REACHTests/AdventurePhotoUploadTests.swift'
+      - 'native/REACH/Views/ReachAdventureBookLive.swift'
+      - '.github/workflows/adventure-book-historical-baseline.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  historical-baseline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Demonstrate shallow checkout and restore historical Git objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse --is-shallow-repository)" = true
+          git fetch --unshallow origin
+          python3 native/scripts/preflight-historical-baselines.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: native/firebase/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Execute complete Python historical regression suite
+        run: python3 -m unittest discover -s native/scripts -p 'test_*.py' -v
+      - name: Execute complete portable Swift regression suite
+        run: python3 native/scripts/run-portable-tests.py
+      - name: Execute complete isolated Firebase Firestore and Storage security suite
+        working-directory: native/firebase
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          node prepare-adventure-rules.mjs
+          printf '%s\n' '{"firestore":{"rules":"adventure-book.combined.generated.rules"},"storage":{"rules":"adventure-book.storage.proposed.rules"},"emulators":{"firestore":{"port":8080},"storage":{"port":9199},"ui":{"enabled":false}}}' > adventure-emulator.generated.json
+          npx firebase emulators:exec --only firestore,storage --project demo-reach-adventure --config adventure-emulator.generated.json 'node --test --test-concurrency=1 adventure-book.rules.test.mjs adventure-book.storage.test.mjs'

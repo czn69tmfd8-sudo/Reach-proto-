@@ -1,0 +1,26 @@
+name: Adventure Book portable validation
+
+on:
+  push:
+    branches:
+      - feature/adventure-book-foundation
+    paths:
+      - 'native/REACH/Models/**'
+      - 'native/REACHTests/Adventure*.swift'
+      - 'native/scripts/run-portable-tests.py'
+      - '.github/workflows/adventure-book-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  swift-portable:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm Swift toolchain
+        run: swiftc --version
+      - name: Run portable Swift tests
+        run: python3 native/scripts/run-portable-tests.py

@@ -3,7 +3,7 @@ import PhotosUI
 
 struct ReachUsView: View {
     private enum Space: String, CaseIterable, Identifiable {
-        case scrapbook = "Our Scrapbook", story = "Our Story", goals = "Our Goals", questions = "Our Questions", plans = "Our Plans", profile = "Our Profile"
+        case scrapbook = "Our Adventure Book", story = "Our Story", goals = "Our Goals", questions = "Our Questions", plans = "Our Plans", profile = "Our Profile"
         var id: Self { self }
     }
     @State private var space: Space = .scrapbook
@@ -21,13 +21,18 @@ struct ReachUsView: View {
             switch space {
             case .scrapbook:
                 NavigationLink {
-                    ReachScrapbookView()
+                    ReachAdventureBookLive()
                 } label: {
-                    Label("Open Our Scrapbook", systemImage: "book.closed.fill")
+                    Label("Open Our Adventure Book", systemImage: "book.closed.fill")
                         .frame(maxWidth: .infinity, minHeight: 52)
                 }
                 .buttonStyle(.borderedProminent)
-                Text("Your private entries and shared memories stay where they are stored. Only their place in the app has changed.")
+                NavigationLink { ReachAdventureBookPreview() } label: {
+                    Label("View sample design", systemImage: "book")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }.buttonStyle(.bordered)
+                NavigationLink { ReachScrapbookView() } label: { Label("Existing Memories", systemImage: "archivebox").frame(maxWidth: .infinity, minHeight: 48) }.buttonStyle(.bordered)
+                Text("Adventure Book is in staging development. Shared pages require approved Firebase rules; existing memories remain accessible and unchanged.")
                     .font(.footnote)
                     .multilineTextAlignment(.center)
             case .story:
