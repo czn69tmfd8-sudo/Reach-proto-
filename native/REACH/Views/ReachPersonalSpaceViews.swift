@@ -21,14 +21,18 @@ struct ReachUsView: View {
             switch space {
             case .scrapbook:
                 NavigationLink {
-                    ReachAdventureBookPreview()
+                    ReachAdventureBookLive()
                 } label: {
                     Label("Open Our Adventure Book", systemImage: "book.closed.fill")
                         .frame(maxWidth: .infinity, minHeight: 52)
                 }
                 .buttonStyle(.borderedProminent)
+                NavigationLink { ReachAdventureBookPreview() } label: {
+                    Label("View sample design", systemImage: "book")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }.buttonStyle(.bordered)
                 NavigationLink { ReachScrapbookView() } label: { Label("Existing Memories", systemImage: "archivebox").frame(maxWidth: .infinity, minHeight: 48) }.buttonStyle(.bordered)
-                Text("Adventure Book is a sample-page preview. Existing memories remain accessible and unchanged.")
+                Text("Adventure Book is in staging development. Shared pages require approved Firebase rules; existing memories remain accessible and unchanged.")
                     .font(.footnote)
                     .multilineTextAlignment(.center)
             case .story:
