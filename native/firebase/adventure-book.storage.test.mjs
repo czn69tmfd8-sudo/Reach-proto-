@@ -58,3 +58,23 @@ test('revocation blocks authenticated SDK reads and writes without deleting stor
    throw e;
  }
 });
+
+test('interrupted upload retains immutable object; identical retry cannot overwrite',async()=>{
+ const target=object('a','recovery-photo');
+ const meta={contentType:'image/jpeg',customMetadata:{ownerUid:'a',sha256:'a'.repeat(64)}};
+ await assertSucceeds(uploadBytes(target,bytes,meta));
+ const saved=await assertSucceeds(getBytes(object('b','recovery-photo')));
+ assert.deepEqual(Array.from(saved),Array.from(bytes));
+ await assertFails(uploadBytes(target,bytes,meta));
+ const unchanged=await assertSucceeds(getBytes(object('b','recovery-photo')));
+ assert.deepEqual(Array.from(unchanged),Array.from(bytes));
+ await assertFails(deleteObject(target));
+});
+test('revoked user cannot recover remote object or delete orphan',async()=>{
+ const target=object('a','orphan-photo');
+ await assertSucceeds(uploadBytes(target,bytes,{contentType:'image/jpeg',customMetadata:{ownerUid:'a',sha256:'b'.repeat(64)}}));
+ await env.withSecurityRulesDisabled(async c=>updateDoc(doc(c.firestore(),root+'pairInvites',code),{revoked:true}));
+ await assertFails(getBytes(target));
+ await assertFails(deleteObject(target));
+ await assertFails(uploadBytes(target,bytes,{contentType:'image/jpeg',customMetadata:{ownerUid:'a'}}));
+});
