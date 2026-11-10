@@ -119,6 +119,6 @@ final class FirestoreAdventurePhotoTransport {
                                                    memoryID: memoryID, photoID: photoID) else {
             throw AdventureBookRepositoryError.unauthorized
         }
-        return try await storage.reference(withPath: path).data(maxSize: maximumBytes)
+        return try await storage.reference(withPath: path).getData(maxSize: maximumBytes)
     }
 }
