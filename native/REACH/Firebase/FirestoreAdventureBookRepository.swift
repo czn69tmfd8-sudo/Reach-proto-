@@ -232,7 +232,7 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
         for book: AdventureBook, pairCode: String, generation: Int,
         onChange: @escaping @MainActor (Result<AdventureBook, Error>) -> Void
     ) {
-        let existingIDs = Set(book.memories.map(\\.id))
+        let existingIDs = Set(book.memories.map(\.id))
         let currentIDs = Set(childListeners.keys)
         for removed in currentIDs.subtracting(existingIDs) {
             childListeners.removeValue(forKey: removed)?.forEach { $0.remove() }
