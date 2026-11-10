@@ -44,7 +44,7 @@ final class FirestoreAdventurePhotoTransport {
             // Never infer absence from an arbitrary Storage SDK exception.
             let remote: StorageMetadata
             do {
-                remote = try await object.getMetadata()
+                remote = try await Self.metadata(from: object)
             } catch {
                 // Even objectNotFound cannot authorize a blind replacement:
                 // rules remain authoritative and immutable object IDs must
@@ -79,7 +79,7 @@ final class FirestoreAdventurePhotoTransport {
         metadata.contentType = "image/jpeg"
         metadata.customMetadata = ["ownerUid": upload.ownerUID, "sha256": digest]
         do {
-            _ = try await object.putDataAsync(bytes, metadata: metadata)
+            try await Self.putJPEG(bytes, metadata: metadata, at: object)
             guard upload.uploaded(as: upload.ownerUID) else {
                 throw AdventureBookRepositoryError.conflict
             }
@@ -139,6 +139,28 @@ final class FirestoreAdventurePhotoTransport {
         }
         guard upload.metadataCommitted(as: upload.ownerUID) else {
             throw AdventureBookRepositoryError.conflict
+        }
+    }
+
+    /// Callback-based SDK operations keep Firebase references on the owning
+    /// actor. Only Sendable result values cross the continuation boundary.
+    private static func metadata(from object: StorageReference) async throws -> StorageMetadata {
+        try await withCheckedThrowingContinuation { continuation in
+            object.getMetadata { metadata, error in
+                if let error { continuation.resume(throwing: error) }
+                else if let metadata { continuation.resume(returning: metadata) }
+                else { continuation.resume(throwing: AdventureBookRepositoryError.unavailable) }
+            }
+        }
+    }
+
+    private static func putJPEG(_ bytes: Data, metadata: StorageMetadata,
+                                at object: StorageReference) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            _ = object.putData(bytes, metadata: metadata) { _, error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: ()) }
+            }
         }
     }
 
