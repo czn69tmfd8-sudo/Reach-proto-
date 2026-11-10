@@ -194,7 +194,7 @@ workflows:
       - name: Verify isolated feature branch and run portable tests
         script: |
           set -euo pipefail
-          test "${CM_BRANCH}" = "feature/adventure-book-foundation"
+          test "${CM_BRANCH}" = "feature/adventure-book-visual-refinement"
           test -z "${CM_PULL_REQUEST_DEST:-}"
           test -z "$(find native -name GoogleService-Info.plist -print -quit)"
           # Historical release fingerprints apply only to their approved
