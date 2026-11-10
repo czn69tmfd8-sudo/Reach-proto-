@@ -40,23 +40,29 @@ final class FirestoreAdventurePhotoTransport {
         let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
         let object = storage.reference(withPath: path)
         if upload.phase == .retryRequired {
-            if let remote = try? await object.getMetadata() {
-                guard remote.customMetadata?["ownerUid"] == upload.ownerUID,
-                      remote.size == Int64(bytes.count),
-                      remote.contentType == "image/jpeg",
-                      remote.customMetadata?["sha256"] == digest else {
-                    throw AdventureBookRepositoryError.conflict
-                }
-                // An interrupted request may have succeeded. Do not re-upload.
-                guard upload.begin(as: upload.ownerUID),
-                      upload.uploaded(as: upload.ownerUID) else {
-                    throw AdventureBookRepositoryError.conflict
-                }
-                return
+            // A missing object and a denied/timeout metadata read are distinct.
+            // Never infer absence from an arbitrary Storage SDK exception.
+            let remote: StorageMetadata
+            do {
+                remote = try await object.getMetadata()
+            } catch {
+                // Even objectNotFound cannot authorize a blind replacement:
+                // rules remain authoritative and immutable object IDs must
+                // never be silently reused after uncertain prior uploads.
+                throw AdventureBookRepositoryError.unavailable
             }
-            // A metadata read error may be authorization/network failure rather
-            // than a missing object. Do not blindly retry until absence is proven.
-            throw AdventureBookRepositoryError.unavailable
+            guard remote.customMetadata?["ownerUid"] == upload.ownerUID,
+                  remote.size == Int64(bytes.count),
+                  remote.contentType == "image/jpeg",
+                  remote.customMetadata?["sha256"] == digest,
+                  remote.name == upload.photoID else {
+                throw AdventureBookRepositoryError.conflict
+            }
+            guard upload.begin(as: upload.ownerUID),
+                  upload.uploaded(as: upload.ownerUID) else {
+                throw AdventureBookRepositoryError.conflict
+            }
+            return
         }
         guard upload.begin(as: upload.ownerUID) else {
             throw AdventureBookRepositoryError.conflict
@@ -89,6 +95,21 @@ final class FirestoreAdventurePhotoTransport {
         }
         let ownerUID = upload.ownerUID
         let ref = db.document(memoryPath).collection("photos").document(upload.photoID)
+        // If the Firestore commit succeeded before a crash, recover only
+        // the exact same published metadata. Do not issue a duplicate write.
+        let existing = try await ref.getDocument(source: .server)
+        if existing.exists {
+            guard existing.data()?["ownerUid"] as? String == ownerUID,
+                  existing.data()?["storagePath"] as? String == path,
+                  existing.data()?["caption"] as? String == caption,
+                  existing.data()?["position"] as? Int == position else {
+                throw AdventureBookRepositoryError.conflict
+            }
+            guard upload.metadataCommitted(as: ownerUID) else {
+                throw AdventureBookRepositoryError.conflict
+            }
+            return
+        }
         _ = try await db.runTransaction { transaction, pointer -> Any? in
             do {
                 let current = try transaction.getDocument(ref)
