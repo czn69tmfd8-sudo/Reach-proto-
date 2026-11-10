@@ -24,4 +24,33 @@ final class AdventurePhotoUploadTests: XCTestCase {
         XCTAssertFalse(upload.uploaded(as: "b"))
         XCTAssertFalse(upload.interrupted(as: "b"))
     }
+    func testRecoveryRecordRejectsWrongOwnerHashOrLength() {
+        var upload = AdventurePhotoUpload(pairCode: "ABCDEFGHJKLM", memoryID: "trip",
+                                          photoID: "unique-photo", ownerUID: "a")
+        XCTAssertTrue(upload.begin(as: "a"))
+        XCTAssertTrue(upload.interrupted(as: "a"))
+        let hash = String(repeating: "a", count: 64)
+        let record = AdventurePhotoRecoveryRecord(upload: upload, sha256: hash,
+                                                   byteCount: 300, caption: "", position: 0)
+        XCTAssertTrue(record.canResume(as: "a", withHash: hash, byteCount: 300))
+        XCTAssertFalse(record.canResume(as: "b", withHash: hash, byteCount: 300))
+        XCTAssertFalse(record.canResume(as: "a", withHash: String(repeating: "b", count: 64), byteCount: 300))
+        XCTAssertFalse(record.canResume(as: "a", withHash: hash, byteCount: 301))
+    }
+
+    func testJournalRoundTripAndExplicitClear() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let journal = AdventurePhotoRecoveryJournal(fileURL: url)
+        let upload = AdventurePhotoUpload(pairCode: "ABCDEFGHJKLM", memoryID: "trip",
+                                          photoID: "unique-photo", ownerUID: "a")
+        let record = AdventurePhotoRecoveryRecord(upload: upload,
+            sha256: String(repeating: "0", count: 64), byteCount: 100,
+            caption: "Our view", position: 2)
+        try journal.save(record)
+        XCTAssertEqual(try journal.load(), record)
+        try journal.clear()
+        XCTAssertNil(try journal.load())
+    }
 }
