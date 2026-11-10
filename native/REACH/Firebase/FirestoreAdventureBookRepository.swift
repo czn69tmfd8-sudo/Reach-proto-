@@ -129,7 +129,8 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
             throw AdventureBookRepositoryError.invalidMemory
         }
         let ref = db.document(path)
-        _ = try await db.runTransaction { transaction, pointer -> Any? in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            db.runTransaction({ transaction, pointer -> Any? in
             do {
                 let existing = try transaction.getDocument(ref)
                 guard !existing.exists else { throw AdventureBookRepositoryError.conflict }
@@ -145,6 +146,10 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
                 pointer?.pointee = error as NSError
             }
             return nil
+            }, completion: { _, error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: ()) }
+            })
         }
     }
 
