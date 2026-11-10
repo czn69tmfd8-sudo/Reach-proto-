@@ -297,15 +297,17 @@ workflows:
       - native/build-logs/tests.log
 
   reach-adventure-single-app-signed-archive-hold:
-    name: REACH Adventure Book original-app signed archive HOLD (no IPA export or upload)
+    name: REACH Build 15 original app (held archive or authorized internal upload)
     instance_type: mac_mini_m2
     max_build_duration: 60
     inputs:
       archive_approval:
-        description: Authorize archive only after confirming Build 15 is unused
+        description: Select archive only or separately authorized Build 15 internal upload
         type: choice
-        options: ["HOLD", "APPROVE_SINGLE_APP_ARCHIVE_ONLY"]
+        options: ["HOLD", "APPROVE_SINGLE_APP_ARCHIVE_ONLY", "UPLOAD_INTERNAL_BUILD_15"]
         default: "HOLD"
+    integrations:
+      app_store_connect: REACH Codemagic
     environment:
       groups:
         - reach-staging
@@ -317,14 +319,23 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.reachprototype.app
-    # Manual and held by default. No IPA export, publishing, or installation.
+    # Manual and held by default. Upload runs only with the exact separate approval.
+    # Existing source/signing checks run in both approved modes. No public release.
     scripts:
       - name: Verify original app identity, staging client and explicit archive authorization
         script: |
           set -euo pipefail
           test "$CM_BRANCH" = "feature/adventure-book-single-app-integration"
           test -z "${CM_PULL_REQUEST_DEST:-}"
-          test "$REACH_SIGNED_ARCHIVE_APPROVAL" = "APPROVE_SINGLE_APP_ARCHIVE_ONLY"
+          case "$REACH_SIGNED_ARCHIVE_APPROVAL" in
+            APPROVE_SINGLE_APP_ARCHIVE_ONLY) ;;
+            UPLOAD_INTERNAL_BUILD_15) python3 native/scripts/upload-build15.py preflight ;;
+            *) echo "RELEASE HOLD: choose an explicit Build 15 approval." >&2; exit 1 ;;
+          esac
+          if ! git cat-file -e 04442aeba6013623f2e25dbe4caf072e5c4c829d^{commit} 2>/dev/null; then
+            git fetch origin 04442aeba6013623f2e25dbe4caf072e5c4c829d
+          fi
+          git diff --exit-code 04442aeba6013623f2e25dbe4caf072e5c4c829d -- native/REACH native/REACHTests native/Configuration native/project.yml
           test "$REACH_APPLE_TEAM_ID" = "GFUK853ZT5"
           test "$REACH_IOS_BUILD_NUMBER" = "15"
           python3 native/scripts/verify-sprint-source.py b9d170153bcd664ad6d124f01c1e3ff813ec43614dc9ae6b10b6545e69f01810
@@ -374,8 +385,27 @@ workflows:
           print('Original REACH signed archive identity and build version verified')
           PY
           ditto -c -k --keepParent build/REACH-AdventureBook.xcarchive build/REACH-Build15-verified.xcarchive.zip
+      - name: Export and upload only with explicit internal Build 15 authorization
+        script: |
+          set -euo pipefail
+          if [ "$REACH_SIGNED_ARCHIVE_APPROVAL" = "APPROVE_SINGLE_APP_ARCHIVE_ONLY" ]; then
+            echo "Archive-only selection: no export or upload."
+            exit 0
+          fi
+          python3 native/scripts/upload-build15.py preflight
+          cd native
+          rm -rf build/build15-unverified build/build15-verified
+          python3 scripts/prepare-store-export.py export "$HOME/export_options.plist"
+          xcodebuild -exportArchive -archivePath build/REACH-AdventureBook.xcarchive \
+            -exportPath build/build15-unverified -exportOptionsPlist "$HOME/export_options.plist" \
+            2>&1 | tee build-logs/build15-export.log
+          python3 scripts/prepare-store-export.py promote-ipa build/build15-unverified build/build15-verified
+          python3 scripts/upload-build15.py upload
     artifacts:
       - native/build/REACH-Build15-verified.xcarchive.zip
+      - native/build/build15-verified/*.ipa
+      - native/build-logs/build15-export.log
+      - native/build-logs/build15-upload-result.json
       - native/build-logs/build15-signing.json
       - native/build-logs/build15-archive.log
       - native/build-logs/test-summary.json

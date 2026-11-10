@@ -39,7 +39,7 @@ project to that exact source fingerprint before the staging plist is injected.
    then choose **APPROVE_SINGLE_APP_ARCHIVE_ONLY**. This reruns 207 native tests
    before introducing the staging plist, uses the existing signing identities,
    validates internal-only local export options, and produces a signed archive
-   in private CI artifacts. It has no IPA export step or publisher.
+   in private CI artifacts. The archive-only choice exits before IPA export or upload.
 5. Review `build15-signing.json` from the private job. Compare the signed team,
    application identifier (including prefix), Keychain access groups, and app
    groups to the signed Build 7 artifact or trusted signing record. The archive
@@ -50,15 +50,51 @@ project to that exact source fingerprint before the staging plist is injected.
    Use only a signed-in, restricted artifact view. Never share signing secrets
    or create a public artifact link.
 
-App Store Connect upload and internal assignment require separate approval.
-The existing production/release workflows are outside this integration branch's
-release path. Once separately authorized, export the reviewed archive for
-internal TestFlight only, verify its packaged identity again, upload to the
-existing REACH Staging listing, and assign only Byron for the first update.
-If the existing internal group distributes builds automatically to Aaron, use
-a Byron-only assignment or keep automatic assignment off for this build under
-separate approval. Aaron should keep her existing installation until Byron
-approves her update.
+## Authorized internal upload using the existing workflow
+
+Owner authorization on November 10, 2026 permits Build 15 export, upload and
+internal availability. No installation, external beta review, public App Store
+release or Firebase changes are included.
+
+Previous successful Codemagic runs were started by the owner from Safari using
+the existing GitHub-connected app. The GitHub connector can prepare this branch,
+but it does not provide a Codemagic API token or a Codemagic build trigger.
+The existing Apple integration remains stored in Codemagic. Cloud Browser
+GitHub/passkey authentication is not required for an owner-started Safari run.
+
+Use **Start new build → feature/adventure-book-single-app-integration →
+reach-adventure-single-app-signed-archive-hold**, from the reviewed preparation
+commit. Select **archive_approval → UPLOAD_INTERNAL_BUILD_15**. Default `HOLD`
+rejects the run, and `APPROVE_SINGLE_APP_ARCHIVE_ONLY` still produces only the
+private archive. Do not select an older Build 5/6 uploader.
+
+This extends the same successful archive workflow. It reproduces the reviewed
+app source from `04442aeba6013623f2e25dbe4caf072e5c4c829d`, requires its exact
+source fingerprint, reruns all 207 tests, and uses the existing signing assets.
+It then locally exports the signed archive with `testFlightInternalTestingOnly`
+and fixed version/build settings. Only a verified IPA reaches the upload command.
+Reproduction avoids requiring a new credential or public URL to download the
+previous private Codemagic artifact. The original archive remains recoverable.
+
+The existing `REACH Codemagic` integration supplies the upload credentials.
+Missing credentials fail preflight without displaying values. The upload uses
+Codemagic's installed CLI with package validation enabled. It does not request
+external beta review, App Store review, build expiration or group changes.
+Ambient App Store Connect CLI options are removed before upload. Apple processing
+and compliance are not inferred from command success.
+
+After successful upload, in Safari open **App Store Connect → Apps → REACH
+Staging → TestFlight → iOS → 0.1.0 (15)**. Wait for processing and review any
+compliance request. Do not guess a new encryption declaration. Confirm the
+existing internal **REACH Internal** group can access the build, adding it there
+if necessary. Do not change external groups or expire earlier builds. Group
+availability does not authorize installation on Aaron's phone. Aaron keeps
+Build 7 until Byron's first-device acceptance and separate update authorization.
+
+Download the private `build15-upload-result.json`, `build15-signing.json` and
+export log if further verification is required. A successful CLI receipt records
+only upload-command success, with processing and tester availability pending.
+No new build has been started from this preparation environment.
 
 ## Recovery on Byron's iPhone
 
