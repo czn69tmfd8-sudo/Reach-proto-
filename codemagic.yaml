@@ -909,3 +909,44 @@ workflows:
       - native/build-logs/adventure-release-export.log
       - native/build-logs/adventure-release-signing.json
     # Deliberately NO publishing section, no App Store Connect integration.
+
+  reach-adventure-build16-upload-existing-ipa:
+    name: REACH Build 16 EXISTING IPA upload only (NO BUILD, NO TESTER DISTRIBUTION)
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    integrations:
+      app_store_connect: REACH Codemagic
+    inputs:
+      upload_approval:
+        description: Explicit approval for existing signed Build 16 IPA only
+        type: choice
+        options: ["HOLD", "UPLOAD_EXISTING_BUILD_16_ONLY"]
+        default: "HOLD"
+    environment:
+      groups:
+        - reach-staging
+      vars:
+        REACH_APPLE_TEAM_ID: GFUK853ZT5
+        REACH_IOS_BUILD_NUMBER: "16"
+        REACH_UPLOAD_AUTHORIZATION: ${{ inputs.upload_approval }}
+      xcode: latest
+    scripts:
+      - name: Verify explicit upload approval and original artifact inputs
+        script: |
+          set -euo pipefail
+          test "$CM_BRANCH" = "release/adventure-book-archive-preparation"
+          test -z "${CM_PULL_REQUEST_DEST:-}"
+          test "${REACH_UPLOAD_AUTHORIZATION}" = "UPLOAD_EXISTING_BUILD_16_ONLY"
+          python3 native/scripts/upload_existing_build16.py retrieve
+      - name: Validate exact original IPA signing, entitlements and staging configuration
+        script: |
+          set -euo pipefail
+          python3 native/scripts/upload_existing_build16.py verify
+      - name: Check Apple build number and upload original unchanged IPA
+        script: |
+          set -euo pipefail
+          python3 native/scripts/upload_existing_build16.py upload
+    artifacts:
+      - build-logs/build16-upload-result.json
+    # No build, archive, export, signing, or publishing section.
+    # The only upload is the explicitly gated CLI command in the final script.
