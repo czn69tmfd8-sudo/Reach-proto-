@@ -1,0 +1,4 @@
+REACH transfer feasibility test
+Repository: czn69tmfd8-sudo/Reach-proto-
+Purpose: verify exact UTF-8 transfer only
+No recovered source or artwork included.
