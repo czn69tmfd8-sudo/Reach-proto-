@@ -30,24 +30,31 @@ struct ReachAdventureBookLive: View {
         return AdventurePhotoRecoveryJournal(fileURL: directory.appendingPathComponent("adventure-photo-recovery.json"))
     }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicType
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appearance: ReachAppearanceStore
     @State private var page = 0
     @State private var repository = FirestoreAdventureBookRepository()
 
     var body: some View {
-        ReachPage {
-            Text("Our Adventure Book")
-                .font(.system(.largeTitle, design: .serif).bold())
-            Text("Two hearts. Two stories. One adventure.")
-                .font(.subheadline).italic()
+        VStack(spacing: 0) {
+            AdventureBookHeader(title: "Our Adventure Book") {
+                if page == 0 { dismiss() } else { page = page > 1 ? 1 : 0 }
+            }
             if let error {
-                Text(error).font(.footnote).foregroundStyle(.red)
+                Text(error).font(.footnote).foregroundStyle(.white)
+                    .padding(10).background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
                 Button("Try again") { Task { await connect() } }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.bordered).tint(.white)
             }
             if let book {
                 let ordered = book.orderedMemories
                 TabView(selection: $page) {
-                    AdventureLeatherCover { withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4)) { page = 1 } }.tag(0)
+                    ScrollView {
+                        AdventureLeatherCover { withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4)) { page = 1 } }
+                        Text("Decorative cover prints · your memories are inside")
+                            .font(.caption2).foregroundStyle(.white)
+                    }.tag(0)
                     galleryPage(ordered).tag(1)
                     ForEach(Array(ordered.enumerated()), id: \.element.id) { index, memory in
                         memoryPage(memory).tag(index + 2)
@@ -55,8 +62,8 @@ struct ReachAdventureBookLive: View {
                     addPage.tag(ordered.count + 2)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: min(max(UIScreen.main.bounds.height * 0.65, 440), 710))
-                .animation(reduceMotion ? nil : .easeInOut(duration: 0.38), value: page)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.32), value: page)
+                .onChange(of: ordered.count) { _, count in page = min(page, count + 2) }
                 HStack {
                     Button("Previous") { page = max(0, page - 1) }.disabled(page == 0)
                     Spacer()
@@ -64,11 +71,17 @@ struct ReachAdventureBookLive: View {
                     Spacer()
                     Button("Next") { page = min(ordered.count + 2, page + 1) }
                         .disabled(page == ordered.count + 2)
-                }.buttonStyle(.bordered)
+                }
+                .font(.caption).foregroundStyle(.white).padding(.horizontal, 18)
+                .frame(minHeight: 44)
             } else if error == nil {
-                ProgressView("Checking private pairing and loading our book…")
+                ProgressView("Checking private pairing and loading our book…").tint(.white).foregroundStyle(.white)
             }
+            if book == nil { Spacer() }
         }
+        .background { ReachHomeBackground() }
+        .toolbar(.hidden, for: .navigationBar)
+        .reachKeyboardToolbar()
         .task { await connect() }
         .task(id: photoSelection) { await uploadSelectedPhoto() }
         .onDisappear { repository.stopObserving() }
@@ -88,63 +101,53 @@ struct ReachAdventureBookLive: View {
 
     private func galleryPage(_ memories: [AdventureMemory]) -> some View {
         AdventureParchmentPage {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Our Shared Memories")
-                    .font(.system(.title, design: .serif).bold())
-                Text("Every chapter is ours to revisit")
-                    .font(.system(.subheadline, design: .serif)).italic()
-                Image(systemName: "leaf")
-                    .foregroundStyle(AdventureBookPalette.gold)
+            VStack(alignment: .leading, spacing: 18) {
+                AdventureGalleryHeading()
                 if memories.isEmpty {
                     Text("Our story begins with the first memory we add.")
-                        .font(.system(.body, design: .serif))
+                        .font(AdventureBookPalette.handwriting(21))
+                        .padding(.vertical, 28)
                 }
-                ForEach(Array(memories.enumerated()), id: \.element.id) { index, memory in
-                    Button {
-                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.38)) {
-                            page = index + 2
-                        }
-                    } label: {
-                        HStack(spacing: 14) {
-                            Group {
-                                if let coverPhoto = memory.photos.first {
-                                    AdventureAuthenticatedPhoto(
-                                        pairCode: memory.pairCode,
-                                        memoryID: memory.id,
-                                        photo: coverPhoto,
-                                        compact: true)
-                                } else {
-                                    Image(systemName: "photo.on.rectangle.angled")
-                                        .font(.title2)
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: dynamicType.isAccessibilitySize ? 1 : 2), spacing: 18) {
+                    ForEach(Array(memories.enumerated()), id: \.element.id) { index, memory in
+                        Button {
+                            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.32)) { page = index + 2 }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                AdventureMountedFrame(title: memory.title) {
+                                    if let coverPhoto = memory.photos.first {
+                                        AdventureAuthenticatedPhoto(pairCode: memory.pairCode,
+                                            memoryID: memory.id, photo: coverPhoto, compact: true)
+                                    } else {
+                                        VStack(spacing: 8) {
+                                            Image(systemName: "photo.on.rectangle.angled").font(.title)
+                                            Text("No photograph").font(.caption)
+                                        }
                                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                        .accessibilityLabel("Memory has no photograph")
-                                }
+                                        .background(AdventureBookPalette.paper.opacity(0.45))
+                                    }
+                                }.frame(height: dynamicType.isAccessibilitySize ? 250 : 160)
+                                HStack {
+                                    Text(memory.occurredAt, style: .date)
+                                        .font(AdventureBookPalette.serif(13, relativeTo: .caption))
+                                    Spacer(minLength: 0)
+                                    Image(systemName: "heart").foregroundStyle(AdventureBookPalette.burgundy)
+                                }.padding(.horizontal, 4)
                             }
-                            .frame(width: 62, height: 62)
-                            .background(.white.opacity(0.8),
-                                        in: RoundedRectangle(cornerRadius: 4))
-                            .padding(4)
-                            .background(.white.opacity(0.5),
-                                        in: RoundedRectangle(cornerRadius: 6))
+                            .foregroundStyle(AdventureBookPalette.ink)
                             .rotationEffect(.degrees(index.isMultiple(of: 2) ? -2 : 2))
-                            .shadow(color: .black.opacity(0.16), radius: 3, y: 2)
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(memory.title)
-                                    .font(.system(.headline, design: .serif))
-                                Text(memory.occurredAt, style: .date)
-                                    .font(.caption)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right")
                         }
-                        .foregroundStyle(AdventureBookPalette.ink)
-                        .padding(11)
-                        .background(.white.opacity(0.32),
-                                    in: RoundedRectangle(cornerRadius: 10))
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Open saved memory page")
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("Open memory page")
                 }
+                Button { showingNewMemory = true } label: {
+                    Label("Add a New Memory", systemImage: "plus")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .font(AdventureBookPalette.serif(18)).foregroundStyle(.white)
+                .background(AdventureBookPalette.burgundy, in: Capsule())
+                .disabled(busy).padding(.horizontal, 14)
             }
         }
     }
@@ -152,7 +155,8 @@ struct ReachAdventureBookLive: View {
     private func memoryPage(_ memory: AdventureMemory) -> some View {
         AdventureParchmentPage {
             VStack(alignment: .leading, spacing: 14) {
-                Text(memory.title).font(.system(.title, design: .serif).bold())
+                Text(memory.title).font(AdventureBookPalette.handwriting(28, relativeTo: .title2))
+                    .frame(maxWidth: .infinity).multilineTextAlignment(.center)
                 Image(systemName: "leaf").foregroundStyle(AdventureBookPalette.gold)
                 Text(memory.occurredAt, style: .date).font(.caption)
                 ForEach(memory.photos) { photo in
@@ -165,7 +169,9 @@ struct ReachAdventureBookLive: View {
                         }
                     }
                     .padding(9)
-                    .background(.white.opacity(0.65), in: RoundedRectangle(cornerRadius: 4))
+                    .background(AdventureBookPalette.parchmentLight)
+                    .overlay(alignment: .topLeading) { AdventureTape().rotationEffect(.degrees(-38)) }
+                    .overlay(alignment: .bottomTrailing) { AdventureTape().rotationEffect(.degrees(-38)) }
                     .rotationEffect(.degrees(memory.photos.first?.id == photo.id ? -1.2 : 1.2))
                     .shadow(color: .black.opacity(0.15), radius: 5, x: 2, y: 4)
                 }
@@ -196,13 +202,18 @@ struct ReachAdventureBookLive: View {
                 let ownUID = Auth.auth().currentUser?.uid
                 let ownStory = memory.stories.first(where: { $0.authorUID == ownUID })?.text ?? ""
                 let partnerStory = memory.stories.first(where: { $0.authorUID != ownUID })?.text ?? ""
-                AdventureStoryCard(heading: "Partner’s Story", text: partnerStory)
-                AdventureStoryCard(heading: "My Story", text: ownStory)
+                let columns = dynamicType.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+                    : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
+                columns {
+                    AdventureStoryCard(heading: "\(appearance.preferences.partnerLabel)’s Story", text: partnerStory)
+                    AdventureStoryCard(heading: "My Story", text: ownStory, tint: .blue)
+                }
                 Button("Write or edit my story") { Task { await openStoryEditor(memory) } }
                     .buttonStyle(.bordered)
                 Divider()
                 Label("Our Conversation", systemImage: "bubble.left.and.bubble.right")
-                    .font(.system(.headline, design: .serif))
+                    .font(AdventureBookPalette.script(24, relativeTo: .headline))
                 ForEach(memory.comments) { comment in
                     Text(comment.text)
                         .font(.system(.subheadline, design: .serif))
@@ -437,8 +448,8 @@ private struct AdventureAuthenticatedPhoto: View {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: compact ? .fill : .fit)
-                    .frame(maxWidth: compact ? 62 : nil,
-                           maxHeight: compact ? 62 : 230)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: compact ? 112 : 230)
                     .clipped()
                     .clipShape(RoundedRectangle(cornerRadius: compact ? 3 : 10))
             } else if let error {

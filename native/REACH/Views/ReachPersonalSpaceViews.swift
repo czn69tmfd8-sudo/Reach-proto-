@@ -23,10 +23,14 @@ struct ReachUsView: View {
                 NavigationLink {
                     ReachAdventureBookLive()
                 } label: {
-                    Label("Open Our Adventure Book", systemImage: "book.closed.fill")
-                        .frame(maxWidth: .infinity, minHeight: 52)
+                    AdventureLeatherArtwork()
+                        .aspectRatio(0.91, contentMode: .fit)
+                        .frame(maxWidth: 390)
+                        .padding(.vertical, 8)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open Our Adventure Book")
+                .accessibilityHint("Opens your saved shared book. Cover prints are decorative examples.")
                 NavigationLink { ReachAdventureBookPreview() } label: {
                     Label("View sample design", systemImage: "book")
                         .frame(maxWidth: .infinity, minHeight: 44)

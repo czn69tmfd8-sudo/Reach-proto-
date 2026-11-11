@@ -12,12 +12,24 @@ struct REACHApp: App {
                 // staging sign-in or listeners as an incidental launch effect.
                 Color.clear
             } else {
-                RootView()
-                    .environmentObject(appState)
-                    .environmentObject(reachCoordinator)
+                launchView
             }
         }
     }
+
+    @ViewBuilder private var launchView: some View {
+        #if DEBUG
+        if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--adventure-sample-page=") }),
+           let value = Int(argument.split(separator: "=").last ?? ""), (0...2).contains(value) {
+            AdventureBookVisualValidationShell(page: value)
+        } else {
+            RootView().environmentObject(appState).environmentObject(reachCoordinator)
+        }
+        #else
+        RootView().environmentObject(appState).environmentObject(reachCoordinator)
+        #endif
+    }
+
 }
 
 @MainActor

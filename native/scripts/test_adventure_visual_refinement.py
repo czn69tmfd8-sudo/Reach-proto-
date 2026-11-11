@@ -27,20 +27,26 @@ class AdventureBookVisualRegressionTests(unittest.TestCase):
             self.assertIn(expected, source)
         self.assertNotIn(chr(92) + "n                PhotosPicker", source)
 
-    def test_cover_has_visual_reference_motifs_without_backend_changes(self):
+    def test_cover_has_bundled_reference_materials_and_no_remote_artwork(self):
         source = (VIEWS / "AdventureBookVisualComponents.swift").read_text()
-        self.assertIn('Image(systemName: "safari")', source)
-        self.assertIn('Image(systemName: "circle.circle")', source)
-        self.assertIn('accessibilityLabel("Open Our Adventure Book")', source)
-        self.assertIn('AdventureBookPalette.gold', source)
-        self.assertNotIn("FirebaseStorage", source)
+        for expected in ('AdventureLeatherArtwork', 'AdventureArtwork.image(0)',
+                         'AdventureMountedPhoto', 'AdventureTape', 'SnellRoundhand',
+                         'Noteworthy-Light', 'Baskerville', 'AdventureBookPalette.gold',
+                         'accessibilityLabel("Open Our Adventure Book")'):
+            self.assertIn(expected, source)
+        self.assertNotIn('AsyncImage(', source)
+        self.assertNotIn('URLSession', source)
+        self.assertNotIn('FirebaseStorage', source)
 
-    def test_leather_grain_and_stitching_are_asset_free(self):
-        source = (VIEWS / "AdventureBookVisualComponents.swift").read_text()
-        self.assertIn("AdventureLeatherGrain()", source)
-        self.assertIn("Canvas { context, size in", source)
-        self.assertIn("dash: [3, 5]", source)
-        self.assertNotIn("AsyncImage(", source)
+    def test_leather_and_parchment_regions_are_bundled(self):
+        import json
+        asset = ROOT / 'native/REACH/Assets.xcassets/AdventureMaterials.imageset'
+        entries = json.loads((asset/'Contents.json').read_text())['images']
+        self.assertEqual(len(entries), 1)
+        self.assertTrue((asset/entries[0]['filename']).is_file())
+        source = (VIEWS / 'AdventureBookVisualComponents.swift').read_text()
+        self.assertIn('AdventureArtwork.image(1)', source)
+        self.assertIn('atlas.cropping(to:', source)
 
     def test_gallery_thumbnails_reuse_authenticated_photo_transport(self):
         source = (VIEWS / "ReachAdventureBookLive.swift").read_text()
