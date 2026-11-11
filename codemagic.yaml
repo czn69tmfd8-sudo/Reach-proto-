@@ -910,6 +910,99 @@ workflows:
       - native/build-logs/adventure-release-signing.json
     # Deliberately NO publishing section, no App Store Connect integration.
 
+  reach-adventure-build16-integrated-testflight:
+    name: REACH Build 16 approved source archive + integrated Apple upload (MANUAL)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    # Separate opt-in release. Existing original IPA remains preserved; this produces a new signed export.
+    inputs:
+      upload_approval:
+        description: Separate explicit authorization to upload a newly exported Build 16 to Apple
+        type: choice
+        options: ["HOLD", "UPLOAD_NEW_BUILD_16_TO_APPLE"]
+        default: "HOLD"
+      build_number_confirmation:
+        description: Confirm App Store Connect has no existing or reserved 0.1.0 (16)
+        type: choice
+        options: ["HOLD", "CONFIRM_0_1_0_BUILD_16_UNUSED"]
+        default: "HOLD"
+    integrations:
+      app_store_connect: REACH Codemagic
+    environment:
+      groups:
+        - reach-staging
+      vars:
+        REACH_APPLE_TEAM_ID: GFUK853ZT5
+        REACH_IOS_BUILD_NUMBER: "16"
+      xcode: latest
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.reachprototype.app
+    scripts:
+      - name: Strict source, version, staging and upload approval gates
+        script: |
+          set -euo pipefail
+          test "${{ inputs.upload_approval }}" = "UPLOAD_NEW_BUILD_16_TO_APPLE" || { echo "HOLD: upload not separately authorized"; exit 1; }
+          test "${CM_BRANCH}" = "release/adventure-book-archive-preparation"
+          test -z "${CM_PULL_REQUEST_DEST:-}"
+          test "${{ inputs.build_number_confirmation }}" = "CONFIRM_0_1_0_BUILD_16_UNUSED" || { echo "HOLD: confirm build 16 unused in App Store Connect"; exit 1; }
+          test "${REACH_IOS_BUILD_NUMBER}" = "16"
+          test "${REACH_APPLE_TEAM_ID}" = "GFUK853ZT5"
+          test -z "$(find native/REACH -name GoogleService-Info.plist -print -quit)"
+          grep -q 'PRODUCT_BUNDLE_IDENTIFIER: com.reachprototype.app' native/project.yml
+          grep -q 'static let nativeBundleID = "com.reachprototype.app"' native/REACH/Firebase/ReachEnvironment.swift
+          git fetch origin c76561823ce4f48f3849c59a2efff327e5e78e59
+          # No changes to application source, tests, assets, or Firebase since approved validation.
+          git diff --exit-code c76561823ce4f48f3849c59a2efff327e5e78e59 HEAD -- native/REACH native/REACHTests native/Configuration native/project.yml
+          python3 native/scripts/prepare-store-export.py inputs
+          python3 native/scripts/install-staging-config.py --required
+      - name: Generate signed project and apply existing App Store profiles
+        script: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
+          cd native
+          xcodegen generate
+          xcode-project use-profiles
+          python3 scripts/prepare-store-export.py export "$HOME/export_options.plist"
+      - name: Create and verify signed iPhone archive
+        script: |
+          set -euo pipefail
+          cd native
+          mkdir -p build-logs
+          set -o pipefail
+          xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build/REACH-AdventureBook-0.1.0-16.xcarchive \
+            DEVELOPMENT_TEAM="$REACH_APPLE_TEAM_ID" MARKETING_VERSION="0.1.0" \
+            CURRENT_PROJECT_VERSION="$REACH_IOS_BUILD_NUMBER" archive \
+            2>&1 | tee build-logs/adventure-release-archive.log
+          python3 scripts/verify-device-archive.py \
+            build/REACH-AdventureBook-0.1.0-16.xcarchive/Products/Applications/REACH.app \
+            --distribution app_store --expected-team "$REACH_APPLE_TEAM_ID" \
+            --signing-report build-logs/adventure-release-signing.json
+      - name: Export verified App Store IPA for integrated Apple upload
+        script: |
+          set -euo pipefail
+          cd native
+          rm -rf build/adventure-unverified build/adventure-verified
+          python3 scripts/prepare-store-export.py export "$HOME/export_options.plist"
+          xcodebuild -exportArchive -archivePath build/REACH-AdventureBook-0.1.0-16.xcarchive \
+            -exportPath build/adventure-unverified -exportOptionsPlist "$HOME/export_options.plist" \
+            2>&1 | tee build-logs/adventure-release-export.log
+          python3 scripts/prepare-store-export.py promote-ipa build/adventure-unverified build/adventure-verified
+          test -f build/adventure-verified/REACH.ipa || { echo "HOLD: verified IPA missing"; exit 1; }
+          echo "Signed Build 16 IPA verified; Codemagic integrated publishing is next."
+    artifacts:
+      - native/build/adventure-verified/*.ipa
+      - native/build/REACH-AdventureBook-0.1.0-16.xcarchive/dSYMs/**
+      - native/build-logs/adventure-release-archive.log
+      - native/build-logs/adventure-release-export.log
+      - native/build-logs/adventure-release-signing.json
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: false
+        submit_to_app_store: false
+
   reach-adventure-build16-upload-existing-ipa:
     name: REACH Build 16 EXISTING IPA upload only (NO BUILD, NO TESTER DISTRIBUTION)
     instance_type: mac_mini_m2
