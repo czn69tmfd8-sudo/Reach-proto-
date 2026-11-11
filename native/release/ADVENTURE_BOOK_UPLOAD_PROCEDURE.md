@@ -38,3 +38,24 @@ The repository contains a previously used Codemagic integration:
 The GitHub connector cannot access Codemagic's private artifacts, execute Codemagic builds, or inspect App Store Connect's live build list. A functional upload-only Codemagic workflow must first have a verified, authenticated way to retrieve the **same** IPA from the earlier Codemagic run. No such artifact-retrieval interface has yet been established in this repository. Do not invent a download URL, silently rebuild, or report an upload without the actual Apple response.
 
 If Codemagic provides a durable authenticated artifact URL or the original IPA can be supplied to an authenticated upload job, add a separate, explicitly gated upload-only workflow. Do not change the already validated archive-only workflow.
+
+## Dedicated upload-only workflow (November 11, 2026)
+
+Prepared workflow: `reach-adventure-build16-upload-existing-ipa` on `release/adventure-book-archive-preparation`.
+
+This workflow has **no xcodebuild, exportArchive, or publishing block**. It retrieves an IPA through Codemagic's documented `POST <artifact_url>/public-url` endpoint with `x-auth-token`, receives a short-lived download URL, downloads the original file, verifies a separately supplied original SHA-256, validates IPA identity/signature with existing repository checks, and uses the historical `app-store-connect publish` command. The temporary URL is intentionally never logged. Codemagic documents the three-step artifact retrieval at https://help.codemagic.io/articles/2191356328-how-do-i-download-build-artifacts-ipa-apk-using-the-codemagic-api .
+
+Required **secure** Codemagic environment variables for this job (never commit their values):
+- `CM_API_TOKEN`: authorized Codemagic API token capable of retrieving the original run's artifacts.
+- `REACH_ORIGINAL_ARTIFACT_URL`: original artifact URL returned by `GET https://api.codemagic.io/builds/<original-build-id>` in `.build.artefacts[].url`, selecting the exact original `REACH.ipa`.
+- `REACH_ORIGINAL_IPA_SHA256`: 64-character SHA-256 recorded independently from the **original** artifact, not calculated from a different file or a new build.
+- `APP_STORE_APPLE_ID`: existing REACH Staging app's numeric Apple app ID (not the bundle identifier).
+- `REACH_APPLE_UPLOADS_CLEAR=CONFIRMED_NO_BUILD_16_OR_HIGHER`: set only after checking App Store Connect's **live** build uploads, processing and reservations immediately before this run.
+- Existing `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_IDENTIFIER`, `APP_STORE_CONNECT_PRIVATE_KEY` must be supplied by `REACH Codemagic` integration.
+- Select workflow input `upload_approval=UPLOAD_EXISTING_BUILD_16_ONLY`; the default is HOLD.
+
+The job also queries Apple's live latest build for version 0.1.0 with `app-store-connect get-latest-build-number --version-string=0.1.0`. This check does not guarantee visibility of all pending uploads/reservations, so the independent live App Store Connect uploads confirmation is mandatory.
+
+**Important unresolved prerequisites:** No Codemagic API token, original artifact URL, independent original IPA SHA-256, or Apple numeric app ID has been verified available to this assistant. The upload-only workflow has not been executed or proven successful. Do not start it until these values are securely configured and the live Apple inventory has been confirmed. If the API fails, do not substitute a rebuilt IPA. No tester assignment is authorized.
+
+After a successful upload command, the workflow emits `build-logs/build16-upload-result.json`. The JSON says upload command succeeded, **not** that Apple has finished processing. Inspect App Store Connect afterward; obtain separate authorization before any internal tester assignment.
