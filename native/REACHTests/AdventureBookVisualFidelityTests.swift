@@ -39,7 +39,7 @@ final class AdventureBookVisualFidelityTests: XCTestCase {
     func testMemorySupportsAccessibilityTextAndReducedMotion() {
         let renderer = ImageRenderer(content: ReachAdventureBookPreview(initialPage: 2)
             .environment(\.dynamicTypeSize, .accessibility3)
-            .environment(\.accessibilityReduceMotion, true)
+            .transaction { $0.disablesAnimations = true }
             .frame(width: 320, height: 680))
         XCTAssertNotNil(renderer.uiImage)
     }
