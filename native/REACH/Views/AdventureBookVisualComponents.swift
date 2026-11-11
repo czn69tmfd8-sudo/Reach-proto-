@@ -185,7 +185,7 @@ struct AdventureStoryCard: View {
 struct AdventureGalleryHeading: View {
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "leaf.fill").foregroundStyle(.olive)
+            Image(systemName: "leaf.fill").foregroundStyle(Color.olive)
             Text("Our shared memories, two perspectives\nand the story we’re writing together.")
                 .font(AdventureBookPalette.serif(17)).italic()
                 .multilineTextAlignment(.center).frame(maxWidth: .infinity)
