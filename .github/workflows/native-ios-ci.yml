@@ -54,7 +54,7 @@ jobs:
     # Standard Intel runner avoids the observed arm64 capacity cancellations.
     # Codemagic continues validating on Apple Silicon. Device builds remain arm64.
     runs-on: macos-15-intel
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
