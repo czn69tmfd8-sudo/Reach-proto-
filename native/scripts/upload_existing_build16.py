@@ -43,27 +43,30 @@ def preflight():
     return parsed.geturl()
 
 
-class SameHostRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        parsed = urllib.parse.urlparse(newurl)
-        if parsed.scheme != "https" or parsed.hostname != "api.codemagic.io":
-            raise ValueError("Artifact redirect to another host is forbidden.")
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
-
-
 def retrieve():
+    """Use Codemagic's documented /public-url exchange, with a 120-second expiry."""
+    import time
     url = preflight()
     TARGET.parent.mkdir(parents=True, exist_ok=True)
     if TARGET.exists():
         raise ValueError("Original artifact destination already exists.")
-    opener = urllib.request.build_opener(SameHostRedirect)
-    request = urllib.request.Request(url, headers={"x-auth-token": os.environ["CM_API_TOKEN"]})
+    payload = json.dumps({"expiresAt": int(time.time()) + 120}).encode()
+    request = urllib.request.Request(
+        url + "/public-url", data=payload,
+        headers={"x-auth-token": os.environ["CM_API_TOKEN"],
+                 "Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(request, timeout=30) as response:
+        data = json.load(response)
+    temporary_url = data.get("url")
+    parsed = urllib.parse.urlparse(temporary_url or "")
+    if parsed.scheme != "https" or parsed.hostname != "api.codemagic.io":
+        raise ValueError("Codemagic returned an unexpected temporary download URL.")
     digest = hashlib.sha256()
     size = 0
     try:
-        with opener.open(request, timeout=120) as response, TARGET.open("xb") as output:
+        with urllib.request.urlopen(temporary_url, timeout=120) as response, TARGET.open("xb") as output:
             if response.status != 200:
-                raise ValueError("Codemagic artifact download did not return HTTP 200.")
+                raise ValueError("Artifact download failed.")
             while True:
                 chunk = response.read(1024 * 1024)
                 if not chunk:
@@ -82,7 +85,7 @@ def retrieve():
             info = plistlib.loads(z.read(infos[0]))
             if (info.get("CFBundleIdentifier"), info.get("CFBundleShortVersionString"), str(info.get("CFBundleVersion"))) != ("com.reachprototype.app", "0.1.0", "16"):
                 raise ValueError("IPA bundle or version does not match approved Build 16.")
-        print("Original IPA downloaded, SHA-256 verified, embedded bundle/version verified; bytes:", size)
+        print("Original IPA downloaded and verified; bytes:", size)
     except Exception:
         TARGET.unlink(missing_ok=True)
         raise
@@ -96,8 +99,8 @@ def apple_preflight():
     # The CLI retrieves the current TestFlight build number for this exact Apple app.
     # Apple App ID is supplied by secure configuration, not guessed.
     result = subprocess.run([
-        "app-store-connect", "get-latest-testflight-build-number",
-        os.environ["APP_STORE_APPLE_ID"], "--app-store-version=0.1.0", "--platform=IOS",
+        "app-store-connect", "get-latest-build-number",
+        os.environ["APP_STORE_APPLE_ID"], "--version-string=0.1.0", "--platform=IOS",
     ], capture_output=True, text=True, check=True)
     value = result.stdout.strip()
     if not value.isdigit():
