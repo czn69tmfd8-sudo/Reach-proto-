@@ -834,19 +834,19 @@ workflows:
     name: REACH Adventure Book approved archive and signed IPA (NO UPLOAD)
     instance_type: mac_mini_m2
     max_build_duration: 120
-    # Manual only. Build 8 must be confirmed unused in App Store Connect first.
+    # Manual only. Build 16 must be confirmed unused in App Store Connect first.
     inputs:
       build_number_confirmation:
-        description: Confirm App Store Connect has no existing or reserved 0.1.0 (8)
+        description: Confirm App Store Connect has no existing or reserved 0.1.0 (16)
         type: choice
-        options: ["HOLD", "CONFIRM_0_1_0_BUILD_8_UNUSED"]
+        options: ["HOLD", "CONFIRM_0_1_0_BUILD_16_UNUSED"]
         default: "HOLD"
     environment:
       groups:
         - reach-staging
       vars:
         REACH_APPLE_TEAM_ID: GFUK853ZT5
-        REACH_IOS_BUILD_NUMBER: "8"
+        REACH_IOS_BUILD_NUMBER: "16"
       xcode: latest
       ios_signing:
         distribution_type: app_store
@@ -857,8 +857,8 @@ workflows:
           set -euo pipefail
           test "${CM_BRANCH}" = "release/adventure-book-archive-preparation"
           test -z "${CM_PULL_REQUEST_DEST:-}"
-          test "${{ inputs.build_number_confirmation }}" = "CONFIRM_0_1_0_BUILD_8_UNUSED" || { echo "HOLD: confirm build 8 unused in App Store Connect"; exit 1; }
-          test "${REACH_IOS_BUILD_NUMBER}" = "8"
+          test "${{ inputs.build_number_confirmation }}" = "CONFIRM_0_1_0_BUILD_16_UNUSED" || { echo "HOLD: confirm build 16 unused in App Store Connect"; exit 1; }
+          test "${REACH_IOS_BUILD_NUMBER}" = "16"
           test "${REACH_APPLE_TEAM_ID}" = "GFUK853ZT5"
           test -z "$(find native/REACH -name GoogleService-Info.plist -print -quit)"
           grep -q 'PRODUCT_BUNDLE_IDENTIFIER: com.reachprototype.app' native/project.yml
@@ -883,12 +883,12 @@ workflows:
           mkdir -p build-logs
           set -o pipefail
           xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \
-            -destination 'generic/platform=iOS' -archivePath build/REACH-AdventureBook-0.1.0-8.xcarchive \
+            -destination 'generic/platform=iOS' -archivePath build/REACH-AdventureBook-0.1.0-16.xcarchive \
             DEVELOPMENT_TEAM="$REACH_APPLE_TEAM_ID" MARKETING_VERSION="0.1.0" \
             CURRENT_PROJECT_VERSION="$REACH_IOS_BUILD_NUMBER" archive \
             2>&1 | tee build-logs/adventure-release-archive.log
           python3 scripts/verify-device-archive.py \
-            build/REACH-AdventureBook-0.1.0-8.xcarchive/Products/Applications/REACH.app \
+            build/REACH-AdventureBook-0.1.0-16.xcarchive/Products/Applications/REACH.app \
             --distribution app_store --expected-team "$REACH_APPLE_TEAM_ID" \
             --signing-report build-logs/adventure-release-signing.json
       - name: Export verified App Store IPA to private CI artifacts only
@@ -897,14 +897,14 @@ workflows:
           cd native
           rm -rf build/adventure-unverified build/adventure-verified
           python3 scripts/prepare-store-export.py export "$HOME/export_options.plist"
-          xcodebuild -exportArchive -archivePath build/REACH-AdventureBook-0.1.0-8.xcarchive \
+          xcodebuild -exportArchive -archivePath build/REACH-AdventureBook-0.1.0-16.xcarchive \
             -exportPath build/adventure-unverified -exportOptionsPlist "$HOME/export_options.plist" \
             2>&1 | tee build-logs/adventure-release-export.log
           python3 scripts/prepare-store-export.py promote-ipa build/adventure-unverified build/adventure-verified
           echo "Signed IPA verified and retained in private CI artifacts. NO UPLOAD."
     artifacts:
       - native/build/adventure-verified/*.ipa
-      - native/build/REACH-AdventureBook-0.1.0-8.xcarchive/dSYMs/**
+      - native/build/REACH-AdventureBook-0.1.0-16.xcarchive/dSYMs/**
       - native/build-logs/adventure-release-archive.log
       - native/build-logs/adventure-release-export.log
       - native/build-logs/adventure-release-signing.json
