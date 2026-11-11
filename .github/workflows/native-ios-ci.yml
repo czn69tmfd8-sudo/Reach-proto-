@@ -7,6 +7,7 @@ on:
       - feature/adventure-book-foundation
       - feature/adventure-book-single-app-integration
       - feature/adventure-book-visual-fidelity
+      - feature/adventure-book-approved-integration
       - build-7-small-visual-fixes
       - fix/build7-daily-moment-swift-keypath
       - diagnose-staging-hand-auth
