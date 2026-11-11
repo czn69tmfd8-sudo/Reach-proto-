@@ -127,19 +127,7 @@ jobs:
         working-directory: native
         run: |
           set -euo pipefail
-          mkdir -p build-logs/adventure-visual
-          for PAGE in 0 1 2; do
-            xcrun simctl terminate "$DEVICE_ID" com.reachprototype.app || true
-            xcrun simctl launch "$DEVICE_ID" com.reachprototype.app --adventure-sample-page="$PAGE"
-            sleep 2
-            xcrun simctl io "$DEVICE_ID" screenshot "build-logs/adventure-visual/page-$PAGE.png"
-          done
-          xcrun simctl ui "$DEVICE_ID" content_size accessibility-extra-extra-extra-large
-          xcrun simctl terminate "$DEVICE_ID" com.reachprototype.app || true
-          xcrun simctl launch "$DEVICE_ID" com.reachprototype.app --adventure-sample-page=2
-          sleep 2
-          xcrun simctl io "$DEVICE_ID" screenshot build-logs/adventure-visual/memory-accessibility.png
-          xcrun simctl ui "$DEVICE_ID" content_size large
+          bash scripts/capture-adventure-simulator.sh
 
       - name: Compile physical iPhone code without signing credentials
         working-directory: native
