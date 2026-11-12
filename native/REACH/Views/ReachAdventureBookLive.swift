@@ -486,7 +486,8 @@ struct ReachAdventureBookLive: View {
     }
 
     private func saveStory(memoryID: String, text: String, version: Timestamp?, epoch: Int) async {
-        guard connectionEpoch == epoch, let code = pairCode, Auth.auth().currentUser != nil else { return }
+        guard connectionEpoch == epoch else { return }
+        guard let code = pairCode, Auth.auth().currentUser != nil else { return }
         do {
             // Use the exact version captured when the editor opened.
             // Transaction retries reject a stale version if the partner or
