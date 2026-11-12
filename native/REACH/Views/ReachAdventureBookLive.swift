@@ -37,6 +37,7 @@ struct ReachAdventureBookLive: View {
     @State private var page = 0
     @State private var openedMemoryID: String?
     @State private var repository = FirestoreAdventureBookRepository()
+    @State private var connectionEpoch = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -125,7 +126,10 @@ struct ReachAdventureBookLive: View {
         .reachKeyboardToolbar()
         .task { await connect() }
         .task(id: photoSelection) { await uploadSelectedPhoto() }
-        .onDisappear { repository.stopObserving() }
+        .onDisappear {
+            connectionEpoch += 1
+            repository.stopObserving()
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 // Resume from a freshly authorized server snapshot after offline
@@ -133,6 +137,7 @@ struct ReachAdventureBookLive: View {
                 // as if the pairing were still valid.
                 Task { await connect() }
             } else if phase == .background {
+                connectionEpoch += 1
                 repository.stopObserving()
                 book = nil
             }
@@ -326,6 +331,8 @@ struct ReachAdventureBookLive: View {
     }
 
     private func connect() async {
+        connectionEpoch += 1
+        let epoch = connectionEpoch
         // A reconnect replaces the old observation rather than accumulating
         // duplicate listeners after repeated foreground transitions.
         repository.stopObserving()
@@ -339,6 +346,7 @@ struct ReachAdventureBookLive: View {
             guard let code = lock.data()?["pairCode"] as? String else {
                 throw AdventureBookRepositoryError.notPaired
             }
+            guard connectionEpoch == epoch else { return }
             pairCode = code
             if let saved = try recoveryJournal?.load(), saved.upload.ownerUID == uid,
                saved.upload.pairCode == code {
@@ -355,9 +363,11 @@ struct ReachAdventureBookLive: View {
                 pendingPhotoPosition = restored.position
             }
             let loaded = try await repository.load(pairCode: code)
+            guard connectionEpoch == epoch else { return }
             book = loaded
             error = nil
             try await repository.observe(pairCode: code) { result in
+                guard connectionEpoch == epoch else { return }
                 switch result {
                 case .success(let updated): book = updated
                 case .failure(let failure):
@@ -366,6 +376,7 @@ struct ReachAdventureBookLive: View {
                 }
             }
         } catch {
+            guard connectionEpoch == epoch else { return }
             book = nil
             self.error = error.localizedDescription
         }
