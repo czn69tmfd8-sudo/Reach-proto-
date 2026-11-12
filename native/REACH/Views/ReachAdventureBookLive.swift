@@ -32,6 +32,7 @@ struct ReachAdventureBookLive: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicType
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var appearance: ReachAppearanceStore
     @State private var page = 0
     @State private var openedMemoryID: String?
@@ -125,6 +126,17 @@ struct ReachAdventureBookLive: View {
         .task { await connect() }
         .task(id: photoSelection) { await uploadSelectedPhoto() }
         .onDisappear { repository.stopObserving() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                // Resume from a freshly authorized server snapshot after offline
+                // or background transitions; never display cached private content
+                // as if the pairing were still valid.
+                Task { await connect() }
+            } else if phase == .background {
+                repository.stopObserving()
+                book = nil
+            }
+        }
         .sheet(isPresented: $showingNewMemory) {
             AdventureMemoryDraftEditor { title, date, story in
                 Task { await create(title: title, date: date, story: story) }
@@ -314,6 +326,9 @@ struct ReachAdventureBookLive: View {
     }
 
     private func connect() async {
+        // A reconnect replaces the old observation rather than accumulating
+        // duplicate listeners after repeated foreground transitions.
+        repository.stopObserving()
         do {
             try FirebaseBootstrap.configureStaging()
             guard let uid = Auth.auth().currentUser?.uid else {
