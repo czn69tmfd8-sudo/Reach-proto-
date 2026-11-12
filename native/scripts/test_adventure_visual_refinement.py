@@ -19,7 +19,7 @@ class AdventureBookVisualRegressionTests(unittest.TestCase):
     def test_live_book_keeps_shared_data_and_editing(self):
         source = (VIEWS / "ReachAdventureBookLive.swift").read_text()
         for expected in ("FirestoreAdventureBookRepository()", "repository.observe(",
-                         "AdventureLeatherCover", "galleryPage(ordered)",
+                         "AdventureLeatherCover", "galleryPage(Array(ordered[AdventureGalleryPagination.memoryRange",
                          "AdventureStoryCard", "AdventureAuthenticatedPhoto(",
                          "AdventurePhotoFeatureGate.liveUploadsEnabled",
                          "saveOwnStory(", "postComment(", "onDisappear",
@@ -64,5 +64,5 @@ class AdventureBookVisualRegressionTests(unittest.TestCase):
     def test_gallery_does_not_auto_import_private_content(self):
         source = (VIEWS / "ReachAdventureBookLive.swift").read_text()
         self.assertIn("ForEach(Array(memories.enumerated())", source)
-        self.assertIn("page = index + 2", source)
+        self.assertIn("openedMemoryID = memory.id", source)
         self.assertNotIn("PHPhotoLibrary.shared()", source)
