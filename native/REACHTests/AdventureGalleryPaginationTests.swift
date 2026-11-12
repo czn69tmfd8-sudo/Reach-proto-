@@ -43,6 +43,14 @@ final class AdventureGalleryPaginationTests: XCTestCase {
         XCTAssertEqual(AdventureGalleryPagination.spreadCount(memoryCount: -5), 1)
     }
 
+    func testMemoryRestorationAfterRemoteReorder() {
+        let initial = (0..<17).map { "memory-\($0)" }
+        XCTAssertEqual(AdventureGalleryPagination.page(forSelectedMemoryID: "memory-8", orderedIDs: initial), 2)
+        let reordered = ["memory-8"] + initial.filter { $0 != "memory-8" }
+        XCTAssertEqual(AdventureGalleryPagination.page(forSelectedMemoryID: "memory-8", orderedIDs: reordered), 1)
+        XCTAssertNil(AdventureGalleryPagination.page(forSelectedMemoryID: "deleted", orderedIDs: reordered))
+    }
+
     func testAppendOrderPreservesGapsAndRejectsSaturation() {
         XCTAssertEqual(AdventureGalleryPagination.nextPageOrder(existing: []), 0)
         XCTAssertEqual(AdventureGalleryPagination.nextPageOrder(existing: [0, 2, 7]), 8)
