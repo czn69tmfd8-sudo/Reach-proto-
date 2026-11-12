@@ -177,9 +177,15 @@ struct ReachAdventureBookPreview: View {
                     AdventureStoryCard(heading: "My Story", text: drafts[index - titles.count].story)
                     AdventureStoryCard(heading: "Partner’s Story", text: "")
                 }
-                Button("Write my sample story") { showingStoryEditor = true }
-                    .font(AdventureBookPalette.serif(16)).frame(minHeight: 44)
-                    .foregroundStyle(AdventureBookPalette.burgundy)
+                if index < titles.count {
+                    Button("Write my sample story") { showingStoryEditor = true }
+                        .font(AdventureBookPalette.serif(16)).frame(minHeight: 44)
+                        .foregroundStyle(AdventureBookPalette.burgundy)
+                } else {
+                    Text("Sample draft · not saved or shared")
+                        .font(.caption)
+                        .foregroundStyle(AdventureBookPalette.ink.opacity(0.75))
+                }
                 Divider().overlay(AdventureBookPalette.ink.opacity(0.15))
                 HStack {
                     Label("Our Conversation", systemImage: "bubble.left.and.bubble.right")
@@ -187,8 +193,13 @@ struct ReachAdventureBookPreview: View {
                     Spacer()
                     Text("Sample").font(.caption2)
                 }
-                conversation("Partner", "I’m still thinking about that weekend. ♡")
-                conversation("You", "Me too. Let’s make it an annual tradition. ♡")
+                if index < titles.count {
+                    conversation("Partner", "I’m still thinking about that weekend. ♡")
+                    conversation("You", "Me too. Let’s make it an annual tradition. ♡")
+                } else {
+                    Text("No sample conversation yet.")
+                        .font(AdventureBookPalette.serif(15, relativeTo: .caption))
+                }
                 Text("Illustrations and sample words only. Your saved memories are in the live book.")
                     .font(.caption).multilineTextAlignment(.center)
             }
