@@ -19,7 +19,9 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: native-ios-ci-${{ github.ref }}
+  # Keep the current Adventure Book validation behind its own branch-local
+  # queue while the earlier pagination checkpoints finish in the old queue.
+  group: native-ios-ci-${{ github.ref }}${{ github.ref == 'refs/heads/feature/adventure-book-gallery-pagination' && '-scoped-gallery' || '' }}
   cancel-in-progress: false
   queue: max
 
