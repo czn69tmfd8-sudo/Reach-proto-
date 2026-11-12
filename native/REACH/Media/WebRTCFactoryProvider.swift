@@ -27,7 +27,7 @@ final class WebRTCFactoryProvider: @unchecked Sendable {
                 audio.category = AVAudioSession.Category.playAndRecord.rawValue
                 audio.mode = AVAudioSession.Mode.videoChat.rawValue
                 audio.categoryOptions = ReachAudioConfiguration.callOptions
-                RTCAudioSessionConfiguration.setWebRTCConfiguration(audio)
+                RTCAudioSessionConfiguration.setWebRTC(audio)
                 RTCInitializeSSL()
                 let handle = WebRTCFactoryHandle(factory: RTCPeerConnectionFactory(
                     encoderFactory: RTCDefaultVideoEncoderFactory(), decoderFactory: RTCDefaultVideoDecoderFactory()
