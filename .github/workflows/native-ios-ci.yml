@@ -5,6 +5,7 @@ on:
     branches:
       - native-reach
       - feature/adventure-book-foundation
+      - feature/adventure-book-gallery-pagination
       - feature/adventure-book-single-app-integration
       - feature/adventure-book-visual-fidelity
       - feature/adventure-book-approved-integration
