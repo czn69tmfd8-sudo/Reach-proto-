@@ -116,6 +116,7 @@ struct ReachAdventureBookLive: View {
             page = AdventureGalleryPagination.clampedPage(page, memoryCount: ids.count)
             if let selected = openedMemoryID, !ids.contains(selected) {
                 openedMemoryID = nil
+                commentDraft = ""
             }
         }
         .background { ReachHomeBackground() }
@@ -158,6 +159,9 @@ struct ReachAdventureBookLive: View {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: dynamicType.isAccessibilitySize ? 1 : 2), spacing: 18) {
                     ForEach(Array(memories.enumerated()), id: \.element.id) { index, memory in
                         Button {
+                            // A draft belongs to one memory only. Never carry it
+                            // into a different memory's conversation.
+                            if openedMemoryID != memory.id { commentDraft = "" }
                             openedMemoryID = memory.id
                         } label: {
                             VStack(alignment: .leading, spacing: 6) {
