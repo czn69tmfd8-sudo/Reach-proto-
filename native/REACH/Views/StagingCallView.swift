@@ -71,7 +71,10 @@ struct StagingCallView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { Task { await call.end() } }
         }
-        .onDisappear { Task { await call.end() } }
+        .onDisappear {
+            // The full-screen view takes over disappearance handling while presented.
+            if !showsCall { Task { await call.end() } }
+        }
     }
 
     private func statusLabel(_ title: String) -> some View {

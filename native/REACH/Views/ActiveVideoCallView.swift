@@ -1,7 +1,6 @@
 import AVFoundation
 import Combine
 import SwiftUI
-import UIKit
 
 struct ActiveVideoCallView: View {
     @ObservedObject var call: StagingCallController
@@ -10,7 +9,7 @@ struct ActiveVideoCallView: View {
     @Binding var cameraEnabled: Bool
 
     @Environment(\.scenePhase) private var scenePhase
-    @State private var previousIdleTimerState: Bool?
+    @State private var screenAwake = ScreenAwakeController()
     @State private var audioOutput = CallAudioOutput.current
 
     var body: some View {
@@ -57,10 +56,9 @@ struct ActiveVideoCallView: View {
         .preferredColorScheme(.dark)
         .onChange(of: keepsScreenAwake, initial: true) { _, keepAwake in
             if keepAwake {
-                previousIdleTimerState = UIApplication.shared.isIdleTimerDisabled
-                UIApplication.shared.isIdleTimerDisabled = true
+                screenAwake.acquire(reason: "videoCall")
             } else {
-                restoreIdleTimer()
+                screenAwake.release(reason: "videoCall")
             }
         }
         .onChange(of: scenePhase) { _, phase in
@@ -70,17 +68,14 @@ struct ActiveVideoCallView: View {
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification).receive(on: RunLoop.main)) { _ in
             audioOutput = .current
         }
-        .onDisappear { restoreIdleTimer() }
+        .onDisappear {
+            screenAwake.releaseAll()
+            if call.peer === peer { Task { await call.end() } }
+        }
     }
 
     private var keepsScreenAwake: Bool {
         scenePhase == .active && call.phase.showsFullScreenCall
-    }
-
-    private func restoreIdleTimer() {
-        guard let previousIdleTimerState else { return }
-        UIApplication.shared.isIdleTimerDisabled = previousIdleTimerState
-        self.previousIdleTimerState = nil
     }
 
     @ViewBuilder private var callControls: some View {
