@@ -61,6 +61,11 @@ struct ReachAdventureBookLive: View {
                    let memory = ordered.first(where: { $0.id == selectedID }) {
                     memoryPage(memory)
                     Button {
+                        if let restoredPage = AdventureGalleryPagination.page(
+                            forSelectedMemoryID: memory.id, orderedIDs: ordered.map(\.id)
+                        ) {
+                            page = restoredPage
+                        }
                         self.openedMemoryID = nil
                     } label: {
                         Label("Back to memories", systemImage: "chevron.left")
