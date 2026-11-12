@@ -34,12 +34,20 @@ struct ReachAdventureBookLive: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appearance: ReachAppearanceStore
     @State private var page = 0
+    @State private var openedMemoryID: String?
+    private let memoriesPerSpread = 8
     @State private var repository = FirestoreAdventureBookRepository()
 
     var body: some View {
         VStack(spacing: 0) {
             AdventureBookHeader(title: "Our Adventure Book") {
-                if page == 0 { dismiss() } else { page = page > 1 ? 1 : 0 }
+                if openedMemoryID != nil {
+                    openedMemoryID = nil
+                } else if page == 0 {
+                    dismiss()
+                } else {
+                    page = 0
+                }
             }
             if let error {
                 Text(error).font(.footnote).foregroundStyle(.white)
@@ -49,31 +57,45 @@ struct ReachAdventureBookLive: View {
             }
             if let book {
                 let ordered = book.orderedMemories
-                TabView(selection: $page) {
-                    ScrollView {
-                        AdventureLeatherCover { withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4)) { page = 1 } }
-                        Text("Decorative cover prints · your memories are inside")
-                            .font(.caption2).foregroundStyle(.white)
-                    }.tag(0)
-                    galleryPage(ordered).tag(1)
-                    ForEach(Array(ordered.enumerated()), id: \.element.id) { index, memory in
-                        memoryPage(memory).tag(index + 2)
+                let spreadCount = max(1, (ordered.count + memoriesPerSpread - 1) / memoriesPerSpread)
+                if let openedMemoryID, let memory = ordered.first(where: { $0.id == openedMemoryID }) {
+                    memoryPage(memory)
+                    Button {
+                        self.openedMemoryID = nil
+                    } label: {
+                        Label("Back to memories", systemImage: "chevron.left")
+                            .frame(maxWidth: .infinity, minHeight: 44)
                     }
-                    addPage.tag(ordered.count + 2)
+                    .foregroundStyle(.white)
+                } else {
+                    TabView(selection: $page) {
+                        ScrollView {
+                            AdventureLeatherCover {
+                                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4)) { page = 1 }
+                            }
+                            Text("Decorative cover prints · your memories are inside")
+                                .font(.caption2).foregroundStyle(.white)
+                        }.tag(0)
+                        ForEach(0..<spreadCount, id: \.self) { spread in
+                            galleryPage(Array(ordered.dropFirst(spread * memoriesPerSpread).prefix(memoriesPerSpread)),
+                                        spread: spread, totalSpreads: spreadCount)
+                                .tag(spread + 1)
+                        }
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.32), value: page)
+                    .onChange(of: ordered.count) { _, _ in page = min(page, spreadCount) }
+                    HStack {
+                        Button("Previous") { page = max(0, page - 1) }.disabled(page == 0)
+                        Spacer()
+                        Text(page == 0 ? "Cover" : "Memories · \(page) of \(spreadCount)").font(.caption)
+                        Spacer()
+                        Button("Next") { page = min(spreadCount, page + 1) }
+                            .disabled(page == spreadCount)
+                    }
+                    .font(.caption).foregroundStyle(.white).padding(.horizontal, 18)
+                    .frame(minHeight: 44)
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(reduceMotion ? nil : .easeInOut(duration: 0.32), value: page)
-                .onChange(of: ordered.count) { _, count in page = min(page, count + 2) }
-                HStack {
-                    Button("Previous") { page = max(0, page - 1) }.disabled(page == 0)
-                    Spacer()
-                    Text("Page \(page + 1) of \(ordered.count + 3)").font(.caption)
-                    Spacer()
-                    Button("Next") { page = min(ordered.count + 2, page + 1) }
-                        .disabled(page == ordered.count + 2)
-                }
-                .font(.caption).foregroundStyle(.white).padding(.horizontal, 18)
-                .frame(minHeight: 44)
             } else if error == nil {
                 ProgressView("Checking private pairing and loading our book…").tint(.white).foregroundStyle(.white)
             }
@@ -99,10 +121,13 @@ struct ReachAdventureBookLive: View {
         }
     }
 
-    private func galleryPage(_ memories: [AdventureMemory]) -> some View {
+    private func galleryPage(_ memories: [AdventureMemory], spread: Int, totalSpreads: Int) -> some View {
         AdventureParchmentPage {
             VStack(alignment: .leading, spacing: 18) {
                 AdventureGalleryHeading()
+                Text("Page \(spread + 1) of \(totalSpreads)")
+                    .font(AdventureBookPalette.serif(14, relativeTo: .caption))
+                    .frame(maxWidth: .infinity)
                 if memories.isEmpty {
                     Text("Our story begins with the first memory we add.")
                         .font(AdventureBookPalette.handwriting(21))
@@ -111,7 +136,7 @@ struct ReachAdventureBookLive: View {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: dynamicType.isAccessibilitySize ? 1 : 2), spacing: 18) {
                     ForEach(Array(memories.enumerated()), id: \.element.id) { index, memory in
                         Button {
-                            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.32)) { page = index + 2 }
+                            openedMemoryID = memory.id
                         } label: {
                             VStack(alignment: .leading, spacing: 6) {
                                 AdventureMountedFrame(title: memory.title) {
