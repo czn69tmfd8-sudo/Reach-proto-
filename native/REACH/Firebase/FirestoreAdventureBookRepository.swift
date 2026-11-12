@@ -77,8 +77,16 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
             if page.documents.count < 50 { break }
             // Refuse an unexpectedly large book instead of issuing unlimited
             // reads or presenting an incomplete book as fully synchronized.
-            guard memorySnapshots.count < 500 else {
-                throw AdventureBookRepositoryError.unavailable
+            if memorySnapshots.count >= 500 {
+                guard let lastMemory else { throw AdventureBookRepositoryError.unavailable }
+                let overflow = try await memoriesCollection(pairCode)
+                    .order(by: FieldPath.documentID())
+                    .start(afterDocument: lastMemory)
+                    .limit(to: 1).getDocuments(source: .server)
+                guard overflow.documents.isEmpty else {
+                    throw AdventureBookRepositoryError.unavailable
+                }
+                break
             }
         } while true
         var memories: [AdventureMemory] = []
