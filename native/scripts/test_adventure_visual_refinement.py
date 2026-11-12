@@ -56,10 +56,16 @@ class AdventureBookVisualRegressionTests(unittest.TestCase):
         self.assertIn("FirestoreAdventurePhotoTransport()", source)
         self.assertNotIn("downloadURL(", source)
 
-    def test_story_save_preserves_authentication_without_unused_uid(self):
+    def test_story_save_uses_authenticated_session_and_captured_version(self):
         source = (VIEWS / "ReachAdventureBookLive.swift").read_text()
-        self.assertIn("guard let code = pairCode, Auth.auth().currentUser != nil else { return }", source)
-        self.assertIn("expectedVersion: selectedStoryVersion", source)
+        editor = source.split(".sheet(item: $selectedMemory)", 1)[1].split("private func galleryPage", 1)[0]
+        save = source.split("private func saveStory", 1)[1].split("private func postComment", 1)[0]
+        self.assertIn("let version = selectedStoryVersion", editor)
+        self.assertIn("let epoch = connectionEpoch", editor)
+        self.assertIn("version: version, epoch: epoch", editor)
+        self.assertIn("guard connectionEpoch == epoch else { return }", save)
+        self.assertIn("guard let code = pairCode, Auth.auth().currentUser != nil else { return }", save)
+        self.assertIn("expectedVersion: version", save)
 
     def test_gallery_does_not_auto_import_private_content(self):
         source = (VIEWS / "ReachAdventureBookLive.swift").read_text()
