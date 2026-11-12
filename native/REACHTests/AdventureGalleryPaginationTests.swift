@@ -59,6 +59,15 @@ final class AdventureGalleryPaginationTests: XCTestCase {
         XCTAssertNil(AdventureGalleryPagination.nextPageOrder(existing: [-1]))
     }
 
+    func testMemoryAppendRequiresCompleteSnapshot() {
+        XCTAssertTrue(AdventureGalleryPagination.canAppendMemory(loadedCount: 0))
+        XCTAssertTrue(AdventureGalleryPagination.canAppendMemory(loadedCount: 49))
+        XCTAssertFalse(AdventureGalleryPagination.canAppendMemory(loadedCount: 50))
+        XCTAssertFalse(AdventureGalleryPagination.canAppendMemory(loadedCount: 51))
+        XCTAssertFalse(AdventureGalleryPagination.canAppendMemory(loadedCount: -1))
+        XCTAssertFalse(AdventureGalleryPagination.canAppendMemory(loadedCount: 0, queryLimit: 0))
+    }
+
     func testLargeGalleryDoesNotOverflowRange() {
         XCTAssertEqual(AdventureGalleryPagination.memoryRange(spread: 124, memoryCount: 1000), 992..<1000)
         XCTAssertEqual(AdventureGalleryPagination.spreadCount(memoryCount: 1000), 125)
