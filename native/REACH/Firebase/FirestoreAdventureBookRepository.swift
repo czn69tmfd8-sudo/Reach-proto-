@@ -75,7 +75,30 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
             }
             let ref = snapshot.reference
             let storyDocs = try await ref.collection("stories").limit(to: 2).getDocuments(source: .server)
-            let commentDocs = try await ref.collection("comments").limit(to: 50).getDocuments(source: .server)
+            // Read the full supported conversation in bounded server pages.
+            // A single 50-document query silently hid older comments.
+            var commentSnapshots: [QueryDocumentSnapshot] = []
+            var lastComment: QueryDocumentSnapshot?
+            repeat {
+                var query: Query = ref.collection("comments")
+                    .order(by: FieldPath.documentID()).limit(to: 50)
+                if let lastComment { query = query.start(afterDocument: lastComment) }
+                let page = try await query.getDocuments(source: .server)
+                commentSnapshots.append(contentsOf: page.documents)
+                lastComment = page.documents.last
+                if page.documents.count < 50 { break }
+                // Never silently present a truncated conversation as complete.
+                if commentSnapshots.count >= 500 {
+                    let overflow = try await ref.collection("comments")
+                        .order(by: FieldPath.documentID())
+                        .start(afterDocument: lastComment!)
+                        .limit(to: 1).getDocuments(source: .server)
+                    guard overflow.documents.isEmpty else {
+                        throw AdventureBookRepositoryError.unavailable
+                    }
+                    break
+                }
+            } while true
             let photoDocs = try await ref.collection("photos").limit(to: 50).getDocuments(source: .server)
             let stories = try storyDocs.documents.map { item -> AdventureMemory.Story in
                 let data = item.data()
@@ -86,7 +109,7 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
                 }
                 return .init(authorUID: uid, text: text, updatedAt: time.dateValue())
             }
-            let comments = try commentDocs.documents.map { item -> AdventureMemory.Comment in
+            let comments = try commentSnapshots.map { item -> AdventureMemory.Comment in
                 let data = item.data()
                 guard let uid = data["authorUid"] as? String,
                       let text = data["text"] as? String,
@@ -258,7 +281,12 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
             let base = memoriesCollection(pairCode).document(memory.id)
             var registrations: [ListenerRegistration] = []
             for name in ["stories", "comments", "photos"] {
-                let registration = base.collection(name).limit(to: 50).addSnapshotListener {
+                // Listen to the newest comments, not an arbitrary first fifty.
+                // Full history is recovered by the paged server refresh above.
+                let query: Query = name == "comments"
+                    ? base.collection(name).order(by: "createdAt", descending: true).limit(to: 50)
+                    : base.collection(name).limit(to: 50)
+                let registration = query.addSnapshotListener {
                     [weak self] snapshot, error in
                     Task { @MainActor [weak self] in
                         guard let self, self.observationGeneration == generation else { return }
