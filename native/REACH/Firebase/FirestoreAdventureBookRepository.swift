@@ -16,6 +16,9 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     private var observationGeneration = 0
     private var refreshInFlight = false
     private var refreshRequested = false
+    // Ignore each child listener's initial server snapshot: the full
+    // authorized load already includes its contents.
+    private var initialChildSnapshots = Set<String>()
 
     init(db: Firestore = Firestore.firestore()) {
         self.db = db
@@ -306,11 +309,16 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
         let currentIDs = Set(childListeners.keys)
         for removed in currentIDs.subtracting(existingIDs) {
             childListeners.removeValue(forKey: removed)?.forEach { $0.remove() }
+            for name in ["stories", "comments", "photos"] {
+                initialChildSnapshots.remove("\(removed)/\(name)")
+            }
         }
         for memory in book.memories where childListeners[memory.id] == nil {
             let base = memoriesCollection(pairCode).document(memory.id)
             var registrations: [ListenerRegistration] = []
             for name in ["stories", "comments", "photos"] {
+                let listenerKey = "\(memory.id)/\(name)"
+                initialChildSnapshots.insert(listenerKey)
                 // Listen to the newest comments, not an arbitrary first fifty.
                 // Full history is recovered by the paged server refresh above.
                 let query: Query = name == "comments"
@@ -326,6 +334,7 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
                             return
                         }
                         guard snapshot?.metadata.isFromCache == false else { return }
+                        if self.initialChildSnapshots.remove(listenerKey) != nil { return }
                         self.scheduleRefresh(pairCode: pairCode, generation: generation, onChange: onChange)
                     }
                 }
@@ -341,6 +350,7 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
         listener = nil
         childListeners.values.flatMap { $0 }.forEach { $0.remove() }
         childListeners = [:]
+        initialChildSnapshots.removeAll()
         observingCode = nil
         refreshRequested = false
         refreshInFlight = false
