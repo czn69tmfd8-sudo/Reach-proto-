@@ -84,10 +84,6 @@ struct ReachAdventureBookLive: View {
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
                     .animation(reduceMotion ? nil : .easeInOut(duration: 0.32), value: page)
-                    .onChange(of: ordered.map(\.id)) { _, ids in
-                        page = AdventureGalleryPagination.clampedPage(page, memoryCount: ids.count)
-                        if let selected = openedMemoryID, !ids.contains(selected) { openedMemoryID = nil }
-                    }
                     HStack {
                         Button("Previous") { page = AdventureGalleryPagination.clampedPage(page - 1, memoryCount: ordered.count) }.disabled(page == 0)
                         Spacer()
@@ -103,6 +99,12 @@ struct ReachAdventureBookLive: View {
                 ProgressView("Checking private pairing and loading our book…").tint(.white).foregroundStyle(.white)
             }
             if book == nil { Spacer() }
+        }
+        .onChange(of: book?.orderedMemories.map(\.id) ?? []) { _, ids in
+            page = AdventureGalleryPagination.clampedPage(page, memoryCount: ids.count)
+            if let selected = openedMemoryID, !ids.contains(selected) {
+                openedMemoryID = nil
+            }
         }
         .background { ReachHomeBackground() }
         .toolbar(.hidden, for: .navigationBar)
