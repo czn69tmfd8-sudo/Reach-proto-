@@ -81,6 +81,15 @@ struct AdventureGalleryPagination {
         return index / memoriesPerSpread + 1
     }
 
+    /// Preserve ordering gaps; a new memory belongs after the highest existing
+    /// page order, not after the number of memories currently loaded.
+    /// A saturated order must be rejected rather than silently colliding.
+    static func nextPageOrder(existing: [Int]) -> Int? {
+        guard let maximum = existing.max() else { return 0 }
+        guard maximum >= 0, maximum < Int.max else { return nil }
+        return maximum + 1
+    }
+
     static func selectedMemoryID(_ selectedID: String?, availableIDs: [String]) -> String? {
         guard let selectedID, availableIDs.contains(selectedID) else { return nil }
         return selectedID
