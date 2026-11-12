@@ -355,10 +355,13 @@ struct ReachAdventureBookLive: View {
             let id = UUID().uuidString.lowercased()
             // Page order is a persisted sequence, not the number of currently
             // visible memories. Using count can collide after gaps or removals.
-            guard let nextOrder = AdventureGalleryPagination.nextPageOrder(
-                existing: book?.memories.map(\.pageOrder) ?? []
-            ) else {
-                throw AdventureBookRepositoryError.invalidMemory
+            guard let currentBook = book,
+                  AdventureGalleryPagination.canAppendMemory(loadedCount: currentBook.memories.count),
+                  let nextOrder = AdventureGalleryPagination.nextPageOrder(
+                      existing: currentBook.memories.map(\.pageOrder)
+                  ) else {
+                // Do not invent a position from an incomplete server snapshot.
+                throw AdventureBookRepositoryError.conflict
             }
             let memory = AdventureMemory(id: id, pairCode: code, creatorUID: uid,
                                          title: title, occurredAt: date, stories: [],
