@@ -106,9 +106,21 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
                 return .init(id: item.documentID, ownerUID: owner,
                              storagePath: path, caption: caption, position: position)
             }
+            // Firestore does not promise document order without orderBy.
+            // Normalize nested collections for consistent two-device rendering.
+            let orderedStories = stories.sorted { $0.authorUID < $1.authorUID }
+            let orderedComments = comments.sorted {
+                if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
+                return $0.id < $1.id
+            }
+            let orderedPhotos = photos.sorted {
+                if $0.position != $1.position { return $0.position < $1.position }
+                return $0.id < $1.id
+            }
             memories.append(.init(id: snapshot.documentID, pairCode: pairCode,
                                   creatorUID: creator, title: title, occurredAt: date.dateValue(),
-                                  stories: stories, photos: photos, comments: comments, pageOrder: order))
+                                  stories: orderedStories, photos: orderedPhotos,
+                                  comments: orderedComments, pageOrder: order))
         }
         // Pairing can be revoked during the multi-request load. Revalidate
         // before any assembled content is returned to the view.
