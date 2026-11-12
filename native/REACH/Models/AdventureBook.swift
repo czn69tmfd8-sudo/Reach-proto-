@@ -88,6 +88,13 @@ struct AdventureGalleryPagination {
         return spread(forMemoryAt: index)
     }
 
+    /// The current server query is limited to fifty memories. Do not allow
+    /// appends when that query may be incomplete: a newly computed pageOrder
+    /// could collide with an older, unseen memory.
+    static func canAppendMemory(loadedCount: Int, queryLimit: Int = 50) -> Bool {
+        loadedCount >= 0 && queryLimit > 0 && loadedCount < queryLimit
+    }
+
     /// Preserve ordering gaps; a new memory belongs after the highest existing
     /// page order, not after the number of memories currently loaded.
     /// A saturated order must be rejected rather than silently colliding.
