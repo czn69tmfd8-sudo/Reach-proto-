@@ -61,14 +61,15 @@ struct AdventureGalleryPagination {
     static let memoriesPerSpread = 8
 
     static func spreadCount(memoryCount: Int) -> Int {
-        max(1, (max(0, memoryCount) + memoriesPerSpread - 1) / memoriesPerSpread)
+        max(1, max(0, memoryCount) / memoriesPerSpread + (max(0, memoryCount) % memoriesPerSpread == 0 ? 0 : 1))
     }
 
     static func memoryRange(spread: Int, memoryCount: Int) -> Range<Int> {
         let count = max(0, memoryCount)
         guard spread >= 0, spread < spreadCount(memoryCount: count) else { return 0..<0 }
         let start = spread * memoriesPerSpread
-        return start..<min(start + memoriesPerSpread, count)
+        guard start < count else { return 0..<0 }
+        return start..<(start + min(memoriesPerSpread, count - start))
     }
 
     static func clampedPage(_ page: Int, memoryCount: Int) -> Int {
