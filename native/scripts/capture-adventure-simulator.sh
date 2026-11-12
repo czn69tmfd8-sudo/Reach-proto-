@@ -17,7 +17,9 @@ xcrun simctl ui "$DEVICE_ID" content_size large
 for PAGE in 0 1 2; do
   xcrun simctl terminate "$DEVICE_ID" com.reachprototype.app || true
   xcrun simctl launch "$DEVICE_ID" com.reachprototype.app --adventure-sample-page="$PAGE"
-  sleep 2
+  # The app can briefly show its white launch surface after simctl launch.
+  # Wait for SwiftUI's sample fixture to finish its first render before capture.
+  sleep 7
   xcrun simctl io "$DEVICE_ID" screenshot "$OUTPUT/page-$PAGE.png"
 done
 xcrun simctl ui "$DEVICE_ID" content_size accessibility-extra-extra-extra-large
