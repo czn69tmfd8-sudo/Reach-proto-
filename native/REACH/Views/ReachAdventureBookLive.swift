@@ -131,6 +131,11 @@ struct ReachAdventureBookLive: View {
                 Text("Page \(spread + 1) of \(totalSpreads)")
                     .font(AdventureBookPalette.serif(14, relativeTo: .caption))
                     .frame(maxWidth: .infinity)
+                if book?.memories.count == 50 {
+                    Text("Showing up to 50 saved memories while expanded secure loading is being developed. Older memories may not appear yet.")
+                        .font(.caption)
+                        .accessibilityAddTraits(.isStaticText)
+                }
                 if memories.isEmpty {
                     Text("Our story begins with the first memory we add.")
                         .font(AdventureBookPalette.handwriting(21))
