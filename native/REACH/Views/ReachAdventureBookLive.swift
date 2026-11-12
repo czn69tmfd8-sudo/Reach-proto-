@@ -94,6 +94,7 @@ struct ReachAdventureBookLive: View {
                     }
                     .font(.caption).foregroundStyle(.white).padding(.horizontal, 18)
                     .frame(minHeight: 44)
+                    .accessibilityElement(children: .contain)
                 }
             } else if error == nil {
                 ProgressView("Checking private pairing and loading our book…").tint(.white).foregroundStyle(.white)
@@ -173,7 +174,8 @@ struct ReachAdventureBookLive: View {
                             .rotationEffect(.degrees(index.isMultiple(of: 2) ? -2 : 2))
                         }
                         .buttonStyle(.plain)
-                        .accessibilityHint("Open saved memory page")
+                        .accessibilityLabel("Open memory: \(memory.title)")
+                        .accessibilityHint("Opens this memory’s stories, photographs and conversation")
                     }
                 }
                 Button { showingNewMemory = true } label: {
