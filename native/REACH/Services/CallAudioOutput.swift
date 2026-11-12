@@ -1,10 +1,19 @@
 import AVFoundation
+@preconcurrency import WebRTC
 
 enum CallAudioOutput: Equatable {
     case speaker, receiver, bluetooth, headphones, other, unavailable
 
     static var current: Self {
         Self(ports: AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType))
+    }
+
+    @MainActor
+    static func setSpeakerOverride(_ enabled: Bool) throws {
+        let session = RTCAudioSession.sharedInstance()
+        session.lockForConfiguration()
+        defer { session.unlockForConfiguration() }
+        try session.overrideOutputAudioPort(enabled ? .speaker : .none)
     }
 
     init(ports: [AVAudioSession.Port]) {

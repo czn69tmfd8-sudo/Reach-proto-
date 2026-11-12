@@ -11,47 +11,55 @@ struct ActiveVideoCallView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var screenAwake = ScreenAwakeController()
     @State private var audioOutput = CallAudioOutput.current
+    @State private var controlsVisible = true
+    @State private var speakerOverride = false
+    @State private var audioError = false
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
             if let remoteVideo = peer.remoteVideo {
                 WebRTCVideoView(track: remoteVideo)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .ignoresSafeArea()
-                    .accessibilityLabel("Partner video")
+                    .accessibilityHidden(true)
+            }
+            Button {
+                controlsVisible.toggle()
+            } label: {
+                Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .ignoresSafeArea()
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(controlsVisible ? "Hide call controls" : "Show call controls")
+            .accessibilityIdentifier("reach.toggleCallControls")
+        }
+        .overlay(alignment: .topTrailing) {
+            if cameraEnabled, let localVideo = peer.localVideo {
+                WebRTCVideoView(track: localVideo)
+                    .frame(width: 92, height: 124)
+                    .background(.black)
+                    .clipShape(.rect(cornerRadius: 12))
+                    .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(.white.opacity(0.6)) }
+                    .padding(14)
+                    .allowsHitTesting(false)
+                    .accessibilityLabel("Your camera preview")
             }
         }
-        .safeAreaInset(edge: .top) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(call.phase == .interrupted ? "Reconnecting…" : "Video call")
-                        .font(.headline)
-                        .accessibilityIdentifier("reach.connectionStatus")
-                    Text(audioOutput.title)
-                        .font(.subheadline)
-                        .accessibilityIdentifier("reach.callAudioOutput")
-                }
-                Spacer(minLength: 8)
-                if cameraEnabled {
-                    WebRTCVideoView(track: peer.localVideo)
-                        .frame(width: 88, height: 118)
-                        .background(.black)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .accessibilityLabel("Your camera preview")
-                }
+        .overlay(alignment: .topLeading) {
+            if call.phase == .interrupted {
+                Text("Reconnecting…")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(10)
+                    .background(.black.opacity(0.78), in: Capsule())
+                    .padding(14)
+                    .accessibilityIdentifier("reach.connectionStatus")
             }
-            .padding(12)
-            .background(.black.opacity(0.78))
         }
-        .safeAreaInset(edge: .bottom) {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) { callControls }
-                VStack(spacing: 8) { callControls }
-            }
-            .buttonStyle(.borderedProminent)
-            .padding(12)
-            .frame(maxWidth: .infinity)
-            .background(.black.opacity(0.78))
+        .overlay(alignment: .bottom) {
+            if controlsVisible { callControls }
         }
         .preferredColorScheme(.dark)
         .onChange(of: keepsScreenAwake, initial: true) { _, keepAwake in
@@ -63,13 +71,14 @@ struct ActiveVideoCallView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { Task { await call.end() } }
-            if phase == .active { audioOutput = .current }
+            if phase == .active { refreshAudioOutput() }
         }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification).receive(on: RunLoop.main)) { _ in
-            audioOutput = .current
+            refreshAudioOutput()
         }
         .onDisappear {
             screenAwake.releaseAll()
+            if speakerOverride { try? CallAudioOutput.setSpeakerOverride(false) }
             if call.peer === peer { Task { await call.end() } }
         }
     }
@@ -78,31 +87,61 @@ struct ActiveVideoCallView: View {
         scenePhase == .active && call.phase.showsFullScreenCall
     }
 
-    @ViewBuilder private var callControls: some View {
-        Button {
-            muted.toggle()
-            peer.setMuted(muted)
-        } label: {
-            Label(muted ? "Unmute" : "Mute", systemImage: muted ? "mic.slash.fill" : "mic.fill")
-                .frame(minHeight: 32)
+    private var callControls: some View {
+        VStack(spacing: 8) {
+            Text(audioError ? "Couldn’t change audio output. \(audioOutput.title)" : audioOutput.title)
+                .font(.footnote)
+                .multilineTextAlignment(.center)
+                .accessibilityIdentifier("reach.callAudioOutput")
+            HStack(spacing: 12) {
+                control(muted ? "Unmute microphone" : "Mute microphone",
+                        icon: muted ? "mic.slash.fill" : "mic.fill", id: "reach.callMute") {
+                    muted.toggle()
+                    peer.setMuted(muted)
+                }
+                control(cameraEnabled ? "Stop sending video" : "Send video",
+                        icon: cameraEnabled ? "video.fill" : "video.slash.fill", id: "reach.callVideo") {
+                    cameraEnabled.toggle()
+                    peer.setCameraEnabled(cameraEnabled)
+                }
+                control(speakerOverride ? "Use automatic audio routing" : "Use iPhone speaker",
+                        icon: audioOutput == .speaker ? "speaker.wave.2.fill" : "speaker.fill", id: "reach.callSpeaker") {
+                    do {
+                        try CallAudioOutput.setSpeakerOverride(!speakerOverride)
+                        speakerOverride.toggle()
+                        audioError = false
+                        audioOutput = .current
+                    } catch {
+                        audioError = true
+                        refreshAudioOutput()
+                    }
+                }
+                control("End call", icon: "phone.down.fill", id: "reach.endCall", tint: .red) {
+                    Task { await call.end() }
+                }
+            }
         }
-        .tint(.gray)
-        .accessibilityIdentifier("reach.callMute")
-        Button {
-            cameraEnabled.toggle()
-            peer.setCameraEnabled(cameraEnabled)
-        } label: {
-            Label(cameraEnabled ? "Stop video" : "Send video", systemImage: cameraEnabled ? "video.fill" : "video.slash.fill")
-                .frame(minHeight: 32)
+        .padding(12)
+        .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 22))
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+    }
+
+    private func control(_ title: String, icon: String, id: String, tint: Color = .gray,
+                         action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .frame(width: 48, height: 48)
+                .background(tint.opacity(0.8), in: Circle())
         }
-        .tint(.gray)
-        .accessibilityIdentifier("reach.callVideo")
-        Button(role: .destructive) {
-            Task { await call.end() }
-        } label: {
-            Label("End call", systemImage: "phone.down.fill").frame(minHeight: 32)
-        }
-        .tint(.red)
-        .accessibilityIdentifier("reach.endCall")
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityIdentifier(id)
+    }
+
+    private func refreshAudioOutput() {
+        audioOutput = .current
+        if audioOutput != .speaker { speakerOverride = false }
     }
 }
