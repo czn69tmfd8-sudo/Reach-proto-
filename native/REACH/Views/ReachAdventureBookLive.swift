@@ -163,8 +163,8 @@ struct ReachAdventureBookLive: View {
                 Text("Page \(spread + 1) of \(totalSpreads)")
                     .font(AdventureBookPalette.serif(14, relativeTo: .caption))
                     .frame(maxWidth: .infinity)
-                if book?.memories.count == 50 {
-                    Text("Showing up to 50 saved memories while expanded secure loading is being developed. Older memories may not appear yet.")
+                if (book?.memories.count ?? 0) >= 500 {
+                    Text("This book has reached the current 500-memory safety limit.")
                         .font(.caption)
                         .accessibilityAddTraits(.isStaticText)
                 }
@@ -211,7 +211,7 @@ struct ReachAdventureBookLive: View {
                     }
                 }
                 if AdventureGalleryPagination.canAppendMemory(
-                    loadedCount: book?.memories.count ?? 50
+                    loadedCount: book?.memories.count ?? 500, queryLimit: 500
                 ) {
                     Button { showingNewMemory = true } label: {
                         Label("Add a New Memory", systemImage: "plus")
@@ -221,7 +221,7 @@ struct ReachAdventureBookLive: View {
                     .background(AdventureBookPalette.burgundy, in: Capsule())
                     .disabled(busy).padding(.horizontal, 14)
                 } else {
-                    Text("Adding more memories is temporarily paused until secure loading supports the full book.")
+                    Text("Adding more memories is paused at the current 500-memory safety limit.")
                         .font(.caption)
                         .foregroundStyle(AdventureBookPalette.ink)
                         .accessibilityAddTraits(.isStaticText)
@@ -391,7 +391,7 @@ struct ReachAdventureBookLive: View {
             // Page order is a persisted sequence, not the number of currently
             // visible memories. Using count can collide after gaps or removals.
             guard let currentBook = book,
-                  AdventureGalleryPagination.canAppendMemory(loadedCount: currentBook.memories.count),
+                  AdventureGalleryPagination.canAppendMemory(loadedCount: currentBook.memories.count, queryLimit: 500),
                   let nextOrder = AdventureGalleryPagination.nextPageOrder(
                       existing: currentBook.memories.map(\.pageOrder)
                   ) else {
