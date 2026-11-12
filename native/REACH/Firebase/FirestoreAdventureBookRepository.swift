@@ -226,6 +226,33 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
             throw AdventureBookRepositoryError.invalidMemory
         }
         let ref = db.document(path)
+        let quotaRef = AdventureBookQuotaPolicy.enforcementEnabled
+            ? db.collection("adventureBookQuotas").document(memory.pairCode) : nil
+        do {
+            try await commitMemory(memory, uid: uid, ref: ref, quotaRef: quotaRef)
+        } catch {
+            // A server rejection can win the race before the SDK retries.
+            // Classify it as full only after fresh authorized reads.
+            if let quotaRef,
+               let quotaSnapshot = try? await quotaRef.getDocument(source: .server),
+               let count = quotaSnapshot.data()?["count"] as? Int,
+               count >= AdventureBookQuotaPolicy.maximumMemories,
+               let existing = try? await ref.getDocument(source: .server), !existing.exists {
+                throw AdventureBookQuotaError.full
+            }
+            throw error
+        }
+        if !initialStory.isEmpty {
+            _ = try await verifiedCode(memory.pairCode)
+            try await stories.saveOwnStory(pairCode: memory.pairCode, memoryID: memory.id, uid: uid,
+                                           text: initialStory, expectedVersion: nil,
+                                           acceptIdenticalCreate: true)
+        }
+    }
+
+    private func commitMemory(
+        _ memory: AdventureMemory, uid: String, ref: DocumentReference, quotaRef: DocumentReference?
+    ) async throws {
         let occurredAt = Timestamp(date: memory.occurredAt)
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             db.runTransaction({ transaction, pointer -> Any? in
@@ -243,6 +270,11 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
                     }
                     return nil
                 }
+                if let quotaRef {
+                    let quota = try transaction.getDocument(quotaRef)
+                    let nextCount = try AdventureBookQuotaPolicy.nextCount(from: quota.data()?["count"] as? Int)
+                    transaction.updateData(["count": nextCount, "lastMemoryID": memory.id], forDocument: quotaRef)
+                }
                 transaction.setData([
                     "pairCode": memory.pairCode,
                     "creatorUid": uid,
@@ -259,14 +291,6 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
                 if let error { continuation.resume(throwing: error) }
                 else { continuation.resume(returning: ()) }
             })
-        }
-        if !initialStory.isEmpty {
-            // The current rules require the memory to exist before its story.
-            // A retry adopts the original memory and can finish this second write.
-            _ = try await verifiedCode(memory.pairCode)
-            try await stories.saveOwnStory(pairCode: memory.pairCode, memoryID: memory.id, uid: uid,
-                                           text: initialStory, expectedVersion: nil,
-                                           acceptIdenticalCreate: true)
         }
     }
 

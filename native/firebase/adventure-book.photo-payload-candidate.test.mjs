@@ -2,10 +2,24 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { after, before, beforeEach, test } from 'node:test';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
-import { Bytes, collection, deleteDoc, doc, getDocFromServer, getDocsFromServer, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { Bytes, collection, deleteDoc, doc, getDocFromServer, getDocsFromServer, runTransaction, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 
 // Emulator-only fixture. No bucket, public URLs, or app data are used.
 const imageRules = `
+  match /privatePhotoPreviews/preview {
+    allow get: if adventureAuthorized(code)
+      && exists(/databases/$(database)/documents/adventureBooks/$(code)/memories/$(memoryID));
+    allow create: if adventureAuthorized(code)
+      && exists(/databases/$(database)/documents/adventureBooks/$(code)/memories/$(memoryID))
+      && request.resource.data.keys().hasOnly(['ownerUid', 'operationID', 'bytes', 'createdAt'])
+      && request.resource.data.ownerUid == request.auth.uid
+      && request.resource.data.operationID is string
+      && request.resource.data.operationID.matches('[A-Za-z0-9_-]{1,128}')
+      && request.resource.data.bytes is bytes
+      && request.resource.data.bytes.size() > 0
+      && request.resource.data.bytes.size() <= 262144
+      && request.resource.data.createdAt == request.time;
+  }
   match /photoPayloads/{photoID} {
     allow get: if adventureAuthorized(code)
       && exists(/databases/$(database)/documents/adventureBooks/$(code)/memories/$(memoryID));
@@ -103,4 +117,45 @@ test('a changed lock or pair revocation denies subsequent server reads and write
   await assertFails(getDocFromServer(payload(a)));
   await assertFails(getDocFromServer(payload(b)));
   await assertFails(setDoc(payload(b, 'revoked'), image('b')));
+});
+
+const preview = d => doc(memory(d), 'privatePhotoPreviews', 'preview');
+
+// Node's emulator client uses in-memory SDK state. Read paths require a
+// server response; callers never fall back to a locally available payload.
+function publishPreview(d, ownerUid, operationID, bytes) {
+  const ref = preview(d);
+  return runTransaction(d, async transaction => {
+    const existing = await transaction.get(ref);
+    if (existing.exists()) {
+      const data = existing.data();
+      if (data.ownerUid !== ownerUid || data.operationID !== operationID || !data.bytes.isEqual(bytes)) {
+        throw Error('photo-conflict');
+      }
+      return;
+    }
+    transaction.set(ref, { ownerUid, operationID, bytes, createdAt: serverTimestamp() });
+  });
+}
+
+test('one immutable preview per memory keeps metadata and bytes together across retries', async () => {
+  const a = db('a'), b = db('b');
+  const bytes = image('a').bytes;
+  await assertSucceeds(publishPreview(a, 'a', 'stable-operation', bytes));
+  const original = (await getDocFromServer(preview(b))).data();
+  await assertSucceeds(publishPreview(a, 'a', 'stable-operation', bytes));
+  assert.deepEqual((await getDocFromServer(preview(b))).data(), original);
+  await assert.rejects(publishPreview(a, 'a', 'stable-operation', image('a', 17).bytes), /photo-conflict/);
+  await assert.rejects(publishPreview(b, 'b', 'other-operation', bytes), /photo-conflict/);
+  await assertFails(setDoc(doc(memory(a), 'privatePhotoPreviews', 'second-slot'), {
+    ...image('a'), operationID: 'another-slot',
+  }));
+  await assertFails(getDocsFromServer(collection(memory(b), 'privatePhotoPreviews')));
+  await assertFails(getDocFromServer(preview(db('c'))));
+
+  await env.withSecurityRulesDisabled(async context => {
+    await updateDoc(doc(context.firestore(), root, 'pairInvites', A), { revoked: true });
+  });
+  await assertFails(getDocFromServer(preview(b)));
+  await assertFails(publishPreview(a, 'a', 'stable-operation', bytes));
 });

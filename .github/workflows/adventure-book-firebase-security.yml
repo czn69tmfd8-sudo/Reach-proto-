@@ -33,7 +33,7 @@ jobs:
       - name: Install pinned Firebase emulator dependencies
         run: npm ci
       - name: Test fail-closed offline additive rules merge
-        run: node --test merge-live-adventure-rules.test.mjs
+        run: node --test merge-live-adventure-rules.test.mjs adventure-book-quota-plan.test.mjs
       - name: Assemble review-only Firestore rules
         run: node prepare-adventure-rules.mjs
       - name: Run isolated Adventure Book Firestore security tests

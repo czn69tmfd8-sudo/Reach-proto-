@@ -71,3 +71,27 @@ struct AdventureStoryWrite: Equatable, Sendable {
     let authorUID: String
     let expectedVersion: String?
 }
+
+/// Set only after the staging quota migration is separately approved and verified.
+enum AdventureBookQuotaPolicy {
+    static let enforcementEnabled = false
+    static let maximumMemories = 500
+
+    static func nextCount(from count: Int?) throws -> Int {
+        guard let count, count >= 0 else { throw AdventureBookQuotaError.unavailable }
+        guard count < maximumMemories else { throw AdventureBookQuotaError.full }
+        return count + 1
+    }
+}
+
+enum AdventureBookQuotaError: LocalizedError, Equatable {
+    case full
+    case unavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .full: "This Adventure Book has reached 500 memories."
+        case .unavailable: "Memory creation is temporarily unavailable for this book."
+        }
+    }
+}

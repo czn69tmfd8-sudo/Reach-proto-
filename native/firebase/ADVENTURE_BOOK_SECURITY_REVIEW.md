@@ -133,3 +133,78 @@ The emulator exercises freeze, synthetic backfill, enforcement, rollback to
 freeze and reopening with existing memories and counters preserved. Live rule
 deployment, inventory, app migration and photo activation require separate
 approval.
+
+## Quota-aware client and migration rehearsal
+
+The iOS repository can reserve the final slot and create the memory in one
+transaction. The staging activation constant defaults off. When enabled in a
+separately approved build, a missing counter blocks new creation, an existing
+matching memory ID retries without consuming a slot, and a rejected write only
+reports a full book after authorized server reads confirm a full counter and an
+absent attempted memory. The initial story follows the existing retryable
+second-write protocol.
+
+Run `node native/firebase/adventure-book-quota-plan.mjs INVENTORY.json` with a
+frozen inventory captured by an authorized operator. Input is an object with
+`creationFrozen: true` and a `books` array containing `pairCode`,
+`memoryCount`, and optional `existingQuota`. The planner prints a review-only
+JSON plan. It has no Firebase dependency, credentials, or write mode. Its freeze
+flag records the operator's input and cannot verify a real freeze. Missing
+counters for in-limit books receive proposed initial values. Drift and
+over-limit books require explicit reconciliation and receive no proposed write.
+
+Before staging approval, assemble and review the exact frozen and enforced
+rules, verify every writer participates in the freeze, inventory and rehearse
+the plan with synthetic accounts, and approve an operator and rollback owner.
+After separate authorization, rehearse a hosted staging cutover, verify old
+clients cannot create uncounted memories, and exercise competing final-slot
+writes and repeat IDs. Roll back to the creation freeze and reconcile from
+current data before reopening. Preserve existing memories and post-cutover
+writes. Live inventory, applying counters, publishing rules, enabling the
+quota-aware client, and distributing any build each require release approval
+covering the intended environment and step.
+
+## Bounded photo prototype and travel-photo measurements
+
+The emulator prototype stores the bytes, owner, operation ID and timestamp in
+one immutable document per memory, so metadata cannot commit independently of
+the payload. An identical retry adopts the original document. A conflicting
+retry, extra slot, list query, cross-couple access, or revoked access is denied.
+Photo reads require a server response in a Node emulator client using in-memory
+state. The native app includes a local encoder and does not call this prototype
+transport. No live photo gate or scrapbook view is changed.
+
+One preview per memory limits stored payloads to 125 MiB per full 500-memory
+book before document overhead. A proposed eight-card gallery reads at most
+eight preview documents, or 2 MiB before protocol overhead, per complete spread
+fetch. Reopening a spread can incur another set of reads. Prefer lazy visible
+card fetches, cancel offscreen requests, and keep any byte cache session-only.
+The hosted read and write cost, cache behavior on iPhone, and index exemptions
+for the bytes field need validation before activation.
+
+A Pillow JPEG experiment used the same 1,280 px initial edge and quality
+ladder as the iOS encoder. These numbers are the local comparison, not UIKit
+codec measurements. PSNR compares identically cropped versions of the source
+and encoded result at the stated display sizes.
+
+| Photo | Input bytes | Output bytes | Output pixels | Gallery 360×220 | Detail 720×440 |
+| --- | ---: | ---: | --- | ---: | ---: |
+| Starry mountains | 466,535 | 230,815 | 1280×854 | 45.8 dB | 42.8 dB |
+| Neon street | 329,506 | 156,186 | 1280×853 | 43.4 dB | 39.3 dB |
+| Paris skyline | 318,242 | 160,942 | 1280×851 | 46.2 dB | 42.8 dB |
+| Woodland and cliffs | 1,230,707 | 254,165 | 775×1280 | 38.2 dB | 33.5 dB |
+
+All four fit 256 KiB at the first quality step. At gallery size the paired
+crops looked close, with the most measurable loss in the dense woodland
+sample at detail size. The native test uses a synthetic image to validate
+decoding, bounds and aspect ratio. Before photos advance, repeat the travel
+benchmark with Apple's encoder, include GPS-bearing and rotated originals,
+verify re-encoding strips source metadata, and test real-device cache and
+revocation behavior with synthetic accounts. Photos still require explicit
+approval for hosted rules, authenticated native transport, budget controls,
+and gate activation.
+
+[Mountains](https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1800)
+[Night street](https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=1800)
+[Paris](https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=1800)
+[Woodland](https://images.unsplash.com/photo-1472396961693-142e6e269027?w=1800)
