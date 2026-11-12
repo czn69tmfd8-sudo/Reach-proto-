@@ -35,7 +35,6 @@ struct ReachAdventureBookLive: View {
     @EnvironmentObject private var appearance: ReachAppearanceStore
     @State private var page = 0
     @State private var openedMemoryID: String?
-    private let memoriesPerSpread = 8
     @State private var repository = FirestoreAdventureBookRepository()
 
     var body: some View {
@@ -57,8 +56,9 @@ struct ReachAdventureBookLive: View {
             }
             if let book {
                 let ordered = book.orderedMemories
-                let spreadCount = max(1, (ordered.count + memoriesPerSpread - 1) / memoriesPerSpread)
-                if let openedMemoryID, let memory = ordered.first(where: { $0.id == openedMemoryID }) {
+                let spreadCount = AdventureGalleryPagination.spreadCount(memoryCount: ordered.count)
+                if let selectedID = AdventureGalleryPagination.selectedMemoryID(openedMemoryID, availableIDs: ordered.map(\.id)),
+                   let memory = ordered.first(where: { $0.id == selectedID }) {
                     memoryPage(memory)
                     Button {
                         self.openedMemoryID = nil
@@ -77,20 +77,23 @@ struct ReachAdventureBookLive: View {
                                 .font(.caption2).foregroundStyle(.white)
                         }.tag(0)
                         ForEach(0..<spreadCount, id: \.self) { spread in
-                            galleryPage(Array(ordered.dropFirst(spread * memoriesPerSpread).prefix(memoriesPerSpread)),
+                            galleryPage(Array(ordered[AdventureGalleryPagination.memoryRange(spread: spread, memoryCount: ordered.count)]),
                                         spread: spread, totalSpreads: spreadCount)
                                 .tag(spread + 1)
                         }
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
                     .animation(reduceMotion ? nil : .easeInOut(duration: 0.32), value: page)
-                    .onChange(of: ordered.count) { _, _ in page = min(page, spreadCount) }
+                    .onChange(of: ordered.map(\.id)) { _, ids in
+                        page = AdventureGalleryPagination.clampedPage(page, memoryCount: ids.count)
+                        if let selected = openedMemoryID, !ids.contains(selected) { openedMemoryID = nil }
+                    }
                     HStack {
-                        Button("Previous") { page = max(0, page - 1) }.disabled(page == 0)
+                        Button("Previous") { page = AdventureGalleryPagination.clampedPage(page - 1, memoryCount: ordered.count) }.disabled(page == 0)
                         Spacer()
                         Text(page == 0 ? "Cover" : "Memories · \(page) of \(spreadCount)").font(.caption)
                         Spacer()
-                        Button("Next") { page = min(spreadCount, page + 1) }
+                        Button("Next") { page = AdventureGalleryPagination.clampedPage(page + 1, memoryCount: ordered.count) }
                             .disabled(page == spreadCount)
                     }
                     .font(.caption).foregroundStyle(.white).padding(.horizontal, 18)
