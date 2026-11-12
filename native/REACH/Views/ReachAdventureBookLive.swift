@@ -337,9 +337,14 @@ struct ReachAdventureBookLive: View {
         defer { busy = false }
         do {
             let id = UUID().uuidString.lowercased()
+            // Page order is a persisted sequence, not the number of currently
+            // visible memories. Using count can collide after gaps or removals.
+            let nextOrder = (book?.memories.map(\.pageOrder).max()).flatMap {
+                $0 < Int.max ? $0 + 1 : nil
+            } ?? 0
             let memory = AdventureMemory(id: id, pairCode: code, creatorUID: uid,
                                          title: title, occurredAt: date, stories: [],
-                                         photos: [], comments: [], pageOrder: book?.memories.count ?? 0)
+                                         photos: [], comments: [], pageOrder: nextOrder)
             try await repository.createMemory(memory)
             if !story.isEmpty {
                 try await repository.saveOwnStory(pairCode: code, memoryID: id,
