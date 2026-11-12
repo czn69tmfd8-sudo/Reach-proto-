@@ -53,3 +53,35 @@ struct AdventureBook: Equatable, Sendable, Codable {
         return true
     }
 }
+
+/// Pure gallery navigation shared by the live book and its tests.
+/// Gallery page 0 is the cover; gallery pages 1...N each hold eight memories.
+/// Individual memories are opened by stable ID, never by a shifting page index.
+struct AdventureGalleryPagination {
+    static let memoriesPerSpread = 8
+
+    static func spreadCount(memoryCount: Int) -> Int {
+        max(1, (max(0, memoryCount) + memoriesPerSpread - 1) / memoriesPerSpread)
+    }
+
+    static func memoryRange(spread: Int, memoryCount: Int) -> Range<Int> {
+        let count = max(0, memoryCount)
+        guard spread >= 0, spread < spreadCount(memoryCount: count) else { return 0..<0 }
+        let start = spread * memoriesPerSpread
+        return start..<min(start + memoriesPerSpread, count)
+    }
+
+    static func clampedPage(_ page: Int, memoryCount: Int) -> Int {
+        min(max(0, page), spreadCount(memoryCount: memoryCount))
+    }
+
+    static func spread(forMemoryAt index: Int) -> Int? {
+        guard index >= 0 else { return nil }
+        return index / memoriesPerSpread + 1
+    }
+
+    static func selectedMemoryID(_ selectedID: String?, availableIDs: [String]) -> String? {
+        guard let selectedID, availableIDs.contains(selectedID) else { return nil }
+        return selectedID
+    }
+}
