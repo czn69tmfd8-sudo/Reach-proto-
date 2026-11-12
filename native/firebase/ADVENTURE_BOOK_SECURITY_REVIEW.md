@@ -83,3 +83,53 @@ if metadata publication is restricted to the service. Before opening either
 gate, validate partner access, cross-couple denial, revocation, missing or changed
 locks, overwrite denial, interrupted uploads, and metadata recovery with
 synthetic accounts in an authorized hosted staging environment.
+
+## First-release decision and Firebase-only photo alternatives
+
+| Approach | Revocation and isolation | Authorization and shareable links | Compatibility and operating cost |
+| --- | --- | --- | --- |
+| Keep photos gated off | Existing Adventure Book authorization stays in force. | No new photo upload or retrieval path opens. | Lowest migration and operating cost. First release contains stories and comments. |
+| Bounded private image payloads in Firestore | Each server read and write checks the pair, both member locks and the memory. Cross-couple reads and writes are denied. | No Cloud Storage lookup budget or download URL. Exact owner, immutable IDs and a 256 KiB limit are exercised in the emulator. | Reuses Firestore and Auth with no hosted service. Requires a new payload transport, metadata integration and a cache review. Small compressed images only. Firestore storage, reads and transfer still cost money. |
+| Direct Firebase Storage with one authoritative pair document plus the memory | Can fit two lookups only if the consolidated pair record is authoritative and every pairing, lock and revocation writer updates it atomically. A delayed mirror is unsafe. | Storage rules must protect both upload and download. Authenticated SDK reads alone do not prove that a member cannot obtain a long-lived bearer URL. | Closest to the current transport, but requires a pairing migration, older-client cutover and hosted proof that token URL creation and retrieval cannot bypass revocation. |
+| Authenticated photo service with private Storage | Checks current pair, both locks and memory on each request. Metadata publication rechecks authority transactionally. | Authenticated byte delivery and no bearer URL issuance. IAM and existing token exposure must be reviewed. | Supports the existing full-size image goal. Requires a transport change, compute and transfer costs, monitoring and orphan cleanup. A Firebase-managed function is still a hosted service. |
+
+The Firestore payload test is an emulator-only policy sketch, not a release
+transport. Keep the blob separate from gallery metadata so list queries never
+pull image bytes. A real candidate needs an indexing exemption for the blob, a
+per-book or per-memory image budget, bounded decoding and client-side re-encoding,
+and coordinated publication and retry handling for metadata and payloads. The
+rules test only the byte type and size, not whether the bytes form a valid image.
+Apple Firestore normally uses persistent caching. A production image transport
+must prove that payloads are never served from an offline or stale client cache
+after authorization changes, and review durable local copies before rollout.
+Revocation applies to new authorized requests. Bytes already delivered to a
+device cannot be recalled.
+
+[Firestore size limits](https://firebase.google.com/docs/firestore/storage-size)
+[Firestore offline caching](https://firebase.google.com/docs/firestore/manage-data/enable-offline)
+[Firebase Storage Apple SDK and download tokens](https://firebase.google.com/docs/reference/swift/firebasestorage/api/reference/Classes/StorageReference)
+
+## Quota cutover and rollback checklist
+
+1. Approve a creation freeze that covers every old and new memory writer,
+   including privileged jobs. Keep existing reads and edits available. Verify
+   the freeze in staging using an old client and a quota-aware synthetic client.
+2. Export a recovery snapshot and inventory actual document counts per couple.
+   Keep any over-limit books intact and creation disabled for those pairs.
+   Backfill one verified counter per pair. Provision new pairs through a trusted
+   path before their first memory. Keep a count and discrepancy log without
+   copying story content into the migration report.
+3. Verify counts independently while creation is frozen. Reconcile missing or
+   mismatched counters before enabling writes. Roll out the quota-aware app
+   and the reviewed rules together. Verify old-client creates are denied,
+   existing edits still work, and a concurrent final-slot test reaches 500.
+4. If the rollout fails, return to the creation-freeze policy. Preserve
+   counters and documents created since cutover. Do not restore an earlier
+   ruleset that allows uncounted creation or overwrite data with the pre-cutover
+   snapshot. Repair the client or reconcile counters against current inventory
+   while frozen, then repeat the final-slot and retry checks before resuming.
+
+The emulator exercises freeze, synthetic backfill, enforcement, rollback to
+freeze and reopening with existing memories and counters preserved. Live rule
+deployment, inventory, app migration and photo activation require separate
+approval.

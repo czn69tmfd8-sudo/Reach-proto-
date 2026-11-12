@@ -39,6 +39,8 @@ match /adventureBookQuotas/{code} {
 `;
 
 let env;
+let candidateRules;
+const projectId = 'demo-reach-adventure';
 const A = 'ABCDEFGHJKLM';
 const B = 'NPQRSTUVWXYZ';
 const root = 'nativeStaging/v1';
@@ -55,10 +57,10 @@ before(async () => {
   assert.equal(baseline.split(createTail).length, 2, 'reviewed create rule changed');
   const marker = 'match /adventureBooks/{code}/memories/{memoryID} {';
   assert.equal(baseline.split(marker).length, 2, 'reviewed memory match changed');
-  const rules = baseline
+  candidateRules = baseline
     .replace(createTail, createTail.replace('request.time;', 'request.time\n    && adventureCreateConsumesQuota(code, memoryID);'))
     .replace(marker, counterRules + marker);
-  env = await initializeTestEnvironment({ projectId: 'demo-reach-adventure', firestore: { rules } });
+  env = await initializeTestEnvironment({ projectId, firestore: { rules: candidateRules } });
 });
 
 beforeEach(async () => {
@@ -174,4 +176,49 @@ test('cross-couple clients, revoked pairs, and missing locks cannot consume quot
     await updateDoc(doc(d, root, 'pairInvites', A), { revoked: true });
   });
   await assertFails(attemptBatch(a, ['revoked'], 2, 'revoked'));
+});
+
+test('cutover and rollback freeze creation while preserving inventory, quota and legacy edits', async () => {
+  const frozenRules = candidateRules
+    .replace('&& adventureCreateConsumesQuota(code, memoryID);', '&& false;')
+    .replace('&& adventureNewQuotaMemory(code, request.resource.data.lastMemoryID);', '&& false;');
+  assert.notEqual(frozenRules, candidateRules);
+  const ruleContexts = [];
+  async function install(rules) {
+    ruleContexts.push(await initializeTestEnvironment({ projectId, firestore: { rules } }));
+  }
+
+  const a = db('a'), c = db('c');
+  try {
+    await install(frozenRules);
+    await assertFails(setDoc(memory(c, 'old-client', B), fields('c', B)));
+    await assertFails(attemptBatch(a, ['frozen'], 2, 'frozen'));
+    await assertSucceeds(updateDoc(memory(c, 'legacy', B), { title: 'Edited during freeze' }));
+
+    // The privileged inventory counts actual documents before provisioning B.
+    await env.withSecurityRulesDisabled(async context => {
+      const d = context.firestore();
+      const inventory = await getDocs(collection(d, 'adventureBooks', B, 'memories'));
+      assert.equal(inventory.size, 1);
+      await setDoc(quota(d, B), { count: inventory.size, lastMemoryID: null });
+    });
+    await install(candidateRules);
+    await assertSucceeds(create(c, 'after-cutover', 'c', B));
+    assert.equal((await getDoc(quota(c, B))).data().count, 2);
+
+    // Roll back to the freeze, never to a ruleset allowing uncounted creates.
+    await install(frozenRules);
+    await assertFails(setDoc(memory(c, 'uncounted', B), fields('c', B)));
+    await assertFails(create(c, 'blocked-during-rollback', 'c', B));
+    assert.equal((await getDoc(quota(c, B))).data().count, 2);
+    assert.equal((await getDoc(memory(c, 'legacy', B))).data().title, 'Edited during freeze');
+    assert.equal((await getDoc(memory(c, 'after-cutover', B))).exists(), true);
+
+    await install(candidateRules);
+    await assertSucceeds(create(c, 'after-cutover', 'c', B));
+    await assertSucceeds(create(c, 'after-resume', 'c', B));
+    assert.equal((await getDoc(quota(c, B))).data().count, 3);
+  } finally {
+    await Promise.all(ruleContexts.map(context => context.cleanup()));
+  }
 });
