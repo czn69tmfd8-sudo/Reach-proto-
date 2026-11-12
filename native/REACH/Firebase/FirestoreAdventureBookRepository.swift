@@ -10,11 +10,11 @@ import Foundation
 final class FirestoreAdventureBookRepository: AdventureBookRepository {
     private let db: Firestore
     private let stories: FirestoreAdventureStoryTransport
-    private var listener: ListenerRegistration?
+    private var memoryListeners: [String: ListenerRegistration] = [:]
     private var childListeners: [String: [ListenerRegistration]] = [:]
     private var observingCode: String?
     private var observationGeneration = 0
-    private var refreshInFlight = false
+    private var refreshTask: Task<Void, Never>?
     private var refreshRequested = false
 
     init(db: Firestore = Firestore.firestore()) {
@@ -68,6 +68,7 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
         var memorySnapshots: [QueryDocumentSnapshot] = []
         var lastMemory: QueryDocumentSnapshot?
         repeat {
+            try Task.checkCancellation()
             var query: Query = memoriesCollection(pairCode)
                 .order(by: FieldPath.documentID()).limit(to: 50)
             if let lastMemory { query = query.start(afterDocument: lastMemory) }
@@ -91,6 +92,7 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
         } while true
         var memories: [AdventureMemory] = []
         for snapshot in memorySnapshots {
+            try Task.checkCancellation()
             let fields = snapshot.data()
             guard let creator = fields["creatorUid"] as? String,
                   let title = fields["title"] as? String,
@@ -105,6 +107,7 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
             var commentSnapshots: [QueryDocumentSnapshot] = []
             var lastComment: QueryDocumentSnapshot?
             repeat {
+                try Task.checkCancellation()
                 var query: Query = ref.collection("comments")
                     .order(by: FieldPath.documentID()).limit(to: 50)
                 if let lastComment { query = query.start(afterDocument: lastComment) }
@@ -240,29 +243,45 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     /// Listener payloads are never used as authorized content. All visible
     /// updates come from fresh server reads after revalidating both member locks.
     func observe(pairCode: String, onChange: @escaping @MainActor (Result<AdventureBook, Error>) -> Void) async throws {
-        _ = try await verifiedCode(pairCode)
         stopObserving()
-        observingCode = pairCode
         let generation = observationGeneration
-        // Observe newly created memories at the tail of the stable ID order.
-        // Full pagination remains a server-authorized read; this listener is
-        // only an invalidation signal, never a source of visible content.
-        listener = memoriesCollection(pairCode)
-            .order(by: FieldPath.documentID(), descending: true)
-            .limit(to: 50).addSnapshotListener {
-            [weak self] snapshot, error in
-            Task { @MainActor [weak self] in
-                guard let self, self.observationGeneration == generation else { return }
-                if let error {
-                    self.stopObserving()
-                    onChange(.failure(error))
-                    return
+        _ = try await verifiedCode(pairCode)
+        guard observationGeneration == generation, !Task.isCancelled else {
+            throw CancellationError()
+        }
+        observingCode = pairCode
+        installMemoryListeners(for: [], pairCode: pairCode, generation: generation, onChange: onChange)
+    }
+
+    private func installMemoryListeners(
+        for memories: [AdventureMemory], pairCode: String, generation: Int,
+        onChange: @escaping @MainActor (Result<AdventureBook, Error>) -> Void
+    ) {
+        // Each page watches from the previous page's last ID. Keep a tail
+        // listener when the last page is full so a new highest ID is detected.
+        let anchors = [""] + stride(from: 49, to: memories.count, by: 50).map { memories[$0].id }
+        for obsolete in Set(memoryListeners.keys).subtracting(anchors) {
+            memoryListeners.removeValue(forKey: obsolete)?.remove()
+        }
+        for anchor in anchors where memoryListeners[anchor] == nil {
+            var query: Query = memoriesCollection(pairCode).order(by: FieldPath.documentID()).limit(to: 50)
+            if !anchor.isEmpty { query = query.start(after: [anchor]) }
+            memoryListeners[anchor] = query.addSnapshotListener(includeMetadataChanges: true) {
+                [weak self] snapshot, error in
+                Task { @MainActor [weak self] in
+                    guard let self, self.observationGeneration == generation,
+                          self.memoryListeners[anchor] != nil else { return }
+                    if let error {
+                        self.stopObserving()
+                        onChange(.failure(error))
+                        return
+                    }
+                    guard let snapshot, !snapshot.metadata.isFromCache,
+                          !snapshot.metadata.hasPendingWrites else { return }
+                    self.scheduleRefresh(pairCode: pairCode, generation: generation, onChange: onChange)
                 }
-                guard snapshot?.metadata.isFromCache == false else { return }
-                self.scheduleRefresh(pairCode: pairCode, generation: generation, onChange: onChange)
             }
         }
-        scheduleRefresh(pairCode: pairCode, generation: generation, onChange: onChange)
     }
 
     /// Coalesce notifications: installing child listeners causes initial
@@ -273,15 +292,16 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     ) {
         guard observingCode == pairCode, observationGeneration == generation else { return }
         refreshRequested = true
-        guard !refreshInFlight else { return }
-        refreshInFlight = true
-        Task { @MainActor [weak self] in
+        guard refreshTask == nil else { return }
+        refreshTask = Task { @MainActor [weak self] in
             guard let self else { return }
             while self.refreshRequested && self.observationGeneration == generation {
                 self.refreshRequested = false
                 do {
                     let latest = try await self.load(pairCode: pairCode)
                     guard self.observationGeneration == generation else { break }
+                    self.installMemoryListeners(for: latest.memories, pairCode: pairCode,
+                                                generation: generation, onChange: onChange)
                     self.installChildListeners(for: latest, pairCode: pairCode,
                                                generation: generation, onChange: onChange)
                     onChange(.success(latest))
@@ -293,7 +313,7 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
                 }
             }
             if self.observationGeneration == generation {
-                self.refreshInFlight = false
+                self.refreshTask = nil
             }
         }
     }
@@ -315,8 +335,8 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
                 // Full history is recovered by the paged server refresh above.
                 let query: Query = name == "comments"
                     ? base.collection(name).order(by: "createdAt", descending: true).limit(to: 50)
-                    : base.collection(name).limit(to: 50)
-                let registration = query.addSnapshotListener {
+                    : base.collection(name).limit(to: name == "stories" ? 2 : 50)
+                let registration = query.addSnapshotListener(includeMetadataChanges: true) {
                     [weak self] snapshot, error in
                     Task { @MainActor [weak self] in
                         guard let self, self.observationGeneration == generation else { return }
@@ -325,7 +345,8 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
                             onChange(.failure(error))
                             return
                         }
-                        guard snapshot?.metadata.isFromCache == false else { return }
+                        guard let snapshot, !snapshot.metadata.isFromCache,
+                              !snapshot.metadata.hasPendingWrites else { return }
                         self.scheduleRefresh(pairCode: pairCode, generation: generation, onChange: onChange)
                     }
                 }
@@ -337,13 +358,14 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
 
     func stopObserving() {
         observationGeneration += 1
-        listener?.remove()
-        listener = nil
+        memoryListeners.values.forEach { $0.remove() }
+        memoryListeners.removeAll()
         childListeners.values.flatMap { $0 }.forEach { $0.remove() }
         childListeners = [:]
         observingCode = nil
         refreshRequested = false
-        refreshInFlight = false
+        refreshTask?.cancel()
+        refreshTask = nil
     }
 
 }

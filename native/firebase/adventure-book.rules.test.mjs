@@ -2,7 +2,7 @@ import {test,before,after,beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {initializeTestEnvironment,assertSucceeds,assertFails} from '@firebase/rules-unit-testing';
-import {doc,setDoc,getDoc,updateDoc,deleteDoc,collection,getDocs,query,limit,serverTimestamp,writeBatch,runTransaction} from 'firebase/firestore';
+import {doc,setDoc,getDoc,updateDoc,deleteDoc,collection,getDocs,query,limit,documentId,orderBy,startAfter,onSnapshot,serverTimestamp,writeBatch,runTransaction} from 'firebase/firestore';
 
 let env;
 const A='ABCDEFGHJKLM', B='NPQRSTUVWXYZ';
@@ -134,4 +134,49 @@ test('metadata publication after upload is immutable on create and survives dupl
  await assertFails(setDoc(photo(b,A,'trip','recovered-photo'),{...record,ownerUid:'b'}));
  assert.equal((await getDoc(ref)).data().storagePath,record.storagePath);
  await assertFails(deleteDoc(ref));
+});
+
+test('paged listeners cover older memory edits, low-ID inserts and the story query limit', async () => {
+ const host = db('a'), partner = db('b');
+ await env.withSecurityRulesDisabled(async context => {
+  const seedDB = context.firestore();
+  const batch = writeBatch(seedDB);
+  for (let index = 0; index < 100; index++) {
+   const id = String(index).padStart(3, '0');
+   batch.set(memory(seedDB, A, id), {...data(A), pageOrder:index});
+  }
+  await batch.commit();
+ });
+
+ const memories = collection(partner, 'adventureBooks', A, 'memories');
+ const firstPage = query(memories, orderBy(documentId()), limit(50));
+ const secondPage = query(memories, orderBy(documentId()), startAfter('049'), limit(50));
+ await assertSucceeds(getDocs(query(collection(partner, 'adventureBooks', A, 'memories', '050', 'stories'), limit(2))));
+
+ async function observeWrite(page, predicate, write) {
+  let unsubscribe;
+  let timer;
+  try {
+   let ready;
+   const initial = new Promise(resolve => { ready = resolve; });
+   const updated = new Promise((resolve, reject) => {
+    timer = setTimeout(() => reject(Error('Timed out waiting for server snapshot')), 10000);
+    unsubscribe = onSnapshot(page, {includeMetadataChanges:true}, snapshot => {
+     if (snapshot.metadata.fromCache) return;
+     ready();
+     if (predicate(snapshot)) resolve();
+    }, reject);
+   });
+   await Promise.all([updated, (async () => { await initial; await write(); })()]);
+  } finally {
+   clearTimeout(timer);
+   unsubscribe?.();
+  }
+ }
+ await observeWrite(secondPage,
+  snapshot => snapshot.docs.some(item => item.id === '050' && item.data().title === 'Edited memory'),
+  () => updateDoc(memory(host, A, '050'), {title:'Edited memory'}));
+ await observeWrite(firstPage,
+  snapshot => snapshot.docs.some(item => item.id === '000-new'),
+  () => setDoc(memory(host, A, '000-new'), {...data(A), createdAt:serverTimestamp()}));
 });

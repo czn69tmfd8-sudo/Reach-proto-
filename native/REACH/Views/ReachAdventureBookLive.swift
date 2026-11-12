@@ -38,6 +38,7 @@ struct ReachAdventureBookLive: View {
     @State private var openedMemoryID: String?
     @State private var repository = FirestoreAdventureBookRepository()
     @State private var connectionEpoch = 0
+    @State private var connecting = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -60,6 +61,7 @@ struct ReachAdventureBookLive: View {
                 Text(error).font(.footnote).foregroundStyle(.white)
                     .padding(10).background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
                 Button("Try again") { Task { await connect() } }
+                    .disabled(connecting)
                     .buttonStyle(.bordered).tint(.white)
             }
             if let book {
@@ -124,23 +126,13 @@ struct ReachAdventureBookLive: View {
         .background { ReachHomeBackground() }
         .toolbar(.hidden, for: .navigationBar)
         .reachKeyboardToolbar()
-        .task { await connect() }
-        .task(id: photoSelection) { await uploadSelectedPhoto() }
-        .onDisappear {
-            connectionEpoch += 1
-            repository.stopObserving()
+        .task(id: scenePhase == .background) {
+            if scenePhase != .background { await connect() }
         }
+        .task(id: photoSelection) { await uploadSelectedPhoto() }
+        .onDisappear { clearPrivateContext() }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active {
-                // Resume from a freshly authorized server snapshot after offline
-                // or background transitions; never display cached private content
-                // as if the pairing were still valid.
-                Task { await connect() }
-            } else if phase == .background {
-                connectionEpoch += 1
-                repository.stopObserving()
-                book = nil
-            }
+            if phase == .background { clearPrivateContext() }
         }
         .sheet(isPresented: $showingNewMemory) {
             AdventureMemoryDraftEditor { title, date, story in
@@ -151,7 +143,9 @@ struct ReachAdventureBookLive: View {
             AdventureStoryEditor(initialText: memory.stories.first(where: {
                 $0.authorUID == Auth.auth().currentUser?.uid
             })?.text ?? "") { text in
-                Task { await saveStory(memoryID: memory.id, text: text) }
+                let version = selectedStoryVersion
+                let epoch = connectionEpoch
+                Task { await saveStory(memoryID: memory.id, text: text, version: version, epoch: epoch) }
             }
         }
     }
@@ -330,12 +324,34 @@ struct ReachAdventureBookLive: View {
         }
     }
 
-    private func connect() async {
+    private func clearPrivateContext() {
         connectionEpoch += 1
-        let epoch = connectionEpoch
-        // A reconnect replaces the old observation rather than accumulating
-        // duplicate listeners after repeated foreground transitions.
         repository.stopObserving()
+        connecting = false
+        book = nil
+        pairCode = nil
+        error = nil
+        busy = false
+        showingNewMemory = false
+        selectedMemory = nil
+        selectedStoryVersion = nil
+        openedMemoryID = nil
+        commentDraft = ""
+        photoSelection = nil
+        uploadingPhotoFor = nil
+        photoProgress = ""
+        pendingPhoto = nil
+        pendingPhotoBytes = nil
+        pendingPhotoPosition = 0
+        recoveryRecord = nil
+    }
+
+    private func connect() async {
+        guard !connecting, scenePhase != .background, !Task.isCancelled else { return }
+        clearPrivateContext()
+        connecting = true
+        let epoch = connectionEpoch
+        defer { if connectionEpoch == epoch { connecting = false } }
         do {
             try FirebaseBootstrap.configureStaging()
             guard let uid = Auth.auth().currentUser?.uid else {
@@ -346,7 +362,7 @@ struct ReachAdventureBookLive: View {
             guard let code = lock.data()?["pairCode"] as? String else {
                 throw AdventureBookRepositoryError.notPaired
             }
-            guard connectionEpoch == epoch else { return }
+            guard connectionEpoch == epoch, !Task.isCancelled else { return }
             pairCode = code
             if let saved = try recoveryJournal?.load(), saved.upload.ownerUID == uid,
                saved.upload.pairCode == code {
@@ -362,30 +378,29 @@ struct ReachAdventureBookLive: View {
                 pendingPhoto = recovered
                 pendingPhotoPosition = restored.position
             }
-            let loaded = try await repository.load(pairCode: code)
-            guard connectionEpoch == epoch else { return }
-            book = loaded
-            error = nil
             try await repository.observe(pairCode: code) { result in
                 guard connectionEpoch == epoch else { return }
                 switch result {
-                case .success(let updated): book = updated
+                case .success(let updated):
+                    book = updated
+                    error = nil
                 case .failure(let failure):
-                    book = nil
+                    clearPrivateContext()
                     error = failure.localizedDescription
                 }
             }
         } catch {
             guard connectionEpoch == epoch else { return }
-            book = nil
-            self.error = error.localizedDescription
+            clearPrivateContext()
+            if !(error is CancellationError) { self.error = error.localizedDescription }
         }
     }
 
     private func create(title: String, date: Date, story: String) async {
-        guard let code = pairCode, let uid = Auth.auth().currentUser?.uid else { return }
+        guard !busy, let code = pairCode, let uid = Auth.auth().currentUser?.uid else { return }
+        let epoch = connectionEpoch
         busy = true
-        defer { busy = false }
+        defer { if connectionEpoch == epoch { busy = false } }
         do {
             let id = UUID().uuidString.lowercased()
             // Page order is a persisted sequence, not the number of currently
@@ -402,19 +417,22 @@ struct ReachAdventureBookLive: View {
                                          title: title, occurredAt: date, stories: [],
                                          photos: [], comments: [], pageOrder: nextOrder)
             try await repository.createMemory(memory)
-            if !story.isEmpty {
+            if connectionEpoch == epoch, !story.isEmpty {
                 try await repository.saveOwnStory(pairCode: code, memoryID: id,
                                                   text: story, expectedVersion: nil)
             }
-            book = try await repository.load(pairCode: code)
-        } catch { self.error = error.localizedDescription }
+        } catch {
+            if connectionEpoch == epoch { self.error = error.localizedDescription }
+        }
     }
 
     private func openStoryEditor(_ memory: AdventureMemory) async {
         guard let code = pairCode, let uid = Auth.auth().currentUser?.uid else { return }
+        let epoch = connectionEpoch
         do {
             let current = try await FirestoreAdventureStoryTransport()
                 .loadOwnStory(pairCode: code, memoryID: memory.id, uid: uid)
+            guard connectionEpoch == epoch, openedMemoryID == memory.id else { return }
             selectedStoryVersion = current?.version
             var editorMemory = memory
             editorMemory.stories.removeAll { $0.authorUID == uid }
@@ -423,45 +441,57 @@ struct ReachAdventureBookLive: View {
                                                   updatedAt: Date()))
             }
             selectedMemory = editorMemory
-        } catch { self.error = error.localizedDescription }
+        } catch {
+            if connectionEpoch == epoch { self.error = error.localizedDescription }
+        }
     }
 
-    private func saveStory(memoryID: String, text: String) async {
-        guard let code = pairCode, Auth.auth().currentUser != nil else { return }
+    private func saveStory(memoryID: String, text: String, version: Timestamp?, epoch: Int) async {
+        guard connectionEpoch == epoch, let code = pairCode, Auth.auth().currentUser != nil else { return }
         do {
             // Use the exact version captured when the editor opened.
             // Transaction retries reject a stale version if the partner or
             // another session changed the story in the meantime.
             try await repository.saveOwnStory(pairCode: code, memoryID: memoryID,
-                                              text: text, expectedVersion: selectedStoryVersion)
-        } catch { self.error = error.localizedDescription }
+                                              text: text, expectedVersion: version)
+        } catch {
+            if connectionEpoch == epoch { self.error = error.localizedDescription }
+        }
     }
 
     private func postComment(memoryID: String, text: String) async {
         guard let code = pairCode, !busy else { return }
+        let epoch = connectionEpoch
         busy = true
-        defer { busy = false }
+        defer { if connectionEpoch == epoch { busy = false } }
         do {
             try await repository.postComment(pairCode: code, memoryID: memoryID, text: text)
             // Only clear the draft after the server accepts it, and never
             // erase a draft that the user has since edited or moved away from.
-            if openedMemoryID == memoryID && commentDraft == text {
+            if connectionEpoch == epoch, openedMemoryID == memoryID, commentDraft == text {
                 commentDraft = ""
             }
         } catch {
-            self.error = error.localizedDescription
+            if connectionEpoch == epoch { self.error = error.localizedDescription }
         }
     }
     private func uploadSelectedPhoto() async {
         guard AdventurePhotoFeatureGate.liveUploadsEnabled,
               let selection = photoSelection, let memory = uploadingPhotoFor,
               let uid = Auth.auth().currentUser?.uid else { return }
-        defer { photoSelection = nil; uploadingPhotoFor = nil }
+        let epoch = connectionEpoch
+        defer {
+            if connectionEpoch == epoch {
+                photoSelection = nil
+                uploadingPhotoFor = nil
+            }
+        }
         do {
             photoProgress = "Preparing private photo…"
             guard let original = try await selection.loadTransferable(type: Data.self) else {
                 throw AdventureBookRepositoryError.invalidMemory
             }
+            guard connectionEpoch == epoch, !Task.isCancelled else { return }
             // Normalize Photos assets (including HEIC) to actual JPEG bytes.
             // Reject oversized files before contacting Storage.
             guard let decoded = UIImage(data: original),
@@ -492,7 +522,8 @@ struct ReachAdventureBookLive: View {
             pendingPhotoBytes = jpeg
             await retryPendingPhoto()
         } catch {
-            photoProgress = "Upload incomplete. Nothing was overwritten."
+            guard connectionEpoch == epoch else { return }
+            photoProgress = "Photo upload incomplete"
             self.error = error.localizedDescription
         }
     }
@@ -500,11 +531,13 @@ struct ReachAdventureBookLive: View {
     private func retryPendingPhoto() async {
         guard AdventurePhotoFeatureGate.liveUploadsEnabled,
               var operation = pendingPhoto, let bytes = pendingPhotoBytes else { return }
+        let epoch = connectionEpoch
         let transport = FirestoreAdventurePhotoTransport()
         do {
             if operation.phase == .prepared || operation.phase == .retryRequired {
                 photoProgress = "Uploading private photo…"
                 try await transport.uploadJPEG(bytes, upload: &operation)
+                guard connectionEpoch == epoch else { return }
                 pendingPhoto = operation
                 if let previous = recoveryRecord {
                     let updated = AdventurePhotoRecoveryRecord(upload: operation,
@@ -519,12 +552,14 @@ struct ReachAdventureBookLive: View {
             }
             photoProgress = "Publishing private photo…"
             try await transport.publish(&operation, caption: "", position: pendingPhotoPosition)
+            guard connectionEpoch == epoch else { return }
             try recoveryJournal?.clear()
             recoveryRecord = nil
             pendingPhoto = nil
             pendingPhotoBytes = nil
             photoProgress = "Photo saved"
         } catch {
+            guard connectionEpoch == epoch else { return }
             pendingPhoto = operation
             if let previous = recoveryRecord {
                 let updated = AdventurePhotoRecoveryRecord(upload: operation,
@@ -574,8 +609,10 @@ private struct AdventureAuthenticatedPhoto: View {
                 guard let decoded = UIImage(data: bytes) else {
                     throw AdventureBookRepositoryError.unavailable
                 }
+                guard !Task.isCancelled else { return }
                 image = decoded
             } catch {
+                guard !Task.isCancelled else { return }
                 image = nil
                 self.error = "Photo unavailable"
             }
