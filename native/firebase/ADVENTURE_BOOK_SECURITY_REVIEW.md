@@ -24,3 +24,59 @@ The Firestore and Storage rules are proposed staging-only contracts. CI emulator
 3. Real server version-precondition conflict tests and interrupted-upload recovery.
 4. Independent review of rule evaluation costs and the staging-only rollout.
 5. Explicit user approval before staging rule deployment; no production deployment.
+
+## 500-memory quota migration candidate
+
+The emulator-only quota test overlays a candidate on the reviewed Firestore
+fixture in memory. It never supplies rules to the normal merge or deployment
+path. A quota document per pair stores an integer count and the ID of the last
+memory created. Each new memory and its one-slot increment are in the same
+atomic write. Rules check both before and after state, bind the increment to the
+one new document, keep the existing membership checks, and reject standalone
+creates and client-created quota documents. A retry of an existing matching ID
+uses its original slot. Story and photo metadata writes are outside this quota.
+
+An authorized rollout needs a creation freeze before a privileged inventory and
+backfill. Count actual documents, including older IDs, reconcile books already
+above 500 without deleting user data, and verify quota totals against inventory
+before enabling creation. Missing quota documents must fail closed for new
+writes. Legacy clients can continue existing memory access under current
+authorization, while new creation requires the quota-aware client after cutover.
+Privileged writers and restore paths must maintain the same invariant because
+they are outside client-rule enforcement. Exercise the cutover and rollback
+against synthetic data before considering staging.
+
+## Photograph authorization proposal
+
+The direct Storage rules candidate depends on four distinct Firestore documents
+per request: the pair invitation, two member locks, and the memory. Firebase
+documents a two-document budget for Storage rule evaluation. Emulator success
+does not establish that the existing candidate fits that hosted budget.
+[Firebase Storage rule conditions](https://firebase.google.com/docs/storage/security/rules-conditions)
+
+The first release can retain the disabled photo gate. When real photographs are
+required, use one authenticated service for both uploads and reads. It should
+verify the caller's Firebase ID token, derive the UID from that token, read the
+pair invitation, both member locks and the requested memory in a consistent
+Firestore snapshot, and fail closed if any authority is absent or mismatched.
+The service derives object names from validated IDs and uses narrowly scoped
+IAM on a private bucket. Its authenticated endpoint streams bytes and does not
+issue reusable download links. A mirrored membership document would require
+every pairing and revocation writer to update it atomically, including older
+clients, before it could be an authoritative alternative.
+
+Reserve a stable photo ID, enforce byte and decoded image limits, and create an
+immutable object using a generation precondition. Recheck authorization before
+publishing the metadata, tie it to the verified object generation, and make
+publication retryable without replacing existing data. Reauthorize each new
+read against current membership and published metadata. Revocation denies
+subsequent authorized requests. Bytes already delivered cannot be withdrawn.
+An interruption between object creation and metadata publication can leave an
+unpublished object for a separately reviewed cleanup procedure.
+
+Activation requires explicit approval for the service and IAM, review of direct
+bucket access and any existing download tokens, and a Firestore rules migration
+if metadata publication is restricted to the service. Before opening either
+gate, validate partner access, cross-couple denial, revocation, missing or changed
+locks, overwrite denial, interrupted uploads, and metadata recovery with
+synthetic accounts in an authorized hosted staging environment.
