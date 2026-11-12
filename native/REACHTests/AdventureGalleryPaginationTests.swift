@@ -75,7 +75,7 @@ final class AdventureGalleryPaginationTests: XCTestCase {
 
     func testTwoPhoneSharedMemoryConvergesAfterServerSnapshots() {
         let members: Set<String> = ["byron", "aaron"]
-        let pairCode = "paired-book"
+        let pairCode = "ABCDEFGHJKLM"
         let date = Date(timeIntervalSince1970: 1_700_000_000)
         let memory = AdventureMemory(id: "lake-weekend", pairCode: pairCode,
                                      creatorUID: "byron", title: "The Lake Weekend",
@@ -111,7 +111,7 @@ final class AdventureGalleryPaginationTests: XCTestCase {
     func testPartnerCannotOverwriteOtherPartnersStoryOrPostAsThem() {
         let members: Set<String> = ["byron", "aaron"]
         let date = Date(timeIntervalSince1970: 1_700_000_000)
-        var memory = AdventureMemory(id: "lake-weekend", pairCode: "paired-book",
+        var memory = AdventureMemory(id: "lake-weekend", pairCode: "ABCDEFGHJKLM",
                                      creatorUID: "byron", title: "The Lake Weekend",
                                      occurredAt: date, stories: [], photos: [],
                                      comments: [], pageOrder: 0)
