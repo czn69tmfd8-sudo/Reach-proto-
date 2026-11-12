@@ -68,6 +68,14 @@ final class AdventureGalleryPaginationTests: XCTestCase {
         XCTAssertFalse(AdventureGalleryPagination.canAppendMemory(loadedCount: 0, queryLimit: 0))
     }
 
+    func testExpandedServerSnapshotAllowsSafeAppendPastFifty() {
+        XCTAssertTrue(AdventureGalleryPagination.canAppendMemory(loadedCount: 50, queryLimit: 500))
+        XCTAssertTrue(AdventureGalleryPagination.canAppendMemory(loadedCount: 499, queryLimit: 500))
+        XCTAssertFalse(AdventureGalleryPagination.canAppendMemory(loadedCount: 500, queryLimit: 500))
+        XCTAssertEqual(AdventureGalleryPagination.spreadCount(memoryCount: 500), 63)
+        XCTAssertEqual(AdventureGalleryPagination.memoryRange(spread: 62, memoryCount: 500), 496..<500)
+    }
+
     func testLargeGalleryDoesNotOverflowRange() {
         XCTAssertEqual(AdventureGalleryPagination.memoryRange(spread: 124, memoryCount: 1000), 992..<1000)
         XCTAssertEqual(AdventureGalleryPagination.spreadCount(memoryCount: 1000), 125)
