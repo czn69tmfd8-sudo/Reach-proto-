@@ -277,7 +277,6 @@ struct ReachAdventureBookLive: View {
                     .textFieldStyle(.roundedBorder)
                 Button("Post comment") {
                     let text = commentDraft
-                    commentDraft = ""
                     Task { await postComment(memoryID: memory.id, text: text) }
                 }
                 .disabled(busy || commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -401,9 +400,19 @@ struct ReachAdventureBookLive: View {
     }
 
     private func postComment(memoryID: String, text: String) async {
-        guard let code = pairCode else { return }
-        do { try await repository.postComment(pairCode: code, memoryID: memoryID, text: text) }
-        catch { self.error = error.localizedDescription }
+        guard let code = pairCode, !busy else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            try await repository.postComment(pairCode: code, memoryID: memoryID, text: text)
+            // Only clear the draft after the server accepts it, and never
+            // erase a draft that the user has since edited or moved away from.
+            if openedMemoryID == memoryID && commentDraft == text {
+                commentDraft = ""
+            }
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
     private func uploadSelectedPhoto() async {
         guard AdventurePhotoFeatureGate.liveUploadsEnabled,
