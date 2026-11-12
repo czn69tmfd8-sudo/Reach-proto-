@@ -18,7 +18,9 @@ struct ReachAdventureBookPreview: View {
     private var spreadCount: Int { AdventureGalleryPagination.spreadCount(memoryCount: sampleCount) }
 
     init(initialPage: Int = 0) {
-        _page = State(initialValue: max(0, initialPage == 2 ? 1 : initialPage))
+        _page = State(initialValue: initialPage == 2 ? 1 : max(0, initialPage))
+        // Debug-only screenshot fixture can open a memory directly; ordinary navigation requires a tap.
+        _selected = State(initialValue: initialPage == 2 ? 0 : nil)
     }
 
     var body: some View {
