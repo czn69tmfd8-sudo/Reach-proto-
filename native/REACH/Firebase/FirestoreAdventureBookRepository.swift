@@ -16,6 +16,8 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     private var observationGeneration = 0
     private var refreshTask: Task<Void, Never>?
     private var refreshRequested = false
+    private var dirtyMemoryIDs = Set<String>()
+    private var observedBook: AdventureBook?
 
     init(db: Firestore = Firestore.firestore()) {
         self.db = db
@@ -50,6 +52,9 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
         let other = uid == host ? partner : host
         let otherLock = try await db.document("nativeStaging/v1/memberLocks/\(other)").getDocument(source: .server)
         guard otherLock.data()?["pairCode"] as? String == code else {
+            throw AdventureBookRepositoryError.unauthorized
+        }
+        guard try activeUID() == uid else {
             throw AdventureBookRepositoryError.unauthorized
         }
         return uid
@@ -93,90 +98,94 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
         var memories: [AdventureMemory] = []
         for snapshot in memorySnapshots {
             try Task.checkCancellation()
-            let fields = snapshot.data()
-            guard let creator = fields["creatorUid"] as? String,
-                  let title = fields["title"] as? String,
-                  let date = fields["occurredAt"] as? Timestamp,
-                  let order = fields["pageOrder"] as? Int else {
-                throw AdventureBookRepositoryError.unavailable
-            }
-            let ref = snapshot.reference
-            let storyDocs = try await ref.collection("stories").limit(to: 2).getDocuments(source: .server)
-            // Read the full supported conversation in bounded server pages.
-            // A single 50-document query silently hid older comments.
-            var commentSnapshots: [QueryDocumentSnapshot] = []
-            var lastComment: QueryDocumentSnapshot?
-            repeat {
-                try Task.checkCancellation()
-                var query: Query = ref.collection("comments")
-                    .order(by: FieldPath.documentID()).limit(to: 50)
-                if let lastComment { query = query.start(afterDocument: lastComment) }
-                let page = try await query.getDocuments(source: .server)
-                commentSnapshots.append(contentsOf: page.documents)
-                lastComment = page.documents.last
-                if page.documents.count < 50 { break }
-                // Never silently present a truncated conversation as complete.
-                if commentSnapshots.count >= 500 {
-                    let overflow = try await ref.collection("comments")
-                        .order(by: FieldPath.documentID())
-                        .start(afterDocument: lastComment!)
-                        .limit(to: 1).getDocuments(source: .server)
-                    guard overflow.documents.isEmpty else {
-                        throw AdventureBookRepositoryError.unavailable
-                    }
-                    break
-                }
-            } while true
-            let photoDocs = try await ref.collection("photos").limit(to: 50).getDocuments(source: .server)
-            let stories = try storyDocs.documents.map { item -> AdventureMemory.Story in
-                let data = item.data()
-                guard let uid = data["authorUid"] as? String,
-                      let text = data["text"] as? String,
-                      let time = data["updatedAt"] as? Timestamp else {
-                    throw AdventureBookRepositoryError.unavailable
-                }
-                return .init(authorUID: uid, text: text, updatedAt: time.dateValue())
-            }
-            let comments = try commentSnapshots.map { item -> AdventureMemory.Comment in
-                let data = item.data()
-                guard let uid = data["authorUid"] as? String,
-                      let text = data["text"] as? String,
-                      let time = data["createdAt"] as? Timestamp else {
-                    throw AdventureBookRepositoryError.unavailable
-                }
-                return .init(id: item.documentID, authorUID: uid, text: text, createdAt: time.dateValue())
-            }
-            let photos = try photoDocs.documents.map { item -> AdventureMemory.Photo in
-                let data = item.data()
-                guard let owner = data["ownerUid"] as? String,
-                      let path = data["storagePath"] as? String,
-                      let caption = data["caption"] as? String,
-                      let position = data["position"] as? Int else {
-                    throw AdventureBookRepositoryError.unavailable
-                }
-                return .init(id: item.documentID, ownerUID: owner,
-                             storagePath: path, caption: caption, position: position)
-            }
-            // Firestore does not promise document order without orderBy.
-            // Normalize nested collections for consistent two-device rendering.
-            let orderedStories = stories.sorted { $0.authorUID < $1.authorUID }
-            let orderedComments = comments.sorted {
-                if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
-                return $0.id < $1.id
-            }
-            let orderedPhotos = photos.sorted {
-                if $0.position != $1.position { return $0.position < $1.position }
-                return $0.id < $1.id
-            }
-            memories.append(.init(id: snapshot.documentID, pairCode: pairCode,
-                                  creatorUID: creator, title: title, occurredAt: date.dateValue(),
-                                  stories: orderedStories, photos: orderedPhotos,
-                                  comments: orderedComments, pageOrder: order))
+            memories.append(try await loadMemory(snapshot, pairCode: pairCode))
         }
         // Pairing can be revoked during the multi-request load. Revalidate
         // before any assembled content is returned to the view.
         _ = try await verifiedCode(pairCode)
         return AdventureBook(pairCode: pairCode, memories: memories)
+    }
+
+    private func loadMemory(_ snapshot: DocumentSnapshot, pairCode: String) async throws -> AdventureMemory {
+        let fields = snapshot.data() ?? [:]
+        guard let creator = fields["creatorUid"] as? String,
+              let title = fields["title"] as? String,
+              let date = fields["occurredAt"] as? Timestamp,
+              let order = fields["pageOrder"] as? Int else {
+            throw AdventureBookRepositoryError.unavailable
+        }
+        let ref = snapshot.reference
+        let storyDocs = try await ref.collection("stories").limit(to: 2).getDocuments(source: .server)
+        // Read the full supported conversation in bounded server pages.
+        // A single 50-document query silently hid older comments.
+        var commentSnapshots: [QueryDocumentSnapshot] = []
+        var lastComment: QueryDocumentSnapshot?
+        repeat {
+            try Task.checkCancellation()
+            var query: Query = ref.collection("comments")
+                .order(by: FieldPath.documentID()).limit(to: 50)
+            if let lastComment { query = query.start(afterDocument: lastComment) }
+            let page = try await query.getDocuments(source: .server)
+            commentSnapshots.append(contentsOf: page.documents)
+            lastComment = page.documents.last
+            if page.documents.count < 50 { break }
+            // Never silently present a truncated conversation as complete.
+            if commentSnapshots.count >= 500 {
+                let overflow = try await ref.collection("comments")
+                    .order(by: FieldPath.documentID())
+                    .start(afterDocument: lastComment!)
+                    .limit(to: 1).getDocuments(source: .server)
+                guard overflow.documents.isEmpty else {
+                    throw AdventureBookRepositoryError.unavailable
+                }
+                break
+            }
+        } while true
+        let photoDocs = try await ref.collection("photos").limit(to: 50).getDocuments(source: .server)
+        let stories = try storyDocs.documents.map { item -> AdventureMemory.Story in
+            let data = item.data()
+            guard let uid = data["authorUid"] as? String,
+                  let text = data["text"] as? String,
+                  let time = data["updatedAt"] as? Timestamp else {
+                throw AdventureBookRepositoryError.unavailable
+            }
+            return .init(authorUID: uid, text: text, updatedAt: time.dateValue())
+        }
+        let comments = try commentSnapshots.map { item -> AdventureMemory.Comment in
+            let data = item.data()
+            guard let uid = data["authorUid"] as? String,
+                  let text = data["text"] as? String,
+                  let time = data["createdAt"] as? Timestamp else {
+                throw AdventureBookRepositoryError.unavailable
+            }
+            return .init(id: item.documentID, authorUID: uid, text: text, createdAt: time.dateValue())
+        }
+        let photos = try photoDocs.documents.map { item -> AdventureMemory.Photo in
+            let data = item.data()
+            guard let owner = data["ownerUid"] as? String,
+                  let path = data["storagePath"] as? String,
+                  let caption = data["caption"] as? String,
+                  let position = data["position"] as? Int else {
+                throw AdventureBookRepositoryError.unavailable
+            }
+            return .init(id: item.documentID, ownerUID: owner,
+                         storagePath: path, caption: caption, position: position)
+        }
+        // Firestore does not promise document order without orderBy.
+        // Normalize nested collections for consistent two-device rendering.
+        let orderedStories = stories.sorted { $0.authorUID < $1.authorUID }
+        let orderedComments = comments.sorted {
+            if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
+            return $0.id < $1.id
+        }
+        let orderedPhotos = photos.sorted {
+            if $0.position != $1.position { return $0.position < $1.position }
+            return $0.id < $1.id
+        }
+        return .init(id: snapshot.documentID, pairCode: pairCode,
+                              creatorUID: creator, title: title, occurredAt: date.dateValue(),
+                              stories: orderedStories, photos: orderedPhotos,
+                              comments: orderedComments, pageOrder: order)
     }
 
     func createMemory(_ memory: AdventureMemory) async throws {
@@ -284,26 +293,40 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
         }
     }
 
-    /// Coalesce notifications: installing child listeners causes initial
-    /// snapshots, which otherwise cause an unbounded refresh/reinstall loop.
+    /// Root changes re-page the book. Child changes reload only their memory.
+    /// Keep invalidations received during a read for the next refresh.
     private func scheduleRefresh(
-        pairCode: String, generation: Int,
+        pairCode: String, generation: Int, memoryID: String? = nil,
         onChange: @escaping @MainActor (Result<AdventureBook, Error>) -> Void
     ) {
         guard observingCode == pairCode, observationGeneration == generation else { return }
-        refreshRequested = true
+        if let memoryID {
+            dirtyMemoryIDs.insert(memoryID)
+        } else {
+            refreshRequested = true
+        }
         guard refreshTask == nil else { return }
         refreshTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            while self.refreshRequested && self.observationGeneration == generation {
+            while self.observationGeneration == generation,
+                  self.refreshRequested || !self.dirtyMemoryIDs.isEmpty {
+                let reloadBook = self.refreshRequested
+                let dirtyIDs = self.dirtyMemoryIDs
                 self.refreshRequested = false
+                self.dirtyMemoryIDs.removeAll()
                 do {
-                    let latest = try await self.load(pairCode: pairCode)
+                    let latest: AdventureBook
+                    if !reloadBook, let previous = self.observedBook {
+                        latest = try await self.refreshMemories(dirtyIDs, in: previous)
+                    } else {
+                        latest = try await self.load(pairCode: pairCode)
+                    }
                     guard self.observationGeneration == generation else { break }
                     self.installMemoryListeners(for: latest.memories, pairCode: pairCode,
                                                 generation: generation, onChange: onChange)
                     self.installChildListeners(for: latest, pairCode: pairCode,
                                                generation: generation, onChange: onChange)
+                    self.observedBook = latest
                     onChange(.success(latest))
                 } catch {
                     guard self.observationGeneration == generation else { break }
@@ -316,6 +339,22 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
                 self.refreshTask = nil
             }
         }
+    }
+
+    private func refreshMemories(_ ids: Set<String>, in previous: AdventureBook) async throws -> AdventureBook {
+        let pairCode = previous.pairCode
+        _ = try await verifiedCode(pairCode)
+        var latest = previous
+        for index in latest.memories.indices where ids.contains(latest.memories[index].id) {
+            try Task.checkCancellation()
+            let snapshot = try await memoriesCollection(pairCode)
+                .document(latest.memories[index].id).getDocument(source: .server)
+            // A root change can arrive during a child refresh.
+            guard snapshot.exists else { return try await load(pairCode: pairCode) }
+            latest.memories[index] = try await loadMemory(snapshot, pairCode: pairCode)
+        }
+        _ = try await verifiedCode(pairCode)
+        return latest
     }
 
     private func installChildListeners(
@@ -347,7 +386,8 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
                         }
                         guard let snapshot, !snapshot.metadata.isFromCache,
                               !snapshot.metadata.hasPendingWrites else { return }
-                        self.scheduleRefresh(pairCode: pairCode, generation: generation, onChange: onChange)
+                        self.scheduleRefresh(pairCode: pairCode, generation: generation,
+                                             memoryID: memory.id, onChange: onChange)
                     }
                 }
                 registrations.append(registration)
@@ -364,6 +404,8 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
         childListeners = [:]
         observingCode = nil
         refreshRequested = false
+        dirtyMemoryIDs.removeAll()
+        observedBook = nil
         refreshTask?.cancel()
         refreshTask = nil
     }
