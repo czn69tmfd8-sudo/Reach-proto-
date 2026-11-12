@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 @preconcurrency import WebRTC
 
@@ -20,6 +21,13 @@ final class WebRTCFactoryProvider: @unchecked Sendable {
                 if let handle = self.handle { deadline.resolve(.success(handle)); return }
                 // Default ADM performs synchronous system audio initialization. Do not
                 // block MainActor while CoreAudio may need the application's run loop.
+                // The audio device applies this configuration when playout starts
+                // and when WebRTC reinitializes it after an interruption.
+                let audio = RTCAudioSessionConfiguration()
+                audio.category = AVAudioSession.Category.playAndRecord.rawValue
+                audio.mode = AVAudioSession.Mode.videoChat.rawValue
+                audio.categoryOptions = ReachAudioConfiguration.callOptions
+                RTCAudioSessionConfiguration.setWebRTCConfiguration(audio)
                 RTCInitializeSSL()
                 let handle = WebRTCFactoryHandle(factory: RTCPeerConnectionFactory(
                     encoderFactory: RTCDefaultVideoEncoderFactory(), decoderFactory: RTCDefaultVideoDecoderFactory()

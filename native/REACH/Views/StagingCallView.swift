@@ -15,6 +15,7 @@ struct StagingCallView: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var muted = false
     @State private var cameraEnabled = true
+    @State private var showsCall = false
 
     private var controls: ReachHandControls {
         ReachHandControls(availability: availability, now: now, phase: call.phase,
@@ -36,7 +37,7 @@ struct StagingCallView: View {
                     HStack(spacing: 12) { handActions }
                 }
             } else if call.phase.hasStarted {
-                Button(call.phase == .connected || call.phase == .interrupted ? "End Call" : "Cancel Connection", role: .destructive) {
+                Button(call.phase.showsFullScreenCall ? "End Call" : "Cancel Connection", role: .destructive) {
                     Task { await call.end() }
                 }
                 .buttonStyle(.borderedProminent).tint(.pink)
@@ -48,11 +49,19 @@ struct StagingCallView: View {
             if let peer = call.peer, call.phase.hasStarted {
                 ReachGlassPanel {
                     VStack(alignment: .leading, spacing: 12) {
-                        if call.phase == .connected { StagingVideoPanel(peer: peer) }
                         Toggle("Mute microphone", isOn: $muted).onChange(of: muted) { _, value in peer.setMuted(value) }
-                        Toggle("Camera enabled", isOn: $cameraEnabled).onChange(of: cameraEnabled) { _, value in peer.setCameraEnabled(value) }
+                        Toggle("Send video", isOn: $cameraEnabled).onChange(of: cameraEnabled) { _, value in peer.setCameraEnabled(value) }
                     }
                 }
+            }
+        }
+        .onChange(of: call.phase, initial: true) { _, phase in
+            showsCall = phase.showsFullScreenCall && call.peer != nil
+        }
+        .fullScreenCover(isPresented: $showsCall) {
+            if let peer = call.peer {
+                ActiveVideoCallView(call: call, peer: peer, muted: $muted, cameraEnabled: $cameraEnabled)
+                    .interactiveDismissDisabled()
             }
         }
         .onChange(of: stopID) { _, _ in
@@ -149,17 +158,5 @@ struct StagingCallView: View {
         .accessibilityValue(subtitle)
         .accessibilityHint(enabled ? hint : "")
         .accessibilityIdentifier(id)
-    }
-}
-
-private struct StagingVideoPanel: View {
-    @ObservedObject var peer: NativeWebRTCPeer
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Partner video").font(.caption)
-            WebRTCVideoView(track: peer.remoteVideo).frame(height: 240).background(.black).clipShape(RoundedRectangle(cornerRadius: 18))
-            Text("Your camera").font(.caption)
-            WebRTCVideoView(track: peer.localVideo).frame(height: 120).background(.black).clipShape(RoundedRectangle(cornerRadius: 18))
-        }
     }
 }

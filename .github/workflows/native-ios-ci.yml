@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - native-reach
+      - feature/video-call-polish
       - feature/adventure-book-foundation
       - feature/adventure-book-single-app-integration
       - feature/adventure-book-visual-fidelity

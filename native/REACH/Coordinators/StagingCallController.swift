@@ -118,7 +118,9 @@ final class StagingCallController: ObservableObject {
                     } catch { await self?.fail(error, token: token, checkpoint: .signalingFailed) }
                 })
             }
-            if join { phase = .connecting }
+            // Once Take Hand has accepted a verified offer, also bound the
+            // wait for the signaling listener's first snapshot.
+            if join { handleTransport(.negotiationStarted, token: token) }
             // Snapshot listeners emit existing messages, so late joiners receive the offer and all ICE.
             tasks.append(Task { [weak self] in
                 do {
@@ -199,11 +201,17 @@ final class StagingCallController: ObservableObject {
 
     private func handleTransport(_ event: ReachTransportWatchdog.Event, token: UUID) {
         guard generation == token, !watchdog.finished else { return }
-        phase = phase.receiving(event)
         switch event {
-        case .connected: diagnostics.record(.connected)
-        case .disconnected: diagnostics.record(.interrupted)
-        default: break
+        case .connected:
+            phase = phase.receiving(event)
+            diagnostics.record(.connected)
+        case .disconnected:
+            phase = phase.receiving(event)
+            diagnostics.record(.interrupted)
+        case .negotiationStarted:
+            phase = phase.receiving(event)
+        case .failed, .closed:
+            break // Terminal events go directly to teardown.
         }
         applyWatchdog(watchdog.receive(event), token: token)
     }
@@ -221,7 +229,6 @@ final class StagingCallController: ObservableObject {
                 self.applyWatchdog(self.watchdog.deadlineExpired(id), token: token)
             }
         case .stop:
-            phase = .interrupted
             // Stop capture synchronously, before any Firebase cleanup awaits.
             peer?.close()
             tasks.append(Task { [weak self] in
