@@ -7,6 +7,7 @@ final class StagingCallController: ObservableObject {
     @Published private(set) var peer: NativeWebRTCPeer?
     @Published private(set) var phase = ReachCallPhase.idle
     @Published private(set) var busy = false
+    @Published private(set) var speakerOverride = false
     @Published private(set) var diagnostics = ReachPrivateDiagnostics()
     private var generation = UUID()
     private var tasks: [Task<Void, Never>] = []
@@ -18,6 +19,32 @@ final class StagingCallController: ObservableObject {
     private var drainingCandidates = false
     private var watchdog = ReachTransportWatchdog()
     private var watchdogTask: Task<Void, Never>?
+
+    #if DEBUG && targetEnvironment(simulator)
+    func connectSimulatorPreview() {
+        guard phase == .idle else { return }
+        peer = NativeWebRTCPeer()
+        phase = ReachCallPhase.connecting.receiving(.connected)
+    }
+    #endif
+
+    func setSpeakerOverride(_ enabled: Bool) throws {
+        guard phase.showsFullScreenCall, peer != nil else { return }
+        try CallAudioOutput.setSpeakerOverride(enabled)
+        speakerOverride = enabled
+    }
+
+    func audioOutputChanged(to output: CallAudioOutput) {
+        if output != .speaker && output != .unavailable { speakerOverride = false }
+    }
+
+    private func closeMedia() {
+        if speakerOverride {
+            try? CallAudioOutput.setSpeakerOverride(false)
+            speakerOverride = false
+        }
+        peer?.close()
+    }
 
     func start(joining expectedRoomID: String? = nil) async {
         guard !busy, !phase.hasStarted else { return }
@@ -100,7 +127,7 @@ final class StagingCallController: ObservableObject {
                 guard let self, self.generation == token else { return }
                 do { try self.outbox.enqueue(candidate) }
                 catch {
-                    self.peer?.close()
+                    self.closeMedia()
                     self.tasks.append(Task { [weak self] in await self?.fail(error, token: token) })
                     return
                 }
@@ -230,7 +257,7 @@ final class StagingCallController: ObservableObject {
             }
         case .stop:
             // Stop capture synchronously, before any Firebase cleanup awaits.
-            peer?.close()
+            closeMedia()
             tasks.append(Task { [weak self] in
                 await self?.fail(SignalingError.transportFailed, token: token)
             })
@@ -249,7 +276,7 @@ final class StagingCallController: ObservableObject {
         let stopToken = generation
         watchdogTask?.cancel(); watchdogTask = nil
         tasks.forEach { $0.cancel() }; tasks.removeAll()
-        peer?.close(); peer = nil
+        closeMedia(); peer = nil
         diagnostics.record(.ended)
         let oldSession = session, oldPartnership = partnership, oldRooms = rooms
         session = nil; partnership = nil; rooms = nil; inbox = SignalingInbox()

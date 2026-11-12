@@ -17,6 +17,22 @@ final class CallPresentationTests: XCTestCase {
         XCTAssertFalse(ReachCallPhase.failed("Timed out").showsFullScreenCall)
     }
 
+    #if DEBUG && targetEnvironment(simulator)
+    @MainActor
+    func testOfflineSimulatorCallKeepsOnePeerAndEndsCleanly() async throws {
+        let call = StagingCallController()
+        call.connectSimulatorPreview()
+        XCTAssertEqual(call.phase, .connected)
+        let peer = try XCTUnwrap(call.peer)
+        call.connectSimulatorPreview()
+        XCTAssertTrue(call.peer === peer)
+        await call.end()
+        XCTAssertEqual(call.phase, .idle)
+        XCTAssertNil(call.peer)
+        XCTAssertFalse(call.speakerOverride)
+    }
+    #endif
+
     func testAudioOutputDistinguishesReceiverSpeakerAndAccessories() {
         XCTAssertEqual(CallAudioOutput(ports: [.builtInReceiver]), .receiver)
         XCTAssertEqual(CallAudioOutput(ports: [.builtInSpeaker]), .speaker)

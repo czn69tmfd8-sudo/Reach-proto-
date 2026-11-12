@@ -12,18 +12,18 @@ struct ActiveVideoCallView: View {
     @State private var screenAwake = ScreenAwakeController()
     @State private var audioOutput = CallAudioOutput.current
     @State private var controlsVisible = true
-    @State private var speakerOverride = false
     @State private var audioError = false
+    #if DEBUG && targetEnvironment(simulator)
+    @Environment(\.callSimulatorPreview) private var simulatorPreview
+    #endif
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            if let remoteVideo = peer.remoteVideo {
-                WebRTCVideoView(track: remoteVideo)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .ignoresSafeArea()
-                    .accessibilityHidden(true)
-            }
+            remoteVideo
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea()
+                .accessibilityHidden(true)
             Button {
                 controlsVisible.toggle()
             } label: {
@@ -37,8 +37,8 @@ struct ActiveVideoCallView: View {
             .accessibilityIdentifier("reach.toggleCallControls")
         }
         .overlay(alignment: .topTrailing) {
-            if cameraEnabled, let localVideo = peer.localVideo {
-                WebRTCVideoView(track: localVideo)
+            if cameraEnabled && hasLocalVideo {
+                localVideo
                     .frame(width: 92, height: 124)
                     .background(.black)
                     .clipShape(.rect(cornerRadius: 12))
@@ -62,6 +62,9 @@ struct ActiveVideoCallView: View {
             if controlsVisible { callControls }
         }
         .preferredColorScheme(.dark)
+        #if DEBUG && targetEnvironment(simulator)
+        .onAppear { controlsVisible = simulatorPreview != .hidden }
+        #endif
         .onChange(of: keepsScreenAwake, initial: true) { _, keepAwake in
             if keepAwake {
                 screenAwake.acquire(reason: "videoCall")
@@ -78,9 +81,41 @@ struct ActiveVideoCallView: View {
         }
         .onDisappear {
             screenAwake.releaseAll()
-            if speakerOverride { try? CallAudioOutput.setSpeakerOverride(false) }
-            if call.peer === peer { Task { await call.end() } }
+            Task {
+                if call.peer === peer { await call.end() }
+            }
         }
+    }
+
+    private var hasLocalVideo: Bool {
+        #if DEBUG && targetEnvironment(simulator)
+        if simulatorPreview != nil { return true }
+        #endif
+        return peer.localVideo != nil
+    }
+
+    @ViewBuilder private var remoteVideo: some View {
+        #if DEBUG && targetEnvironment(simulator)
+        if simulatorPreview != nil {
+            SimulatorVideoPattern(title: "Partner video", detail: "SIMULATED VIDEO")
+        } else {
+            WebRTCVideoView(track: peer.remoteVideo)
+        }
+        #else
+        WebRTCVideoView(track: peer.remoteVideo)
+        #endif
+    }
+
+    @ViewBuilder private var localVideo: some View {
+        #if DEBUG && targetEnvironment(simulator)
+        if simulatorPreview != nil {
+            SimulatorVideoPattern(title: "You", detail: nil)
+        } else {
+            WebRTCVideoView(track: peer.localVideo)
+        }
+        #else
+        WebRTCVideoView(track: peer.localVideo)
+        #endif
     }
 
     private var keepsScreenAwake: Bool {
@@ -104,11 +139,10 @@ struct ActiveVideoCallView: View {
                     cameraEnabled.toggle()
                     peer.setCameraEnabled(cameraEnabled)
                 }
-                control(speakerOverride ? "Use automatic audio routing" : "Use iPhone speaker",
+                control(call.speakerOverride ? "Use automatic audio routing" : "Use iPhone speaker",
                         icon: audioOutput == .speaker ? "speaker.wave.2.fill" : "speaker.fill", id: "reach.callSpeaker") {
                     do {
-                        try CallAudioOutput.setSpeakerOverride(!speakerOverride)
-                        speakerOverride.toggle()
+                        try call.setSpeakerOverride(!call.speakerOverride)
                         audioError = false
                         audioOutput = .current
                     } catch {
@@ -142,6 +176,6 @@ struct ActiveVideoCallView: View {
 
     private func refreshAudioOutput() {
         audioOutput = .current
-        if audioOutput != .speaker { speakerOverride = false }
+        call.audioOutputChanged(to: audioOutput)
     }
 }
