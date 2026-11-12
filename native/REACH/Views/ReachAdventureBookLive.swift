@@ -40,7 +40,13 @@ struct ReachAdventureBookLive: View {
     var body: some View {
         VStack(spacing: 0) {
             AdventureBookHeader(title: "Our Adventure Book") {
-                if openedMemoryID != nil {
+                if let selectedID = openedMemoryID {
+                    if let restoredPage = AdventureGalleryPagination.page(
+                        forSelectedMemoryID: selectedID,
+                        orderedIDs: book?.orderedMemories.map(\.id) ?? []
+                    ) {
+                        page = restoredPage
+                    }
                     openedMemoryID = nil
                 } else if page == 0 {
                     dismiss()
