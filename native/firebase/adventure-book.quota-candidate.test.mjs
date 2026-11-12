@@ -115,8 +115,13 @@ test('concurrent partners at 499 can add only one memory, and its retry consumes
   assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
   const winner = results.findIndex(result => result.status === 'fulfilled');
   const [uid, id] = contenders[winner];
-  assert.equal(results[1 - winner].reason.message, 'memory-limit');
-  assert.equal((await getDoc(quota(db('a')))).data().count, 500);
+  const rejection = results[1 - winner].reason;
+  assert.ok(rejection.message === 'memory-limit' || rejection.code === 'permission-denied',
+    'the loser must reach the cap check or be rejected by server rules');
+  const [loserUID, loserID] = contenders[1 - winner];
+  const loserDB = db(loserUID);
+  assert.equal((await getDoc(quota(loserDB))).data().count, 500);
+  assert.equal((await getDoc(memory(loserDB, loserID))).exists(), false);
   await assertSucceeds(create(db(uid), id, uid));
   // A client that ignores the transaction's local limit is still denied.
   await assertFails(attemptBatch(db('a'), ['bypass'], 501, 'bypass'));

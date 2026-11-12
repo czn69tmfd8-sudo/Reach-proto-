@@ -34,7 +34,9 @@ memory created. Each new memory and its one-slot increment are in the same
 atomic write. Rules check both before and after state, bind the increment to the
 one new document, keep the existing membership checks, and reject standalone
 creates and client-created quota documents. A retry of an existing matching ID
-uses its original slot. Story and photo metadata writes are outside this quota.
+uses its original slot. A losing transaction may receive permission denied
+before the SDK retries. Only report a full book after an authorized server
+reread confirms the cap. Story and photo metadata writes are outside this quota.
 
 An authorized rollout needs a creation freeze before a privileged inventory and
 backfill. Count actual documents, including older IDs, reconcile books already
@@ -66,11 +68,12 @@ every pairing and revocation writer to update it atomically, including older
 clients, before it could be an authoritative alternative.
 
 Reserve a stable photo ID, enforce byte and decoded image limits, and create an
-immutable object using a generation precondition. Recheck authorization before
-publishing the metadata, tie it to the verified object generation, and make
-publication retryable without replacing existing data. Reauthorize each new
-read against current membership and published metadata. Revocation denies
-subsequent authorized requests. Bytes already delivered cannot be withdrawn.
+immutable object using a generation precondition. In the same Firestore
+transaction that publishes metadata, recheck current membership and the
+memory, and bind publication to the verified object generation. Retry without
+replacing existing data. Reauthorize every read against current membership and
+published metadata. Revocation denies new requests after it takes effect.
+Bytes already delivered cannot be withdrawn.
 An interruption between object creation and metadata publication can leave an
 unpublished object for a separately reviewed cleanup procedure.
 
