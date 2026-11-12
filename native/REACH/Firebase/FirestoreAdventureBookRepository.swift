@@ -244,7 +244,12 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
         stopObserving()
         observingCode = pairCode
         let generation = observationGeneration
-        listener = memoriesCollection(pairCode).limit(to: 50).addSnapshotListener {
+        // Observe newly created memories at the tail of the stable ID order.
+        // Full pagination remains a server-authorized read; this listener is
+        // only an invalidation signal, never a source of visible content.
+        listener = memoriesCollection(pairCode)
+            .order(by: FieldPath.documentID(), descending: true)
+            .limit(to: 50).addSnapshotListener {
             [weak self] snapshot, error in
             Task { @MainActor [weak self] in
                 guard let self, self.observationGeneration == generation else { return }
