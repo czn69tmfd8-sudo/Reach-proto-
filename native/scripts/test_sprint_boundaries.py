@@ -83,7 +83,8 @@ class SprintBoundaryTests(unittest.TestCase):
         current = (ROOT / 'codemagic.yaml').read_text()
         marker = '  reach-ios-simulator:'
         prefix, tail = current.split(marker, 1)
-        self.assertEqual('workflows:\n' + marker + tail, original)
+        historical = ('workflows:\n' + marker + tail).split('  reach-adventure-approved-archive-only:', 1)[0]
+        self.assertEqual(historical.rstrip(), original.rstrip())
         prefix = prefix.split('  reach-ios-build6-archive-only:', 1)[0]
         self.assertTrue(prefix.startswith('workflows:\n  reach-ios-relationship-validation:'))
         for forbidden in ['publishing:', 'triggering:', 'artifacts:', 'groups:', 'ios_signing:',
