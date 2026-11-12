@@ -35,6 +35,14 @@ final class AdventureGalleryPaginationTests: XCTestCase {
         XCTAssertNil(AdventureGalleryPagination.selectedMemoryID(nil, availableIDs: ["a"]))
     }
 
+    func testExtremeCountsDoNotOverflow() {
+        XCTAssertEqual(AdventureGalleryPagination.spreadCount(memoryCount: Int.max),
+                       Int.max / 8 + 1)
+        XCTAssertEqual(AdventureGalleryPagination.clampedPage(Int.max, memoryCount: 1), 1)
+        XCTAssertTrue(AdventureGalleryPagination.memoryRange(spread: Int.max, memoryCount: 1).isEmpty)
+        XCTAssertEqual(AdventureGalleryPagination.spreadCount(memoryCount: -5), 1)
+    }
+
     func testLargeGalleryDoesNotOverflowRange() {
         XCTAssertEqual(AdventureGalleryPagination.memoryRange(spread: 124, memoryCount: 1000), 992..<1000)
         XCTAssertEqual(AdventureGalleryPagination.spreadCount(memoryCount: 1000), 125)
