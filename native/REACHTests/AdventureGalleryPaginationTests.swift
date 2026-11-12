@@ -72,4 +72,57 @@ final class AdventureGalleryPaginationTests: XCTestCase {
         XCTAssertEqual(AdventureGalleryPagination.memoryRange(spread: 124, memoryCount: 1000), 992..<1000)
         XCTAssertEqual(AdventureGalleryPagination.spreadCount(memoryCount: 1000), 125)
     }
+
+    func testTwoPhoneSharedMemoryConvergesAfterServerSnapshots() {
+        let members: Set<String> = ["byron", "aaron"]
+        let pairCode = "paired-book"
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        let memory = AdventureMemory(id: "lake-weekend", pairCode: pairCode,
+                                     creatorUID: "byron", title: "The Lake Weekend",
+                                     occurredAt: date, stories: [], photos: [],
+                                     comments: [], pageOrder: 0)
+        var server = AdventureBook(pairCode: pairCode, memories: [])
+        var byronPhone = server
+        var aaronPhone = server
+
+        XCTAssertTrue(server.insert(memory, as: "byron", members: members))
+        byronPhone = server
+        aaronPhone = server // Aaron receives the next authorized server snapshot.
+        XCTAssertEqual(byronPhone, aaronPhone)
+
+        XCTAssertTrue(server.updateStory(memoryID: memory.id, as: "aaron",
+                                         text: "My side of the weekend", at: date,
+                                         members: members))
+        aaronPhone = server
+        byronPhone = server // Byron receives the next authorized server snapshot.
+        XCTAssertEqual(byronPhone.memories[0].stories.first?.authorUID, "aaron")
+        XCTAssertEqual(byronPhone, aaronPhone)
+
+        let comment = AdventureMemory.Comment(id: "comment-one", authorUID: "byron",
+                                               text: "Let's go again", createdAt: date)
+        XCTAssertTrue(server.addComment(memoryID: memory.id, comment: comment,
+                                        as: "byron", members: members))
+        byronPhone = server
+        aaronPhone = server
+        XCTAssertEqual(aaronPhone.memories[0].comments.first?.text, "Let's go again")
+        XCTAssertEqual(byronPhone, aaronPhone)
+    }
+
+    func testPartnerCannotOverwriteOtherPartnersStoryOrPostAsThem() {
+        let members: Set<String> = ["byron", "aaron"]
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        var memory = AdventureMemory(id: "lake-weekend", pairCode: "paired-book",
+                                     creatorUID: "byron", title: "The Lake Weekend",
+                                     occurredAt: date, stories: [], photos: [],
+                                     comments: [], pageOrder: 0)
+        XCTAssertTrue(memory.updateStory(as: "aaron", text: "Aaron's story",
+                                         at: date, members: members))
+        XCTAssertFalse(memory.updateStory(as: "stranger", text: "Unauthorized",
+                                          at: date, members: members))
+        XCTAssertEqual(memory.stories.count, 1)
+        XCTAssertEqual(memory.stories[0].text, "Aaron's story")
+        let forged = AdventureMemory.Comment(id: "forged-comment", authorUID: "aaron",
+                                              text: "Forged", createdAt: date)
+        XCTAssertFalse(memory.addComment(forged, as: "byron", members: members))
+    }
 }
