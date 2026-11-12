@@ -180,3 +180,26 @@ test('paged listeners cover older memory edits, low-ID inserts and the story que
   snapshot => snapshot.docs.some(item => item.id === '000-new'),
   () => setDoc(memory(host, A, '000-new'), {...data(A), createdAt:serverTimestamp()}));
 });
+
+test('comment retries adopt the original immutable operation and reject a different payload', async () => {
+ const host = db('a'), partner = db('b');
+ const id = 'stable-comment-operation';
+ const ref = comment(host, A, 'trip', id);
+ const submit = text => runTransaction(host, async transaction => {
+  const existing = await transaction.get(ref);
+  if (existing.exists()) {
+   if (existing.data().authorUid !== 'a' || existing.data().text !== text) {
+    throw Error('comment-operation-conflict');
+   }
+   return;
+  }
+  transaction.set(ref, {authorUid:'a', text, createdAt:serverTimestamp()});
+ });
+ await assertSucceeds(submit('One comment'));
+ const original = (await getDoc(ref)).data();
+ await assertSucceeds(submit('One comment'));
+ await assert.rejects(submit('Different payload'), /comment-operation-conflict/);
+ assert.deepEqual((await getDoc(comment(partner, A, 'trip', id))).data(), original);
+ const conversation = await getDocs(query(collection(partner, 'adventureBooks', A, 'memories', 'trip', 'comments'), limit(50)));
+ assert.equal(conversation.size, 1);
+});

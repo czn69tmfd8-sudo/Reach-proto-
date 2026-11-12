@@ -241,12 +241,39 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     }
 
     func postComment(pairCode: String, memoryID: String, text: String) async throws {
+        try await postComment(pairCode: pairCode, memoryID: memoryID, text: text,
+                              commentID: UUID().uuidString.lowercased())
+    }
+
+    func postComment(pairCode: String, memoryID: String, text: String, commentID: String) async throws {
         let uid = try await verifiedCode(pairCode)
         guard let base = AdventureBookPaths.memory(pairCode: pairCode, memoryID: memoryID),
+              SharedContentPolicy.documentID(commentID),
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               text.utf8.count <= 2000 else { throw AdventureBookRepositoryError.invalidMemory }
-        try await db.document(base).collection("comments").document(UUID().uuidString.lowercased())
-            .setData(["authorUid": uid, "text": text, "createdAt": FieldValue.serverTimestamp()])
+        let ref = db.document(base).collection("comments").document(commentID)
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            db.runTransaction({ transaction, pointer -> Any? in
+                do {
+                    let existing = try transaction.getDocument(ref)
+                    if let data = existing.data() {
+                        guard data["authorUid"] as? String == uid, data["text"] as? String == text else {
+                            throw AdventureBookRepositoryError.conflict
+                        }
+                    } else {
+                        transaction.setData([
+                            "authorUid": uid, "text": text, "createdAt": FieldValue.serverTimestamp()
+                        ], forDocument: ref)
+                    }
+                } catch {
+                    pointer?.pointee = error as NSError
+                }
+                return nil
+            }, completion: { _, error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: ()) }
+            })
+        }
     }
 
     /// Listener payloads are never used as authorized content. All visible

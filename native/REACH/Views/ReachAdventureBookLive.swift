@@ -16,6 +16,7 @@ struct ReachAdventureBookLive: View {
     @State private var selectedMemory: AdventureMemory?
     @State private var selectedStoryVersion: Timestamp?
     @State private var commentDraft = ""
+    @State private var pendingComment: (memoryID: String, text: String, id: String)?
     @State private var photoSelection: PhotosPickerItem?
     @State private var uploadingPhotoFor: AdventureMemory?
     @State private var photoProgress = ""
@@ -60,9 +61,11 @@ struct ReachAdventureBookLive: View {
             if let error {
                 Text(error).font(.footnote).foregroundStyle(.white)
                     .padding(10).background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
-                Button("Try again") { Task { await connect() } }
-                    .disabled(connecting)
-                    .buttonStyle(.bordered).tint(.white)
+                if book == nil {
+                    Button("Try again") { Task { await connect() } }
+                        .disabled(connecting)
+                        .buttonStyle(.bordered).tint(.white)
+                }
             }
             if let book {
                 let ordered = book.orderedMemories
@@ -337,6 +340,7 @@ struct ReachAdventureBookLive: View {
         selectedStoryVersion = nil
         openedMemoryID = nil
         commentDraft = ""
+        pendingComment = nil
         photoSelection = nil
         uploadingPhotoFor = nil
         photoProgress = ""
@@ -417,7 +421,7 @@ struct ReachAdventureBookLive: View {
                                          title: title, occurredAt: date, stories: [],
                                          photos: [], comments: [], pageOrder: nextOrder)
             try await repository.createMemory(memory)
-            if connectionEpoch == epoch, !story.isEmpty {
+            if !story.isEmpty {
                 try await repository.saveOwnStory(pairCode: code, memoryID: id,
                                                   text: story, expectedVersion: nil)
             }
@@ -462,13 +466,23 @@ struct ReachAdventureBookLive: View {
     private func postComment(memoryID: String, text: String) async {
         guard let code = pairCode, !busy else { return }
         let epoch = connectionEpoch
+        let commentID: String
+        if let pendingComment, pendingComment.memoryID == memoryID, pendingComment.text == text {
+            commentID = pendingComment.id
+        } else {
+            commentID = UUID().uuidString.lowercased()
+            pendingComment = (memoryID, text, commentID)
+        }
         busy = true
         defer { if connectionEpoch == epoch { busy = false } }
         do {
-            try await repository.postComment(pairCode: code, memoryID: memoryID, text: text)
+            try await repository.postComment(pairCode: code, memoryID: memoryID, text: text, commentID: commentID)
+            guard connectionEpoch == epoch else { return }
+            pendingComment = nil
+            error = nil
             // Only clear the draft after the server accepts it, and never
             // erase a draft that the user has since edited or moved away from.
-            if connectionEpoch == epoch, openedMemoryID == memoryID, commentDraft == text {
+            if openedMemoryID == memoryID, commentDraft == text {
                 commentDraft = ""
             }
         } catch {
