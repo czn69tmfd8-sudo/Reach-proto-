@@ -1,5 +1,6 @@
+import Foundation
 import ImageIO
-import UIKit
+import UniformTypeIdentifiers
 
 /// Local encoder for the private Firestore preview candidate. The live
 /// Adventure Book never calls this encoder or enables the prototype transport.
@@ -26,10 +27,15 @@ enum AdventurePhotoPreviewEncoder {
             guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
                 return nil
             }
-            let image = UIImage(cgImage: thumbnail)
-            for quality: CGFloat in [0.86, 0.80, 0.74] {
-                if let bytes = image.jpegData(compressionQuality: quality), bytes.count <= maximumBytes {
-                    return bytes
+            for quality in [0.86, 0.80, 0.74] {
+                guard let output = CFDataCreateMutable(nil, 0),
+                      let destination = CGImageDestinationCreateWithData(
+                          output, UTType.jpeg.identifier as CFString, 1, nil
+                      ) else { return nil }
+                let options = [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary
+                CGImageDestinationAddImage(destination, thumbnail, options)
+                if CGImageDestinationFinalize(destination), CFDataGetLength(output) <= maximumBytes {
+                    return output as Data
                 }
             }
         }

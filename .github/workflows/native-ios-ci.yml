@@ -21,7 +21,7 @@ on:
 concurrency:
   # Keep the current Adventure Book validation behind its own branch-local
   # queue while the earlier pagination checkpoints finish in the old queue.
-  group: native-ios-ci-${{ github.ref }}${{ github.ref == 'refs/heads/feature/adventure-book-gallery-pagination' && '-scoped-gallery' || '' }}
+  group: native-ios-ci-${{ github.ref }}${{ github.ref == 'refs/heads/feature/adventure-book-gallery-pagination' && '-quota-and-photo' || '' }}
   cancel-in-progress: false
   queue: max
 
@@ -80,6 +80,11 @@ jobs:
           xcode-select -p
           xcodebuild -version
           swift --version
+
+      - name: Measure Apple JPEG encoder on travel photographs
+        if: github.ref == 'refs/heads/feature/adventure-book-gallery-pagination'
+        continue-on-error: true
+        run: bash native/scripts/run-adventure-photo-benchmark.sh
 
       - name: Validate distribution preparation and packaging
         run: python3 -m unittest discover -s native/scripts -p 'test_*.py'

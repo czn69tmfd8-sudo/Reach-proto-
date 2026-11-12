@@ -183,8 +183,10 @@ The hosted read and write cost, cache behavior on iPhone, and index exemptions
 for the bytes field need validation before activation.
 
 A Pillow JPEG experiment used the same 1,280 px initial edge and quality
-ladder as the iOS encoder. These numbers are the local comparison, not UIKit
-codec measurements. PSNR compares identically cropped versions of the source
+ladder as the iOS encoder. These numbers are the local comparison, not Apple ImageIO
+codec measurements. The native CI benchmark runs the same ImageIO encoder
+as the iOS prototype and prints byte counts and dimensions for the four
+checksum-pinned travel inputs. PSNR compares identically cropped versions of the source
 and encoded result at the stated display sizes.
 
 | Photo | Input bytes | Output bytes | Output pixels | Gallery 360×220 | Detail 720×440 |
@@ -198,7 +200,7 @@ All four fit 256 KiB at the first quality step. At gallery size the paired
 crops looked close, with the most measurable loss in the dense woodland
 sample at detail size. The native test uses a synthetic image to validate
 decoding, bounds and aspect ratio. Before photos advance, repeat the travel
-benchmark with Apple's encoder, include GPS-bearing and rotated originals,
+quality comparison on iPhone, include GPS-bearing and rotated originals,
 verify re-encoding strips source metadata, and test real-device cache and
 revocation behavior with synthetic accounts. Photos still require explicit
 approval for hosted rules, authenticated native transport, budget controls,
