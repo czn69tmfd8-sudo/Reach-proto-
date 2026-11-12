@@ -81,6 +81,13 @@ struct AdventureGalleryPagination {
         return index / memoriesPerSpread + 1
     }
 
+    /// The gallery page is 1-based; the cover occupies page zero.
+    /// Keep the same memory in view after remote reordering when possible.
+    static func page(forSelectedMemoryID id: String, orderedIDs: [String]) -> Int? {
+        guard let index = orderedIDs.firstIndex(of: id) else { return nil }
+        return spread(forMemoryAt: index)
+    }
+
     /// Preserve ordering gaps; a new memory belongs after the highest existing
     /// page order, not after the number of memories currently loaded.
     /// A saturated order must be rejected rather than silently colliding.
