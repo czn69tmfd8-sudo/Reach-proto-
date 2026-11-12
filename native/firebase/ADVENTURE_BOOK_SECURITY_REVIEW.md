@@ -210,3 +210,35 @@ and gate activation.
 [Night street](https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=1800)
 [Paris](https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=1800)
 [Woodland](https://images.unsplash.com/photo-1472396961693-142e6e269027?w=1800)
+
+## Native private-preview transport candidate
+
+The gated native adapter uses Firebase ID tokens with Firestore REST requests.
+It uses an ephemeral URLSession with no HTTP cache, cookies, credentials store,
+redirects or offline fallback. This keeps photo bytes outside the Firestore
+SDK document cache. The fixed preview path, create-only precondition and
+server timestamp keep metadata and bytes together. A retry after an uncertain
+commit must fetch the exact same owner, deterministic byte digest and bytes.
+Re-encoding different bytes cannot overwrite an existing preview.
+
+The gallery requests only IDs on the visible spread, up to eight documents,
+and downsamples decoded images to at most 400 px per edge for cards. The
+detail view fetches one preview. The scope key discards stale responses when
+changing spreads, opening details, backgrounding or reconnecting. The auth
+listener and current pairing/member-lock observations invalidate the private
+session on observed access loss. Re-entry fetches fresh server data. A preview
+uploaded on the other device appears on a subsequent scope fetch; the native
+candidate does not continuously subscribe to the image-byte documents.
+Auth/pair observation adds its own small metadata read budget, separate from
+the eight preview reads. The full 2 MiB payload budget excludes base64 and
+protocol overhead.
+
+Before hosted use, validate both devices with synthetic accounts, including
+network loss during an upload, partner revocation while a spread is visible,
+relaunch, foreground transitions, on-device memory use and disk/cache
+inspection. Confirm the exact REST call shape, any App Check requirements,
+and metered authorization read costs in the intended staging environment.
+App Check, if enforced for this database, needs an explicitly reviewed
+authenticated header path before activation. Existing live photo and quota
+settings remain closed. The offline quota planner and freeze/backfill/rollback
+rehearsal remain the starting point for the separate quota cutover decision.

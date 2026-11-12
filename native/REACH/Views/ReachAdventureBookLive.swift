@@ -42,6 +42,31 @@ struct ReachAdventureBookLive: View {
     @State private var connectionEpoch = 0
     @State private var connecting = false
     @State private var loadedContentScope = AdventureBookContentScope()
+    @State private var privatePreviewSelection: PhotosPickerItem?
+    @State private var privatePreviews: [String: UIImage] = [:]
+    @State private var displayedPreviewKey: PrivatePreviewKey?
+    @State private var previewRevision = 0
+    @State private var previewUploading = false
+    @State private var pendingPreview: (memoryID: String, bytes: Data)?
+
+    private struct PrivatePreviewKey: Equatable {
+        let pairCode: String?
+        let scope: AdventureBookContentScope
+        let epoch: Int
+        let revision: Int
+        let active: Bool
+    }
+
+    private var previewKey: PrivatePreviewKey {
+        PrivatePreviewKey(pairCode: pairCode, scope: contentScope, epoch: connectionEpoch,
+                          revision: previewRevision, active: scenePhase == .active)
+    }
+
+    private func preview(for id: String) -> UIImage? {
+        guard AdventurePrivatePhotoGate.enabled, scenePhase == .active,
+              displayedPreviewKey == previewKey else { return nil }
+        return privatePreviews[id]
+    }
 
     private var contentScope: AdventureBookContentScope {
         AdventureBookContentScope(orderedIDs: book?.orderedMemories.map(\.id) ?? [],
@@ -160,9 +185,18 @@ struct ReachAdventureBookLive: View {
             if scenePhase != .background { await connect() }
         }
         .task(id: photoSelection) { await uploadSelectedPhoto() }
+        .task(id: previewKey) { await loadPrivatePreviews(for: previewKey) }
+        .task(id: privatePreviewSelection) { await preparePrivatePreview() }
         .onDisappear { clearPrivateContext() }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .background { clearPrivateContext() }
+            if phase == .background {
+                clearPrivateContext()
+            } else if AdventurePrivatePhotoGate.enabled, phase != .active {
+                privatePreviews.removeAll()
+                displayedPreviewKey = nil
+                pendingPreview = nil
+                privatePreviewSelection = nil
+            }
         }
         .sheet(isPresented: $showingNewMemory) {
             AdventureMemoryDraftEditor { title, date, story in
@@ -207,7 +241,11 @@ struct ReachAdventureBookLive: View {
                         } label: {
                             VStack(alignment: .leading, spacing: 6) {
                                 AdventureMountedFrame(title: memory.title) {
-                                    if let coverPhoto = memory.photos.first {
+                                    if let image = preview(for: memory.id), page == spread + 1 {
+                                        Image(uiImage: image).resizable().scaledToFill()
+                                            .frame(height: 112).clipped()
+                                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                                    } else if let coverPhoto = memory.photos.first {
                                         AdventureAuthenticatedPhoto(pairCode: memory.pairCode,
                                             memoryID: memory.id, photo: coverPhoto, compact: true)
                                     } else if page == spread + 1 && !loadedContentScope.photoIDs.contains(memory.id) {
@@ -263,6 +301,15 @@ struct ReachAdventureBookLive: View {
                     .frame(maxWidth: .infinity).multilineTextAlignment(.center)
                 Image(systemName: "leaf").foregroundStyle(AdventureBookPalette.gold)
                 Text(memory.occurredAt, style: .date).font(.caption)
+                if let image = preview(for: memory.id) {
+                    Image(uiImage: image).resizable().scaledToFit()
+                        .frame(maxHeight: 230).padding(9)
+                        .background(AdventureBookPalette.parchmentLight)
+                        .overlay(alignment: .topLeading) { AdventureTape().rotationEffect(.degrees(-38)) }
+                        .overlay(alignment: .bottomTrailing) { AdventureTape().rotationEffect(.degrees(-38)) }
+                        .rotationEffect(.degrees(-1.2))
+                        .shadow(color: .black.opacity(0.15), radius: 5, x: 2, y: 4)
+                }
                 ForEach(memory.photos) { photo in
                     VStack(spacing: 8) {
                         AdventureAuthenticatedPhoto(pairCode: memory.pairCode,
@@ -279,7 +326,19 @@ struct ReachAdventureBookLive: View {
                     .rotationEffect(.degrees(memory.photos.first?.id == photo.id ? -1.2 : 1.2))
                     .shadow(color: .black.opacity(0.15), radius: 5, x: 2, y: 4)
                 }
-                if AdventurePhotoFeatureGate.liveUploadsEnabled {
+                if AdventurePrivatePhotoGate.enabled {
+                    if preview(for: memory.id) == nil, pendingPreview == nil {
+                        PhotosPicker(selection: $privatePreviewSelection, matching: .images) {
+                            Label("Choose photo", systemImage: "photo.badge.plus")
+                        }.disabled(previewUploading)
+                    }
+                    if pendingPreview?.memoryID == memory.id {
+                        Button("Retry incomplete photo") { Task { await publishPrivatePreview() } }
+                            .disabled(previewUploading)
+                        Button("Discard pending photo", role: .destructive) { pendingPreview = nil }
+                            .disabled(previewUploading)
+                    }
+                } else if AdventurePhotoFeatureGate.liveUploadsEnabled {
                     PhotosPicker(selection: $photoSelection, matching: .images) {
                         Label("Choose photo", systemImage: "photo.badge.plus")
                     }
@@ -356,6 +415,92 @@ struct ReachAdventureBookLive: View {
         }
     }
 
+    private func loadPrivatePreviews(for key: PrivatePreviewKey) async {
+        guard AdventurePrivatePhotoGate.enabled, !Task.isCancelled, previewKey == key else { return }
+        privatePreviews.removeAll()
+        displayedPreviewKey = nil
+        guard key.active, let code = key.pairCode else {
+            pendingPreview = nil
+            return
+        }
+        let ids = Array(key.scope.memoryIDs.sorted().prefix(8))
+        guard !ids.isEmpty else { return }
+        do {
+            let client = try AdventurePrivatePhotoClient.live()
+            let previews = try await withThrowingTaskGroup(of: (String, Data?).self) { group in
+                for id in ids {
+                    group.addTask {
+                        (id, try await client.read(pairCode: code, memoryID: id)?.bytes)
+                    }
+                }
+                var result: [String: Data] = [:]
+                for try await (id, bytes) in group { result[id] = bytes }
+                return result
+            }
+            guard !Task.isCancelled, previewKey == key else { return }
+            let maximumEdge = key.scope.detailID == nil ? 400 : 1_280
+            privatePreviews = previews.compactMapValues { bytes in
+                AdventurePhotoPreviewEncoder.thumbnail(bytes, maximumEdge: maximumEdge).map { UIImage(cgImage: $0) }
+            }
+            displayedPreviewKey = key
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled, previewKey == key else { return }
+            if error as? AdventurePrivatePhotoClient.Failure == .unauthorized {
+                clearPrivateContext()
+            }
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func preparePrivatePreview() async {
+        guard AdventurePrivatePhotoGate.enabled, !previewUploading, pendingPreview == nil,
+              let selection = privatePreviewSelection, let memoryID = openedMemoryID,
+              scenePhase == .active else { return }
+        let epoch = connectionEpoch
+        defer {
+            if connectionEpoch == epoch, privatePreviewSelection == selection { privatePreviewSelection = nil }
+        }
+        do {
+            guard let original = try await selection.loadTransferable(type: Data.self),
+                  !Task.isCancelled, connectionEpoch == epoch, openedMemoryID == memoryID,
+                  scenePhase == .active else { return }
+            guard let encoded = AdventurePhotoPreviewEncoder.encode(original) else {
+                throw AdventurePrivatePhotoClient.Failure.malformed
+            }
+            pendingPreview = (memoryID, encoded)
+            await publishPrivatePreview()
+        } catch {
+            guard !Task.isCancelled, connectionEpoch == epoch else { return }
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func publishPrivatePreview() async {
+        guard AdventurePrivatePhotoGate.enabled, !previewUploading, let pendingPreview,
+              let code = pairCode, openedMemoryID == pendingPreview.memoryID,
+              scenePhase == .active else { return }
+        let epoch = connectionEpoch
+        previewUploading = true
+        defer { if connectionEpoch == epoch { previewUploading = false } }
+        do {
+            try await AdventurePrivatePhotoClient.live().publish(
+                pairCode: code, memoryID: pendingPreview.memoryID, bytes: pendingPreview.bytes
+            )
+            guard connectionEpoch == epoch, scenePhase == .active else { return }
+            self.pendingPreview = nil
+            previewRevision += 1
+            error = nil
+        } catch {
+            guard connectionEpoch == epoch, scenePhase == .active else { return }
+            if error as? AdventurePrivatePhotoClient.Failure == .unauthorized {
+                clearPrivateContext()
+            }
+            self.error = error.localizedDescription
+        }
+    }
+
     private func clearPrivateContext() {
         connectionEpoch += 1
         repository.stopObserving()
@@ -379,6 +524,11 @@ struct ReachAdventureBookLive: View {
         pendingPhotoBytes = nil
         pendingPhotoPosition = 0
         recoveryRecord = nil
+        privatePreviewSelection = nil
+        privatePreviews.removeAll()
+        displayedPreviewKey = nil
+        pendingPreview = nil
+        previewUploading = false
     }
 
     private func connect() async {

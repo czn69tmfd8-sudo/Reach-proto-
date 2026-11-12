@@ -23,6 +23,8 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     private var refreshRequested = false
     private var dirtyMemoryIDs = Set<String>()
     private var observedBook: AdventureBook?
+    private var previewAccessListeners: [ListenerRegistration] = []
+    private var previewAuthListener: AuthStateDidChangeListenerHandle?
 
     init(db: Firestore = Firestore.firestore()) {
         self.db = db
@@ -40,6 +42,10 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     }
 
     private func verifiedCode(_ code: String) async throws -> String {
+        try await verifiedAccess(code).uid
+    }
+
+    private func verifiedAccess(_ code: String) async throws -> (uid: String, other: String) {
         let uid = try activeUID()
         guard SharedContentPolicy.pairCode(code),
               SharedContentPolicy.documentID(uid) else { throw AdventureBookRepositoryError.unauthorized }
@@ -62,7 +68,7 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
         guard try activeUID() == uid else {
             throw AdventureBookRepositoryError.unauthorized
         }
-        return uid
+        return (uid, other)
     }
 
     private func memoriesCollection(_ code: String) -> CollectionReference {
@@ -350,13 +356,61 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     func observe(pairCode: String, onChange: @escaping @MainActor (Result<AdventureBook, Error>) -> Void) async throws {
         stopObserving()
         let generation = observationGeneration
-        _ = try await verifiedCode(pairCode)
+        let access = try await verifiedAccess(pairCode)
         guard observationGeneration == generation, !Task.isCancelled else {
             throw CancellationError()
         }
         observingCode = pairCode
         onObservedChange = onChange
+        if AdventurePrivatePhotoGate.enabled {
+            watchPreviewAccess(pairCode: pairCode, uid: access.uid, other: access.other,
+                               generation: generation, onChange: onChange)
+        }
         installMemoryListeners(for: [], pairCode: pairCode, generation: generation, onChange: onChange)
+    }
+
+    private func watchPreviewAccess(
+        pairCode: String, uid: String, other: String, generation: Int,
+        onChange: @escaping @MainActor (Result<AdventureBook, Error>) -> Void
+    ) {
+        let invalidate: @MainActor (Error) -> Void = { [weak self] error in
+            guard let self, self.observationGeneration == generation else { return }
+            self.stopObserving()
+            onChange(.failure(error))
+        }
+        previewAuthListener = Auth.auth().addStateDidChangeListener { _, user in
+            let changedUID = user?.uid
+            Task { @MainActor in
+                if changedUID != uid { invalidate(AdventurePrivatePhotoClient.Failure.unauthorized) }
+            }
+        }
+
+        let invite = "nativeStaging/v1/pairInvites/\(pairCode)"
+        let paths = [invite, "nativeStaging/v1/memberLocks/\(uid)", "nativeStaging/v1/memberLocks/\(other)"]
+        for path in paths {
+            let isInvite = path == invite
+            let state = AdventurePreviewAccessState()
+            let registration = db.document(path).addSnapshotListener(includeMetadataChanges: true) { snapshot, error in
+                Task { @MainActor in
+                    if let error { invalidate(error); return }
+                    guard let snapshot else {
+                        invalidate(AdventurePrivatePhotoClient.Failure.unavailable)
+                        return
+                    }
+                    let fields = snapshot.data()
+                    let members = Set([fields?["hostUid"] as? String, fields?["partnerUid"] as? String].compactMap { $0 })
+                    let matches = isInvite
+                        ? fields?["revoked"] as? Bool != true && members == Set([uid, other])
+                        : fields?["pairCode"] as? String == pairCode
+                    if !state.accept(isCached: snapshot.metadata.isFromCache,
+                                     hasPendingWrites: snapshot.metadata.hasPendingWrites,
+                                     matches: snapshot.exists && matches) {
+                        invalidate(AdventurePrivatePhotoClient.Failure.unauthorized)
+                    }
+                }
+            }
+            previewAccessListeners.append(registration)
+        }
     }
 
     private func installMemoryListeners(
@@ -527,6 +581,10 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
 
     func stopObserving() {
         observationGeneration += 1
+        previewAccessListeners.forEach { $0.remove() }
+        previewAccessListeners.removeAll()
+        if let previewAuthListener { Auth.auth().removeStateDidChangeListener(previewAuthListener) }
+        previewAuthListener = nil
         memoryListeners.values.forEach { $0.remove() }
         memoryListeners.removeAll()
         childGeneration += 1
@@ -544,4 +602,18 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
         refreshTask = nil
     }
 
+}
+
+@MainActor
+final class AdventurePreviewAccessState {
+    private var observedServer = false
+
+    /// Initial cached events cannot grant access. Losing server-backed
+    /// observation after validation invalidates the private session.
+    func accept(isCached: Bool, hasPendingWrites: Bool, matches: Bool) -> Bool {
+        if hasPendingWrites { return matches }
+        if isCached { return !observedServer }
+        observedServer = true
+        return matches
+    }
 }

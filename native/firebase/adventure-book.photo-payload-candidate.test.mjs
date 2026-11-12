@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { createMockUserToken } from '@firebase/util';
 import { after, before, beforeEach, test } from 'node:test';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import { Bytes, collection, deleteDoc, doc, getDocFromServer, getDocsFromServer, runTransaction, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
@@ -158,4 +159,61 @@ test('one immutable preview per memory keeps metadata and bytes together across 
   });
   await assertFails(getDocFromServer(preview(b)));
   await assertFails(publishPreview(a, 'a', 'stable-operation', bytes));
+});
+
+test('native REST shape is create-only and eight visible reads fail closed after revocation', async () => {
+  const project = 'demo-reach-adventure';
+  const host = process.env.FIRESTORE_EMULATOR_HOST;
+  assert.match(host ?? '', /^(127\.0\.0\.1|localhost):\d+$/);
+  const base = 'projects/' + project + '/databases/(default)/documents';
+  const slot = id => base + '/adventureBooks/' + A + '/memories/' + id + '/privatePhotoPreviews/preview';
+  const headers = uid => ({
+    Authorization: 'Bearer ' + createMockUserToken({ sub: uid }, project),
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-store',
+  });
+  async function request(path, uid, body) {
+    const response = await fetch('http://' + host + '/v1/' + path, {
+      method: body ? 'POST' : 'GET',
+      headers: headers(uid),
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await response.json();
+    return { status: response.status, data };
+  }
+  function commit(id, bytes) {
+    return request(base + ':commit', 'a', { writes: [{
+      update: { name: slot(id), fields: {
+        ownerUid: { stringValue: 'a' },
+        operationID: { stringValue: 'test-operation' },
+        bytes: { bytesValue: bytes },
+      } },
+      updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }],
+      currentDocument: { exists: false },
+    }] });
+  }
+  const ids = Array.from({ length: 8 }, (_, index) => 'card-' + index);
+  await env.withSecurityRulesDisabled(async context => {
+    const d = context.firestore();
+    for (const id of ids) await setDoc(memory(d, A, id), {
+      pairCode: A, creatorUid: 'a', title: 'Synthetic card', occurredAt: new Date(0),
+      pageOrder: 0, createdAt: serverTimestamp(),
+    });
+  });
+  for (const id of ids) {
+    const result = await commit(id, '/9j/4AEA');
+    assert.equal(result.status, 200, JSON.stringify(result.data));
+  }
+  const retry = await commit(ids[0], '/9j/4AEB');
+  assert.ok([400, 403, 409].includes(retry.status), JSON.stringify(retry.data));
+  const spread = await Promise.all(ids.map(id => request(slot(id), 'b')));
+  assert.equal(spread.length, 8);
+  assert.ok(spread.every(result => result.status === 200));
+  assert.equal(spread[0].data.fields.bytes.bytesValue, '/9j/4AEA');
+  assert.equal((await request(slot(ids[0]), 'c')).status, 403);
+  await env.withSecurityRulesDisabled(async context => {
+    await updateDoc(doc(context.firestore(), root, 'pairInvites', A), { revoked: true });
+  });
+  assert.equal((await request(slot(ids[0]), 'b')).status, 403);
+  assert.equal((await commit(ids[0], '/9j/4AEA')).status, 403);
 });

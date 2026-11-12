@@ -25,6 +25,41 @@ final class AdventurePhotoPreviewEncoderTests: XCTestCase {
         XCTAssertEqual(Double(image.width) / Double(image.height), 1.5, accuracy: 0.01)
     }
 
+    func testReencodingStripsGPSAndSensitiveEXIFAndAppliesOrientation() throws {
+        let inputImage = UIGraphicsImageRenderer(size: CGSize(width: 80, height: 40)).image { context in
+            context.cgContext.setFillColor(UIColor.red.cgColor)
+            context.cgContext.fill(CGRect(x: 0, y: 0, width: 80, height: 40))
+        }
+        let image = try XCTUnwrap(inputImage.cgImage)
+        let input = try XCTUnwrap(CFDataCreateMutable(nil, 0))
+        let destination = try XCTUnwrap(CGImageDestinationCreateWithData(input, "public.jpeg" as CFString, 1, nil))
+        let metadata: [CFString: Any] = [
+            kCGImagePropertyOrientation: 6,
+            kCGImagePropertyGPSDictionary: [
+                kCGImagePropertyGPSLatitude: 43.5, kCGImagePropertyGPSLatitudeRef: "N",
+                kCGImagePropertyGPSLongitude: 81.5, kCGImagePropertyGPSLongitudeRef: "W"
+            ],
+            kCGImagePropertyExifDictionary: [kCGImagePropertyExifUserComment: "Synthetic private note"]
+        ]
+        CGImageDestinationAddImage(destination, image, metadata as CFDictionary)
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(input, nil))
+        let original = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any])
+        XCTAssertNotNil(original[kCGImagePropertyGPSDictionary])
+        XCTAssertEqual(original[kCGImagePropertyOrientation] as? Int, 6)
+        let originalEXIF = original[kCGImagePropertyExifDictionary] as? [CFString: Any]
+        XCTAssertEqual(originalEXIF?[kCGImagePropertyExifUserComment] as? String, "Synthetic private note")
+
+        let bytes = try XCTUnwrap(AdventurePhotoPreviewEncoder.encode(input as Data))
+        let reencoded = try XCTUnwrap(CGImageSourceCreateWithData(bytes as CFData, nil))
+        let result = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(reencoded, 0, nil) as? [CFString: Any])
+        XCTAssertNil(result[kCGImagePropertyGPSDictionary])
+        let exif = result[kCGImagePropertyExifDictionary] as? [CFString: Any]
+        XCTAssertNil(exif?[kCGImagePropertyExifUserComment])
+        let rotated = try XCTUnwrap(AdventurePhotoPreviewEncoder.thumbnail(bytes, maximumEdge: 400))
+        XCTAssertLessThan(rotated.width, rotated.height)
+    }
+
     func testRejectsUnreadableInput() {
         XCTAssertNil(AdventurePhotoPreviewEncoder.encode(Data([0, 1, 2, 3])))
     }

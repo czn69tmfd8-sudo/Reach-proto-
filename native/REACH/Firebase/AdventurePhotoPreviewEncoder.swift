@@ -41,4 +41,19 @@ enum AdventurePhotoPreviewEncoder {
         }
         return nil
     }
+
+    static func thumbnail(_ bytes: Data, maximumEdge: Int) -> CGImage? {
+        guard (1...1_280).contains(maximumEdge), bytes.count <= maximumBytes,
+              let source = CGImageSourceCreateWithData(bytes as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int,
+              (1...1_280).contains(width), (1...1_280).contains(height) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: maximumEdge,
+            kCGImageSourceShouldCacheImmediately: true
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+    }
 }
