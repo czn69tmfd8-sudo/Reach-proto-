@@ -149,8 +149,17 @@ struct ReachAdventureBookPreview: View {
     private func memory(at index: Int) -> some View {
         AdventureParchmentPage {
             VStack(spacing: 14) {
-                AdventureMountedPhoto(sample: index, title: nil)
+                if index < titles.count {
+                    AdventureMountedPhoto(sample: index, title: nil)
+                        .frame(height: 205).rotationEffect(.degrees(-1.2))
+                } else {
+                    AdventureMountedFrame(title: nil) {
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(AdventureBookPalette.paper.opacity(0.45))
+                    }
                     .frame(height: 205).rotationEffect(.degrees(-1.2))
+                }
                 VStack(spacing: 3) {
                     Text(sampleTitle(at: index)).font(AdventureBookPalette.handwriting(28, relativeTo: .title2))
                         .multilineTextAlignment(.center)
@@ -158,10 +167,15 @@ struct ReachAdventureBookPreview: View {
                     Label("Illustrated sample memory", systemImage: "mappin.and.ellipse")
                         .font(AdventureBookPalette.serif(13, relativeTo: .caption))
                 }
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .top, spacing: 10) { stories }
-                        .frame(minWidth: dynamicType.isAccessibilitySize ? 900 : 0)
-                    VStack(spacing: 12) { stories }
+                if index < titles.count {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .top, spacing: 10) { stories }
+                            .frame(minWidth: dynamicType.isAccessibilitySize ? 900 : 0)
+                        VStack(spacing: 12) { stories }
+                    }
+                } else {
+                    AdventureStoryCard(heading: "My Story", text: drafts[index - titles.count].story)
+                    AdventureStoryCard(heading: "Partner’s Story", text: "")
                 }
                 Button("Write my sample story") { showingStoryEditor = true }
                     .font(AdventureBookPalette.serif(16)).frame(minHeight: 44)
