@@ -229,8 +229,8 @@ struct ReachAdventureBookLive: View {
                 }
                 if AdventurePhotoFeatureGate.liveUploadsEnabled {
                     PhotosPicker(selection: $photoSelection, matching: .images) {
-                    Label("Choose photo", systemImage: "photo.badge.plus")
-                }
+                        Label("Choose photo", systemImage: "photo.badge.plus")
+                    }
                     .onChange(of: photoSelection) { _, selection in
                         if selection != nil { uploadingPhotoFor = memory }
                     }
