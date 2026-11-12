@@ -63,9 +63,26 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     /// snapshot as authorization to read or edit private shared content.
     func load(pairCode: String) async throws -> AdventureBook {
         _ = try await verifiedCode(pairCode)
-        let snapshots = try await memoriesCollection(pairCode).limit(to: 50).getDocuments(source: .server)
+        // Traverse stable document-ID pages rather than silently discarding
+        // everything beyond the first fifty memories. Each request is bounded.
+        var memorySnapshots: [QueryDocumentSnapshot] = []
+        var lastMemory: QueryDocumentSnapshot?
+        repeat {
+            var query: Query = memoriesCollection(pairCode)
+                .order(by: FieldPath.documentID()).limit(to: 50)
+            if let lastMemory { query = query.start(afterDocument: lastMemory) }
+            let page = try await query.getDocuments(source: .server)
+            memorySnapshots.append(contentsOf: page.documents)
+            lastMemory = page.documents.last
+            if page.documents.count < 50 { break }
+            // Refuse an unexpectedly large book instead of issuing unlimited
+            // reads or presenting an incomplete book as fully synchronized.
+            guard memorySnapshots.count < 500 else {
+                throw AdventureBookRepositoryError.unavailable
+            }
+        } while true
         var memories: [AdventureMemory] = []
-        for snapshot in snapshots.documents {
+        for snapshot in memorySnapshots {
             let fields = snapshot.data()
             guard let creator = fields["creatorUid"] as? String,
                   let title = fields["title"] as? String,
