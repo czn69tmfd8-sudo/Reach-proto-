@@ -242,3 +242,10 @@ App Check, if enforced for this database, needs an explicitly reviewed
 authenticated header path before activation. Existing live photo and quota
 settings remain closed. The offline quota planner and freeze/backfill/rollback
 rehearsal remain the starting point for the separate quota cutover decision.
+
+For a read-only post-backfill check, pass the reviewed pre-backfill inventory
+and the independently collected post-backfill inventory to the quota planner.
+It reports missing, unexpected or changed books and any unverified quota, and
+exits nonzero on discrepancies. Both snapshots must declare the same creation
+freeze window operationally. The tool verifies counts and roster equality, not
+the actual live freeze or the completeness of the operator's source export.

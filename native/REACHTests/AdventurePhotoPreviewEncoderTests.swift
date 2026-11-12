@@ -39,7 +39,7 @@ final class AdventurePhotoPreviewEncoderTests: XCTestCase {
                 kCGImagePropertyGPSLatitude: 43.5, kCGImagePropertyGPSLatitudeRef: "N",
                 kCGImagePropertyGPSLongitude: 81.5, kCGImagePropertyGPSLongitudeRef: "W"
             ],
-            kCGImagePropertyExifDictionary: [kCGImagePropertyExifUserComment: "Synthetic private note"]
+            kCGImagePropertyExifDictionary: [kCGImagePropertyExifDateTimeOriginal: "2024:01:02 03:04:05"]
         ]
         CGImageDestinationAddImage(destination, image, metadata as CFDictionary)
         XCTAssertTrue(CGImageDestinationFinalize(destination))
@@ -48,14 +48,14 @@ final class AdventurePhotoPreviewEncoderTests: XCTestCase {
         XCTAssertNotNil(original[kCGImagePropertyGPSDictionary])
         XCTAssertEqual(original[kCGImagePropertyOrientation] as? Int, 6)
         let originalEXIF = original[kCGImagePropertyExifDictionary] as? [CFString: Any]
-        XCTAssertEqual(originalEXIF?[kCGImagePropertyExifUserComment] as? String, "Synthetic private note")
+        XCTAssertEqual(originalEXIF?[kCGImagePropertyExifDateTimeOriginal] as? String, "2024:01:02 03:04:05")
 
         let bytes = try XCTUnwrap(AdventurePhotoPreviewEncoder.encode(input as Data))
         let reencoded = try XCTUnwrap(CGImageSourceCreateWithData(bytes as CFData, nil))
         let result = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(reencoded, 0, nil) as? [CFString: Any])
         XCTAssertNil(result[kCGImagePropertyGPSDictionary])
         let exif = result[kCGImagePropertyExifDictionary] as? [CFString: Any]
-        XCTAssertNil(exif?[kCGImagePropertyExifUserComment])
+        XCTAssertNil(exif?[kCGImagePropertyExifDateTimeOriginal])
         let rotated = try XCTUnwrap(AdventurePhotoPreviewEncoder.thumbnail(bytes, maximumEdge: 400))
         XCTAssertLessThan(rotated.width, rotated.height)
     }

@@ -28,8 +28,31 @@ export function planAdventureBookQuotas(input) {
   return { reviewOnly: true, books };
 }
 
+export function verifyAdventureBookQuotaInventory(expected, actual) {
+  const original = new Map(planAdventureBookQuotas(expected).books.map(book => [book.pairCode, book]));
+  const issues = [];
+  for (const book of planAdventureBookQuotas(actual).books) {
+    const before = original.get(book.pairCode);
+    original.delete(book.pairCode);
+    if (!before) issues.push({ pairCode: book.pairCode, reason: 'unexpected-book' });
+    else if (before.memoryCount !== book.memoryCount) {
+      issues.push({ pairCode: book.pairCode, reason: 'inventory-changed' });
+    }
+    if (book.state !== 'verified') issues.push({ pairCode: book.pairCode, reason: book.state });
+  }
+  for (const pairCode of original.keys()) issues.push({ pairCode, reason: 'missing-book' });
+  return { reviewOnly: true, ready: issues.length === 0, issues };
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  if (process.argv.length !== 3) throw Error('Usage: node adventure-book-quota-plan.mjs INVENTORY.json');
-  const input = JSON.parse(await readFile(process.argv[2], 'utf8'));
-  process.stdout.write(JSON.stringify(planAdventureBookQuotas(input), null, 2) + '\n');
+  const [, , inventory, verifiedInventory] = process.argv;
+  if (!inventory || process.argv.length > 4) {
+    throw Error('Usage: node adventure-book-quota-plan.mjs INVENTORY.json [VERIFIED-INVENTORY.json]');
+  }
+  const input = JSON.parse(await readFile(inventory, 'utf8'));
+  const result = verifiedInventory
+    ? verifyAdventureBookQuotaInventory(input, JSON.parse(await readFile(verifiedInventory, 'utf8')))
+    : planAdventureBookQuotas(input);
+  process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+  if (verifiedInventory && !result.ready) process.exitCode = 1;
 }

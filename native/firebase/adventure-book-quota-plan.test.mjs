@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { planAdventureBookQuotas } from './adventure-book-quota-plan.mjs';
+import { planAdventureBookQuotas, verifyAdventureBookQuotaInventory } from './adventure-book-quota-plan.mjs';
 
 const A = 'ABCDEFGHJKLM', B = 'NPQRSTUVWXYZ', C = '23456789ABCD', D = '23456789EFGH';
 
@@ -27,4 +27,16 @@ test('offline quota planner rejects a missing freeze, duplicates and invalid inv
   for (const books of [[valid, valid], [{ ...valid, memoryCount: -1 }], [{ ...valid, existingQuota: 1.5 }]]) {
     assert.throws(() => planAdventureBookQuotas({ creationFrozen: true, books }), /Invalid or duplicate/);
   }
+});
+
+test('verification detects dropped books, quota drift and writes during the freeze', () => {
+  const inventory = books => ({ creationFrozen: true, books });
+  const original = inventory([{ pairCode: A, memoryCount: 2 }, { pairCode: B, memoryCount: 0 }]);
+  const verified = inventory([{ pairCode: A, memoryCount: 2, existingQuota: 2 },
+    { pairCode: B, memoryCount: 0, existingQuota: 0 }]);
+  assert.equal(verifyAdventureBookQuotaInventory(original, verified).ready, true);
+  const changed = inventory([{ pairCode: A, memoryCount: 3, existingQuota: 2 },
+    { pairCode: C, memoryCount: 0, existingQuota: 0 }]);
+  assert.deepEqual(verifyAdventureBookQuotaInventory(original, changed).issues.map(issue => issue.reason).sort(),
+    ['inventory-changed', 'missing-book', 'reconcile', 'unexpected-book']);
 });

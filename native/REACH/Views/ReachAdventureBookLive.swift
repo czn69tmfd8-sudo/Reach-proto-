@@ -43,6 +43,7 @@ struct ReachAdventureBookLive: View {
     @State private var connecting = false
     @State private var loadedContentScope = AdventureBookContentScope()
     @State private var privatePreviewSelection: PhotosPickerItem?
+    @State private var privatePreviewSelectionMemoryID: String?
     @State private var privatePreviews: [String: UIImage] = [:]
     @State private var displayedPreviewKey: PrivatePreviewKey?
     @State private var previewRevision = 0
@@ -196,6 +197,7 @@ struct ReachAdventureBookLive: View {
                 displayedPreviewKey = nil
                 pendingPreview = nil
                 privatePreviewSelection = nil
+                privatePreviewSelectionMemoryID = nil
             }
         }
         .sheet(isPresented: $showingNewMemory) {
@@ -328,7 +330,7 @@ struct ReachAdventureBookLive: View {
                 }
                 if AdventurePrivatePhotoGate.enabled {
                     if preview(for: memory.id) == nil, pendingPreview == nil {
-                        PhotosPicker(selection: $privatePreviewSelection, matching: .images) {
+                        PhotosPicker(selection: privatePreviewBinding(for: memory.id), matching: .images) {
                             Label("Choose photo", systemImage: "photo.badge.plus")
                         }.disabled(previewUploading)
                     }
@@ -454,13 +456,23 @@ struct ReachAdventureBookLive: View {
         }
     }
 
+    private func privatePreviewBinding(for memoryID: String) -> Binding<PhotosPickerItem?> {
+        Binding(get: { privatePreviewSelection }, set: { selection in
+            privatePreviewSelectionMemoryID = selection == nil ? nil : memoryID
+            privatePreviewSelection = selection
+        })
+    }
+
     private func preparePrivatePreview() async {
         guard AdventurePrivatePhotoGate.enabled, !previewUploading, pendingPreview == nil,
-              let selection = privatePreviewSelection, let memoryID = openedMemoryID,
-              scenePhase == .active else { return }
+              let selection = privatePreviewSelection, let memoryID = privatePreviewSelectionMemoryID,
+              openedMemoryID == memoryID, scenePhase == .active else { return }
         let epoch = connectionEpoch
         defer {
-            if connectionEpoch == epoch, privatePreviewSelection == selection { privatePreviewSelection = nil }
+            if connectionEpoch == epoch, privatePreviewSelection == selection {
+                privatePreviewSelection = nil
+                privatePreviewSelectionMemoryID = nil
+            }
         }
         do {
             guard let original = try await selection.loadTransferable(type: Data.self),
@@ -525,6 +537,7 @@ struct ReachAdventureBookLive: View {
         pendingPhotoPosition = 0
         recoveryRecord = nil
         privatePreviewSelection = nil
+        privatePreviewSelectionMemoryID = nil
         privatePreviews.removeAll()
         displayedPreviewKey = nil
         pendingPreview = nil

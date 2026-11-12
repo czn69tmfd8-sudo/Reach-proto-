@@ -200,16 +200,23 @@ test('native REST shape is create-only and eight visible reads fail closed after
       pageOrder: 0, createdAt: serverTimestamp(),
     });
   });
+  const previewBytes = Buffer.alloc(cap, 7);
+  const encodedPreview = previewBytes.toString('base64');
   for (const id of ids) {
-    const result = await commit(id, '/9j/4AEA');
+    const result = await commit(id, encodedPreview);
     assert.equal(result.status, 200, JSON.stringify(result.data));
   }
   const retry = await commit(ids[0], '/9j/4AEB');
   assert.ok([400, 403, 409].includes(retry.status), JSON.stringify(retry.data));
+  const started = performance.now();
   const spread = await Promise.all(ids.map(id => request(slot(id), 'b')));
+  const elapsed = performance.now() - started;
   assert.equal(spread.length, 8);
   assert.ok(spread.every(result => result.status === 200));
-  assert.equal(spread[0].data.fields.bytes.bytesValue, '/9j/4AEA');
+  assert.equal(spread[0].data.fields.bytes.bytesValue, encodedPreview);
+  const totalBytes = spread.reduce((sum, result) => sum + Buffer.from(result.data.fields.bytes.bytesValue, 'base64').length, 0);
+  assert.equal(totalBytes, 2 * 1024 * 1024);
+  console.info(`Preview spread: ${spread.length} reads, ${totalBytes} decoded bytes, ${elapsed.toFixed(1)} ms (emulator)`);
   assert.equal((await request(slot(ids[0]), 'c')).status, 403);
   await env.withSecurityRulesDisabled(async context => {
     await updateDoc(doc(context.firestore(), root, 'pairInvites', A), { revoked: true });
