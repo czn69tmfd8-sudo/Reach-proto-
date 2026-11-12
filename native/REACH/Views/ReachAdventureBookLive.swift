@@ -193,13 +193,22 @@ struct ReachAdventureBookLive: View {
                         .accessibilityHint("Opens this memory’s stories, photographs and conversation")
                     }
                 }
-                Button { showingNewMemory = true } label: {
-                    Label("Add a New Memory", systemImage: "plus")
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                if AdventureGalleryPagination.canAppendMemory(
+                    loadedCount: book?.memories.count ?? 50
+                ) {
+                    Button { showingNewMemory = true } label: {
+                        Label("Add a New Memory", systemImage: "plus")
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .font(AdventureBookPalette.serif(18)).foregroundStyle(.white)
+                    .background(AdventureBookPalette.burgundy, in: Capsule())
+                    .disabled(busy).padding(.horizontal, 14)
+                } else {
+                    Text("Adding more memories is temporarily paused until secure loading supports the full book.")
+                        .font(.caption)
+                        .foregroundStyle(AdventureBookPalette.ink)
+                        .accessibilityAddTraits(.isStaticText)
                 }
-                .font(AdventureBookPalette.serif(18)).foregroundStyle(.white)
-                .background(AdventureBookPalette.burgundy, in: Capsule())
-                .disabled(busy).padding(.horizontal, 14)
             }
         }
     }
