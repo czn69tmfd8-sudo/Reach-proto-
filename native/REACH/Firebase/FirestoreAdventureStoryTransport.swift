@@ -42,7 +42,8 @@ final class FirestoreAdventureStoryTransport {
     /// Firestore retries transactions if another editor commits first; the
     /// retried read then detects the stale timestamp and refuses to overwrite.
     func saveOwnStory(pairCode: String, memoryID: String, uid: String,
-                      text: String, expectedVersion: Timestamp?) async throws {
+                      text: String, expectedVersion: Timestamp?,
+                      acceptIdenticalCreate: Bool = false) async throws {
         guard text.utf8.count <= 6000 else { throw AdventureBookRepositoryError.invalidMemory }
         let ref = try document(pairCode: pairCode, memoryID: memoryID, uid: uid)
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -57,6 +58,11 @@ final class FirestoreAdventureStoryTransport {
                     else { throw AdventureBookRepositoryError.conflict }
                     transaction.updateData(["text": text, "updatedAt": FieldValue.serverTimestamp()], forDocument: ref)
                 } else {
+                    if acceptIdenticalCreate, let data = current.data(),
+                       data["authorUid"] as? String == uid, data["text"] as? String == text,
+                       data["updatedAt"] is Timestamp {
+                        return nil
+                    }
                     guard !current.exists else { throw AdventureBookRepositoryError.conflict }
                     transaction.setData([
                         "authorUid": uid,

@@ -13,6 +13,7 @@ struct ReachAdventureBookLive: View {
     @State private var error: String?
     @State private var busy = false
     @State private var showingNewMemory = false
+    @State private var pendingMemory: (memory: AdventureMemory, initialStory: String)?
     @State private var selectedMemory: AdventureMemory?
     @State private var selectedStoryVersion: Timestamp?
     @State private var commentDraft = ""
@@ -40,6 +41,12 @@ struct ReachAdventureBookLive: View {
     @State private var repository = FirestoreAdventureBookRepository()
     @State private var connectionEpoch = 0
     @State private var connecting = false
+    @State private var loadedContentScope = AdventureBookContentScope()
+
+    private var contentScope: AdventureBookContentScope {
+        AdventureBookContentScope(orderedIDs: book?.orderedMemories.map(\.id) ?? [],
+                                  page: page, openedMemoryID: openedMemoryID)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -67,12 +74,28 @@ struct ReachAdventureBookLive: View {
                         .buttonStyle(.bordered).tint(.white)
                 }
             }
+            if pendingMemory != nil && !busy {
+                HStack {
+                    Button("Retry memory save") { Task { await submitPendingMemory() } }
+                    Button("Discard pending save", role: .destructive) {
+                        pendingMemory = nil
+                        error = nil
+                    }
+                }
+                .buttonStyle(.bordered).tint(.white)
+                Text("If the memory was already created, you can edit its story from the memory page.")
+                    .font(.caption).foregroundStyle(.white)
+            }
             if let book {
                 let ordered = book.orderedMemories
                 let spreadCount = AdventureGalleryPagination.spreadCount(memoryCount: ordered.count)
                 if let selectedID = AdventureGalleryPagination.selectedMemoryID(openedMemoryID, availableIDs: ordered.map(\.id)),
                    let memory = ordered.first(where: { $0.id == selectedID }) {
-                    memoryPage(memory)
+                    if loadedContentScope.detailID == selectedID {
+                        memoryPage(memory)
+                    } else {
+                        ProgressView("Loading memory…").tint(.white).foregroundStyle(.white)
+                    }
                     Button {
                         if let restoredPage = AdventureGalleryPagination.page(
                             forSelectedMemoryID: memory.id, orderedIDs: ordered.map(\.id)
@@ -125,6 +148,10 @@ struct ReachAdventureBookLive: View {
                 openedMemoryID = nil
                 commentDraft = ""
             }
+        }
+        .onChange(of: contentScope, initial: true) { _, scope in
+            loadedContentScope = AdventureBookContentScope()
+            repository.updateContentScope(scope)
         }
         .background { ReachHomeBackground() }
         .toolbar(.hidden, for: .navigationBar)
@@ -183,6 +210,8 @@ struct ReachAdventureBookLive: View {
                                     if let coverPhoto = memory.photos.first {
                                         AdventureAuthenticatedPhoto(pairCode: memory.pairCode,
                                             memoryID: memory.id, photo: coverPhoto, compact: true)
+                                    } else if page == spread + 1 && !loadedContentScope.photoIDs.contains(memory.id) {
+                                        ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                                     } else {
                                         VStack(spacing: 8) {
                                             Image(systemName: "photo.on.rectangle.angled").font(.title)
@@ -216,7 +245,7 @@ struct ReachAdventureBookLive: View {
                     }
                     .font(AdventureBookPalette.serif(18)).foregroundStyle(.white)
                     .background(AdventureBookPalette.burgundy, in: Capsule())
-                    .disabled(busy).padding(.horizontal, 14)
+                    .disabled(busy || pendingMemory != nil).padding(.horizontal, 14)
                 } else {
                     Text("Adding more memories is paused at the current 500-memory safety limit.")
                         .font(.caption)
@@ -336,9 +365,11 @@ struct ReachAdventureBookLive: View {
         error = nil
         busy = false
         showingNewMemory = false
+        pendingMemory = nil
         selectedMemory = nil
         selectedStoryVersion = nil
         openedMemoryID = nil
+        loadedContentScope = AdventureBookContentScope()
         commentDraft = ""
         pendingComment = nil
         photoSelection = nil
@@ -386,8 +417,8 @@ struct ReachAdventureBookLive: View {
                 guard connectionEpoch == epoch else { return }
                 switch result {
                 case .success(let updated):
+                    loadedContentScope = repository.loadedScope
                     book = updated
-                    error = nil
                 case .failure(let failure):
                     clearPrivateContext()
                     error = failure.localizedDescription
@@ -401,30 +432,34 @@ struct ReachAdventureBookLive: View {
     }
 
     private func create(title: String, date: Date, story: String) async {
-        guard !busy, let code = pairCode, let uid = Auth.auth().currentUser?.uid else { return }
+        guard !busy, pendingMemory == nil, let code = pairCode,
+              let uid = Auth.auth().currentUser?.uid else { return }
+        guard let currentBook = book,
+              AdventureGalleryPagination.canAppendMemory(loadedCount: currentBook.memories.count, queryLimit: 500),
+              let nextOrder = AdventureGalleryPagination.nextPageOrder(
+                  existing: currentBook.memories.map(\.pageOrder)
+              ) else {
+            error = AdventureBookRepositoryError.conflict.localizedDescription
+            return
+        }
+        let memory = AdventureMemory(id: UUID().uuidString.lowercased(), pairCode: code, creatorUID: uid,
+                                     title: title, occurredAt: date, stories: [], photos: [],
+                                     comments: [], pageOrder: nextOrder)
+        pendingMemory = (memory, story)
+        await submitPendingMemory()
+    }
+
+    private func submitPendingMemory() async {
+        guard !busy, let pendingMemory, pendingMemory.memory.pairCode == pairCode,
+              pendingMemory.memory.creatorUID == Auth.auth().currentUser?.uid else { return }
         let epoch = connectionEpoch
         busy = true
         defer { if connectionEpoch == epoch { busy = false } }
         do {
-            let id = UUID().uuidString.lowercased()
-            // Page order is a persisted sequence, not the number of currently
-            // visible memories. Using count can collide after gaps or removals.
-            guard let currentBook = book,
-                  AdventureGalleryPagination.canAppendMemory(loadedCount: currentBook.memories.count, queryLimit: 500),
-                  let nextOrder = AdventureGalleryPagination.nextPageOrder(
-                      existing: currentBook.memories.map(\.pageOrder)
-                  ) else {
-                // Do not invent a position from an incomplete server snapshot.
-                throw AdventureBookRepositoryError.conflict
-            }
-            let memory = AdventureMemory(id: id, pairCode: code, creatorUID: uid,
-                                         title: title, occurredAt: date, stories: [],
-                                         photos: [], comments: [], pageOrder: nextOrder)
-            try await repository.createMemory(memory)
-            if !story.isEmpty {
-                try await repository.saveOwnStory(pairCode: code, memoryID: id,
-                                                  text: story, expectedVersion: nil)
-            }
+            try await repository.createMemory(pendingMemory.memory, initialStory: pendingMemory.initialStory)
+            guard connectionEpoch == epoch else { return }
+            self.pendingMemory = nil
+            error = nil
         } catch {
             if connectionEpoch == epoch { self.error = error.localizedDescription }
         }

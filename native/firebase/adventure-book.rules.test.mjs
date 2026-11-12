@@ -203,3 +203,86 @@ test('comment retries adopt the original immutable operation and reject a differ
  const conversation = await getDocs(query(collection(partner, 'adventureBooks', A, 'memories', 'trip', 'comments'), limit(50)));
  assert.equal(conversation.size, 1);
 });
+
+test('gallery cover query sees a photo reorder between hydration and listener attachment', async () => {
+ const host = db('a'), partner = db('b');
+ for (const [id, position] of [['p1', 1], ['p2', 2]]) {
+  await assertSucceeds(setDoc(photo(host, A, 'trip', id), {
+   ownerUid:'a', storagePath:'adventureBook/'+A+'/trip/'+id, caption:'', position, createdAt:serverTimestamp()
+  }));
+ }
+ const cover = query(collection(partner, 'adventureBooks', A, 'memories', 'trip', 'photos'),
+  orderBy('position'), orderBy(documentId()), limit(1));
+ assert.equal((await getDocs(cover)).docs[0].id, 'p1');
+ await assertSucceeds(updateDoc(photo(host, A, 'trip', 'p2'), {position:0}));
+
+ let unsubscribe;
+ let timer;
+ try {
+  const snapshot = await new Promise((resolve, reject) => {
+   timer = setTimeout(() => reject(Error('Timed out waiting for the first server snapshot')), 10000);
+   unsubscribe = onSnapshot(cover, {includeMetadataChanges:true}, result => {
+    if (!result.metadata.fromCache) resolve(result);
+   }, reject);
+  });
+  assert.equal(snapshot.docs[0].id, 'p2');
+ } finally {
+  clearTimeout(timer);
+  unsubscribe?.();
+ }
+});
+
+test('an interrupted initial story resumes against the same memory without replacing a later edit', async () => {
+ const host = db('a'), partner = db('b');
+ const id = 'pending-memory';
+ const ref = memory(host, A, id);
+ const initialStory = story(host, A, id);
+ const draft = {...data(A), title:'Our first page', pageOrder:1};
+ const saveMemory = () => runTransaction(host, async transaction => {
+  const existing = await transaction.get(ref);
+  if (existing.exists()) {
+   assert.equal(existing.data().title, draft.title);
+   assert.equal(existing.data().creatorUid, draft.creatorUid);
+   assert.equal(existing.data().pageOrder, draft.pageOrder);
+   return;
+  }
+  transaction.set(ref, {...draft, createdAt:serverTimestamp()});
+ });
+ const saveInitialStory = text => runTransaction(host, async transaction => {
+  const existing = await transaction.get(initialStory);
+  if (existing.exists()) {
+   if (existing.data().authorUid !== 'a' || existing.data().text !== text) throw Error('story-conflict');
+   return;
+  }
+  transaction.set(initialStory, {authorUid:'a', text, updatedAt:serverTimestamp()});
+ });
+ await assertFails(saveInitialStory('The first story'));
+ await assertSucceeds(saveMemory());
+ const original = (await getDoc(ref)).data();
+ await assertSucceeds(saveMemory());
+ await assertSucceeds(saveInitialStory('The first story'));
+ await assertSucceeds(saveInitialStory('The first story'));
+ assert.deepEqual((await getDoc(memory(partner, A, id))).data(), original);
+
+ await assertSucceeds(updateDoc(initialStory, {text:'Edited later', updatedAt:serverTimestamp()}));
+ await assert.rejects(saveInitialStory('The first story'), /story-conflict/);
+ assert.equal((await getDoc(story(partner, A, id))).data().text, 'Edited later');
+});
+
+test('current rules permit concurrent creates to exceed the client-only memory limit', async () => {
+ await env.withSecurityRulesDisabled(async context => {
+  const d = context.firestore();
+  const batch = writeBatch(d);
+  for (let i = 0; i < 498; i++) batch.set(memory(d, A, 'existing-'+i), {...data(A), pageOrder:i+1});
+  await batch.commit();
+ });
+ const a = db('a'), b = db('b');
+ await Promise.all([
+  assertSucceeds(setDoc(memory(a, A, 'final-a'), {...data(A), pageOrder:499, createdAt:serverTimestamp()})),
+  assertSucceeds(setDoc(memory(b, A, 'final-b'), {...data(A), creatorUid:'b', pageOrder:499, createdAt:serverTimestamp()}))
+ ]);
+ await env.withSecurityRulesDisabled(async context => {
+  const all = await getDocs(collection(context.firestore(), 'adventureBooks', A, 'memories'));
+  assert.equal(all.size, 501);
+ });
+});

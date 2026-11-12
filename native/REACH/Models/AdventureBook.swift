@@ -109,3 +109,41 @@ struct AdventureGalleryPagination {
         return selectedID
     }
 }
+
+/// Nested content needed for the current gallery spread or open memory.
+struct AdventureBookContentScope: Equatable, Sendable {
+    enum Level: Equatable, Sendable {
+        case summary, photos, detail
+
+        var collections: [String] {
+            switch self {
+            case .summary: []
+            case .photos: ["photos"]
+            case .detail: ["stories", "comments", "photos"]
+            }
+        }
+    }
+
+    let photoIDs: Set<String>
+    let detailID: String?
+
+    init(orderedIDs: [String] = [], page: Int = 0, openedMemoryID: String? = nil) {
+        detailID = AdventureGalleryPagination.selectedMemoryID(openedMemoryID, availableIDs: orderedIDs)
+        if detailID == nil, page > 0 {
+            let range = AdventureGalleryPagination.memoryRange(spread: page - 1, memoryCount: orderedIDs.count)
+            photoIDs = Set(orderedIDs[range])
+        } else {
+            photoIDs = []
+        }
+    }
+
+    var memoryIDs: Set<String> {
+        if let detailID { return [detailID] }
+        return photoIDs
+    }
+
+    func level(for memoryID: String) -> Level {
+        if detailID == memoryID { return .detail }
+        return photoIDs.contains(memoryID) ? .photos : .summary
+    }
+}

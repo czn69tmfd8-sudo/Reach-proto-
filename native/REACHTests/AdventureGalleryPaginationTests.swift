@@ -2,6 +2,26 @@ import XCTest
 @testable import REACH
 
 final class AdventureGalleryPaginationTests: XCTestCase {
+    func testLiveScopeBoundsNestedListenersAcrossFiveHundredMemories() {
+        let ids = (0..<500).map(String.init)
+        let cover = AdventureBookContentScope(orderedIDs: ids)
+        XCTAssertTrue(cover.memoryIDs.isEmpty)
+
+        let spread = AdventureBookContentScope(orderedIDs: ids, page: 62)
+        XCTAssertEqual(spread.memoryIDs, Set(ids[488..<496]))
+        XCTAssertEqual(spread.memoryIDs.flatMap { spread.level(for: $0).collections }, Array(repeating: "photos", count: 8))
+        XCTAssertEqual(spread.level(for: ids[487]), .summary)
+
+        let open = AdventureBookContentScope(orderedIDs: ids, page: 62, openedMemoryID: ids[489])
+        XCTAssertEqual(open.memoryIDs, [ids[489]])
+        XCTAssertEqual(open.level(for: ids[489]).collections, ["stories", "comments", "photos"])
+        XCTAssertEqual(open.level(for: ids[490]), .summary)
+
+        let missing = AdventureBookContentScope(orderedIDs: ids, page: 63, openedMemoryID: "missing")
+        XCTAssertNil(missing.detailID)
+        XCTAssertEqual(missing.memoryIDs, Set(ids[496..<500]))
+    }
+
     func testEmptyBookHasOneGallerySpread() {
         XCTAssertEqual(AdventureGalleryPagination.spreadCount(memoryCount: 0), 1)
         XCTAssertTrue(AdventureGalleryPagination.memoryRange(spread: 0, memoryCount: 0).isEmpty)
