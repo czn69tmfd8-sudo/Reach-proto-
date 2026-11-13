@@ -27,14 +27,16 @@ extension EnvironmentValues {
 struct CallSimulatorPreviewShell: View {
     let preview: CallSimulatorPreview
     @StateObject private var call = StagingCallController()
-    @State private var stopID = UUID()
+    @State private var muted = false
+    @State private var cameraEnabled = true
 
     var body: some View {
-        VStack {
-            Text("REACH")
-                .font(.title)
-            StagingCallView(call: call, stopID: stopID, availability: .unavailable,
-                            roomID: nil, now: .now, pairingBusy: false) { _ in }
+        Group {
+            if let peer = call.peer {
+                ActiveVideoCallView(call: call, peer: peer, muted: $muted, cameraEnabled: $cameraEnabled)
+            } else {
+                Color.black.ignoresSafeArea()
+            }
         }
         .environment(\.callSimulatorPreview, preview)
         .task { call.connectSimulatorPreview() }

@@ -16,7 +16,8 @@ trap restore_ui EXIT
 for VIEW in controls hidden; do
   xcrun simctl terminate "$DEVICE_ID" com.reachprototype.app || true
   xcrun simctl launch "$DEVICE_ID" com.reachprototype.app --call-simulator-preview="$VIEW"
-  sleep 3
+  # Give the Debug application and SwiftUI time to render after a cold launch.
+  sleep 8
   xcrun simctl io "$DEVICE_ID" screenshot "$OUTPUT/reach-fullscreen-$VIEW.png"
 done
 git rev-parse HEAD > "$OUTPUT/source-commit.txt"
