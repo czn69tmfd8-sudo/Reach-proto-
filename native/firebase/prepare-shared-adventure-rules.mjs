@@ -8,7 +8,7 @@ if (!basePath || !prefix || process.argv.length !== 4) {
 }
 const base = await readFile(basePath, 'utf8');
 const addition = await readFile(new URL('./adventure-book.shared-quota.rules', import.meta.url), 'utf8');
-const end = /}\s*}\s*$/u.exec(base);
+const end = /}\s*}\s*$/.exec(base);
 if (!end || !base.includes('service cloud.firestore') ||
     !base.includes('match /nativeStaging/v1') ||
     !base.includes('match /memberLocks/{uid}') ||
