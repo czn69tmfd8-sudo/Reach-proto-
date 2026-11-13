@@ -15,6 +15,7 @@ on:
       - 'native/firebase/prepare-shared-adventure-rules.mjs'
       - 'native/firebase/merge-live-adventure-rules*'
       - '.github/workflows/adventure-book-firebase-security.yml'
+      - '.github/workflows/native-ios-ci.yml'
   workflow_dispatch:
 permissions:
   contents: read

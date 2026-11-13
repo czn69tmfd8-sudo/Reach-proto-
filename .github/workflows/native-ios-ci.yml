@@ -25,7 +25,7 @@ on:
 concurrency:
   # Keep the current Adventure Book validation behind its own branch-local
   # queue while the earlier pagination checkpoints finish in the old queue.
-  group: native-ios-ci-${{ github.ref }}${{ github.ref == 'refs/heads/feature/adventure-book-gallery-pagination' && '-native-preview-validation' || '' }}
+  group: native-ios-ci-${{ github.ref }}${{ github.ref == 'refs/heads/feature/adventure-book-gallery-pagination' && '-native-preview-validation' || '' }}${{ github.ref == 'refs/heads/feature/live-shared-adventure-book' && '-shared-book-validation' || '' }}
   cancel-in-progress: false
   queue: max
 
