@@ -1,0 +1,119 @@
+// REVIEW-ONLY additive Firestore rules for staging. NOT DEPLOYED.
+// Insert inside service cloud.firestore / match /databases/{database}/documents.
+// Uses the existing nativeStaging/v1 pairInvites and memberLocks; never changes pairing.
+function adventurePairPath(code) {
+  return /databases/$(database)/documents/nativeStaging/v1/pairInvites/$(code);
+}
+function adventureLockPath(uid) {
+  return /databases/$(database)/documents/nativeStaging/v1/memberLocks/$(uid);
+}
+function adventureCode(code) {
+  return code is string && code.matches('[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{12}');
+}
+function adventureAuthorized(code) {
+  return request.auth != null && adventureCode(code)
+    && exists(adventurePairPath(code))
+    && adventurePairAuthorized(get(adventurePairPath(code)).data, code);
+}
+function adventurePairAuthorized(pair, code) {
+  return pair.get('revoked', false) == false
+    && pair.hostUid is string && pair.partnerUid is string
+    && pair.hostUid != pair.partnerUid
+    && request.auth.uid in [pair.hostUid, pair.partnerUid]
+    && exists(adventureLockPath(pair.hostUid))
+    && exists(adventureLockPath(pair.partnerUid))
+    && get(adventureLockPath(pair.hostUid)).data.pairCode == code
+    && get(adventureLockPath(pair.partnerUid)).data.pairCode == code;
+}
+function adventureMemoryShape(data, code) {
+  return data.keys().hasOnly(['pairCode','creatorUid','title','occurredAt','pageOrder','createdAt'])
+    && data.keys().hasAll(['pairCode','creatorUid','title','occurredAt','pageOrder','createdAt'])
+    && data.pairCode == code
+    && data.creatorUid is string
+    && data.title is string && data.title.size() > 0 && data.title.toUtf8().size() <= 120
+    && data.occurredAt is timestamp && data.createdAt is timestamp
+    && data.pageOrder is int && data.pageOrder >= 0;
+}
+function adventureQuotaPath(code) {
+  return /databases/$(database)/documents/adventureBookQuotas/$(code);
+}
+function adventureMemoryPath(code, memoryID) {
+  return /databases/$(database)/documents/adventureBooks/$(code)/memories/$(memoryID);
+}
+function adventureQuotaIncrement(before, after, memoryID) {
+  return before.count is int && before.count >= 0 && before.count < 500
+    && after.keys().hasOnly(['count', 'lastMemoryID'])
+    && after.count is int && after.count == before.count + 1
+    && after.lastMemoryID == memoryID;
+}
+function adventureCreateConsumesQuota(code, memoryID) {
+  let quota = adventureQuotaPath(code);
+  return adventureQuotaIncrement(get(quota).data, getAfter(quota).data, memoryID);
+}
+function adventureNewQuotaMemory(code, memoryID) {
+  let memory = adventureMemoryPath(code, memoryID);
+  return !exists(memory) && existsAfter(memory);
+}
+match /adventureBookQuotas/{code} {
+  allow get: if adventureAuthorized(code);
+  allow update: if adventureAuthorized(code)
+    && request.resource.data.lastMemoryID is string
+    && request.resource.data.lastMemoryID.matches('[A-Za-z0-9_-]{1,128}')
+    && adventureQuotaIncrement(resource.data, request.resource.data, request.resource.data.lastMemoryID)
+    && adventureNewQuotaMemory(code, request.resource.data.lastMemoryID);
+}
+match /adventureBooks/{code}/memories/{memoryID} {
+  allow get: if adventureAuthorized(code);
+  allow list: if adventureAuthorized(code) && request.query.limit != null && request.query.limit <= 50;
+  allow create: if adventureAuthorized(code) && memoryID.matches('[A-Za-z0-9_-]{1,128}')
+    && adventureMemoryShape(request.resource.data, code)
+    && request.resource.data.creatorUid == request.auth.uid
+    && request.resource.data.createdAt == request.time
+    && adventureCreateConsumesQuota(code, memoryID);
+  allow update: if adventureAuthorized(code) && adventureMemoryShape(request.resource.data, code)
+    && request.resource.data.creatorUid == resource.data.creatorUid
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','occurredAt','pageOrder'])
+    && request.resource.data.createdAt == resource.data.createdAt
+    && request.resource.data.pairCode == resource.data.pairCode;
+  // No implicit deletion on revocation. Explicit deletion needs a separate consent workflow.
+  allow delete: if false;
+
+  match /stories/{authorUID} {
+    allow get: if adventureAuthorized(code);
+    allow list: if adventureAuthorized(code) && request.query.limit != null && request.query.limit <= 2;
+    allow create: if adventureAuthorized(code) && request.auth.uid == authorUID
+      && exists(/databases/$(database)/documents/adventureBooks/$(code)/memories/$(memoryID))
+      && request.resource.data.keys().hasOnly(['authorUid','text','updatedAt'])
+      && request.resource.data.keys().hasAll(['authorUid','text','updatedAt'])
+      && request.resource.data.authorUid == authorUID
+      && request.resource.data.text is string && request.resource.data.text.toUtf8().size() <= 6000
+      && request.resource.data.updatedAt == request.time;
+    allow update: if adventureAuthorized(code) && request.auth.uid == authorUID
+      && resource.data.authorUid == authorUID
+      && request.resource.data.keys().hasOnly(['authorUid','text','updatedAt'])
+      && request.resource.data.keys().hasAll(['authorUid','text','updatedAt'])
+      && request.resource.data.authorUid == authorUID
+      && request.resource.data.text is string && request.resource.data.text.toUtf8().size() <= 6000
+      && request.resource.data.updatedAt == request.time;
+    allow delete: if false;
+  }
+  match /comments/{commentID} {
+    allow get: if adventureAuthorized(code);
+    allow list: if adventureAuthorized(code) && request.query.limit != null && request.query.limit <= 50;
+    allow create: if adventureAuthorized(code) && commentID.matches('[A-Za-z0-9_-]{1,128}')
+      && exists(/databases/$(database)/documents/adventureBooks/$(code)/memories/$(memoryID))
+      && request.resource.data.keys().hasOnly(['authorUid','text','createdAt'])
+      && request.resource.data.keys().hasAll(['authorUid','text','createdAt'])
+      && request.resource.data.authorUid == request.auth.uid
+      && request.resource.data.text is string && request.resource.data.text.size() > 0
+      && request.resource.data.text.toUtf8().size() <= 2000
+      && request.resource.data.createdAt == request.time;
+    allow update, delete: if false;
+  }
+  match /photos/{photoID} {
+    allow get: if adventureAuthorized(code);
+    allow list: if adventureAuthorized(code) && request.query.limit != null && request.query.limit <= 50;
+    // Existing metadata remains readable to authorized members. Photo publication has its own rollout.
+    allow create, update, delete: if false;
+  }
+}

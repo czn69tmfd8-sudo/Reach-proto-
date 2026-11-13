@@ -23,8 +23,8 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     private var refreshRequested = false
     private var dirtyMemoryIDs = Set<String>()
     private var observedBook: AdventureBook?
-    private var previewAccessListeners: [ListenerRegistration] = []
-    private var previewAuthListener: AuthStateDidChangeListenerHandle?
+    private var accessListener: ListenerRegistration?
+    private var accessAuthListener: AuthStateDidChangeListenerHandle?
 
     init(db: Firestore = Firestore.firestore()) {
         self.db = db
@@ -42,33 +42,20 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     }
 
     private func verifiedCode(_ code: String) async throws -> String {
-        try await verifiedAccess(code).uid
-    }
-
-    private func verifiedAccess(_ code: String) async throws -> (uid: String, other: String) {
         let uid = try activeUID()
         guard SharedContentPolicy.pairCode(code),
               SharedContentPolicy.documentID(uid) else { throw AdventureBookRepositoryError.unauthorized }
-        let lock = try await db.document("nativeStaging/v1/memberLocks/\(uid)").getDocument(source: .server)
-        guard lock.data()?["pairCode"] as? String == code else {
-            throw AdventureBookRepositoryError.notPaired
-        }
-        let pair = try await db.document("nativeStaging/v1/pairInvites/\(code)").getDocument(source: .server)
-        guard pair.data()?["revoked"] as? Bool != true,
-              let host = pair.data()?["hostUid"] as? String,
-              let partner = pair.data()?["partnerUid"] as? String,
-              [host, partner].contains(uid), host != partner else {
-            throw AdventureBookRepositoryError.unauthorized
-        }
-        let other = uid == host ? partner : host
-        let otherLock = try await db.document("nativeStaging/v1/memberLocks/\(other)").getDocument(source: .server)
-        guard otherLock.data()?["pairCode"] as? String == code else {
-            throw AdventureBookRepositoryError.unauthorized
-        }
+        // This server read is authorized by the pair and both member locks in
+        // Firestore rules. A missing counter still permits reads during backfill.
+        _ = try await quotaDocument(code).getDocument(source: .server)
         guard try activeUID() == uid else {
             throw AdventureBookRepositoryError.unauthorized
         }
-        return (uid, other)
+        return uid
+    }
+
+    private func quotaDocument(_ code: String) -> DocumentReference {
+        db.collection("adventureBookQuotas").document(code)
     }
 
     private func memoriesCollection(_ code: String) -> CollectionReference {
@@ -232,15 +219,13 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
             throw AdventureBookRepositoryError.invalidMemory
         }
         let ref = db.document(path)
-        let quotaRef = AdventureBookQuotaPolicy.enforcementEnabled
-            ? db.collection("adventureBookQuotas").document(memory.pairCode) : nil
+        let quotaRef = quotaDocument(memory.pairCode)
         do {
             try await commitMemory(memory, uid: uid, ref: ref, quotaRef: quotaRef)
         } catch {
             // A server rejection can win the race before the SDK retries.
             // Classify it as full only after fresh authorized reads.
-            if let quotaRef,
-               let quotaSnapshot = try? await quotaRef.getDocument(source: .server),
+            if let quotaSnapshot = try? await quotaRef.getDocument(source: .server),
                let count = quotaSnapshot.data()?["count"] as? Int,
                count >= AdventureBookQuotaPolicy.maximumMemories,
                let existing = try? await ref.getDocument(source: .server), !existing.exists {
@@ -257,7 +242,7 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     }
 
     private func commitMemory(
-        _ memory: AdventureMemory, uid: String, ref: DocumentReference, quotaRef: DocumentReference?
+        _ memory: AdventureMemory, uid: String, ref: DocumentReference, quotaRef: DocumentReference
     ) async throws {
         let occurredAt = Timestamp(date: memory.occurredAt)
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -276,11 +261,9 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
                     }
                     return nil
                 }
-                if let quotaRef {
-                    let quota = try transaction.getDocument(quotaRef)
-                    let nextCount = try AdventureBookQuotaPolicy.nextCount(from: quota.data()?["count"] as? Int)
-                    transaction.updateData(["count": nextCount, "lastMemoryID": memory.id], forDocument: quotaRef)
-                }
+                let quota = try transaction.getDocument(quotaRef)
+                let nextCount = try AdventureBookQuotaPolicy.nextCount(from: quota.data()?["count"] as? Int)
+                transaction.updateData(["count": nextCount, "lastMemoryID": memory.id], forDocument: quotaRef)
                 transaction.setData([
                     "pairCode": memory.pairCode,
                     "creatorUid": uid,
@@ -356,21 +339,18 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     func observe(pairCode: String, onChange: @escaping @MainActor (Result<AdventureBook, Error>) -> Void) async throws {
         stopObserving()
         let generation = observationGeneration
-        let access = try await verifiedAccess(pairCode)
+        let uid = try await verifiedCode(pairCode)
         guard observationGeneration == generation, !Task.isCancelled else {
             throw CancellationError()
         }
         observingCode = pairCode
         onObservedChange = onChange
-        if AdventurePrivatePhotoGate.enabled {
-            watchPreviewAccess(pairCode: pairCode, uid: access.uid, other: access.other,
-                               generation: generation, onChange: onChange)
-        }
+        watchAccess(pairCode: pairCode, uid: uid, generation: generation, onChange: onChange)
         installMemoryListeners(for: [], pairCode: pairCode, generation: generation, onChange: onChange)
     }
 
-    private func watchPreviewAccess(
-        pairCode: String, uid: String, other: String, generation: Int,
+    private func watchAccess(
+        pairCode: String, uid: String, generation: Int,
         onChange: @escaping @MainActor (Result<AdventureBook, Error>) -> Void
     ) {
         let invalidate: @MainActor (Error) -> Void = { [weak self] error in
@@ -378,38 +358,27 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
             self.stopObserving()
             onChange(.failure(error))
         }
-        previewAuthListener = Auth.auth().addStateDidChangeListener { _, user in
+        accessAuthListener = Auth.auth().addStateDidChangeListener { _, user in
             let changedUID = user?.uid
             Task { @MainActor in
                 if changedUID != uid { invalidate(AdventurePrivatePhotoClient.Failure.unauthorized) }
             }
         }
 
-        let invite = "nativeStaging/v1/pairInvites/\(pairCode)"
-        let paths = [invite, "nativeStaging/v1/memberLocks/\(uid)", "nativeStaging/v1/memberLocks/\(other)"]
-        for path in paths {
-            let isInvite = path == invite
-            let state = AdventurePreviewAccessState()
-            let registration = db.document(path).addSnapshotListener(includeMetadataChanges: true) { snapshot, error in
-                Task { @MainActor in
-                    if let error { invalidate(error); return }
-                    guard let snapshot else {
-                        invalidate(AdventurePrivatePhotoClient.Failure.unavailable)
-                        return
-                    }
-                    let fields = snapshot.data()
-                    let members = Set([fields?["hostUid"] as? String, fields?["partnerUid"] as? String].compactMap { $0 })
-                    let matches = isInvite
-                        ? fields?["revoked"] as? Bool != true && members == Set([uid, other])
-                        : fields?["pairCode"] as? String == pairCode
-                    if !state.accept(isCached: snapshot.metadata.isFromCache,
-                                     hasPendingWrites: snapshot.metadata.hasPendingWrites,
-                                     matches: snapshot.exists && matches) {
-                        invalidate(AdventurePrivatePhotoClient.Failure.unauthorized)
-                    }
+        let state = AdventurePreviewAccessState()
+        accessListener = quotaDocument(pairCode).addSnapshotListener(includeMetadataChanges: true) { snapshot, error in
+            Task { @MainActor in
+                if let error { invalidate(error); return }
+                guard let snapshot else {
+                    invalidate(AdventureBookRepositoryError.unavailable)
+                    return
+                }
+                if !state.accept(isCached: snapshot.metadata.isFromCache,
+                                 hasPendingWrites: snapshot.metadata.hasPendingWrites,
+                                 matches: true) {
+                    invalidate(AdventureBookRepositoryError.unavailable)
                 }
             }
-            previewAccessListeners.append(registration)
         }
     }
 
@@ -581,10 +550,10 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
 
     func stopObserving() {
         observationGeneration += 1
-        previewAccessListeners.forEach { $0.remove() }
-        previewAccessListeners.removeAll()
-        if let previewAuthListener { Auth.auth().removeStateDidChangeListener(previewAuthListener) }
-        previewAuthListener = nil
+        accessListener?.remove()
+        accessListener = nil
+        if let accessAuthListener { Auth.auth().removeStateDidChangeListener(accessAuthListener) }
+        accessAuthListener = nil
         memoryListeners.values.forEach { $0.remove() }
         memoryListeners.removeAll()
         childGeneration += 1

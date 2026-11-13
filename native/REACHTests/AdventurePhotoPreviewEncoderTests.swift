@@ -65,7 +65,7 @@ final class AdventurePhotoPreviewEncoderTests: XCTestCase {
     }
 
     func testQuotaActivationDefaultsClosedAndRejectsMissingOrFullCounters() throws {
-        XCTAssertFalse(AdventureBookQuotaPolicy.enforcementEnabled)
+        XCTAssertFalse(AdventureBookAvailability.liveSharedBookEnabled)
         XCTAssertEqual(try AdventureBookQuotaPolicy.nextCount(from: 499), 500)
         XCTAssertThrowsError(try AdventureBookQuotaPolicy.nextCount(from: nil)) {
             XCTAssertEqual($0 as? AdventureBookQuotaError, .unavailable)

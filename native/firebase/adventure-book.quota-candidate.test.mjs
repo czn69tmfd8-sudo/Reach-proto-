@@ -2,41 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { after, before, beforeEach, test } from 'node:test';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
-import { collection, doc, getDoc, getDocs, runTransaction, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
-
-// Apply the candidate only in memory to the emulator fixture. The reviewed
-// additive rules and deployment/merge paths never consume this candidate.
-const createTail = '    && request.resource.data.createdAt == request.time;\n  allow update: if adventureAuthorized(code) && adventureMemoryShape';
-const counterRules = `
-function adventureQuotaPath(code) {
-  return /databases/$(database)/documents/adventureBookQuotas/$(code);
-}
-function adventureMemoryPath(code, memoryID) {
-  return /databases/$(database)/documents/adventureBooks/$(code)/memories/$(memoryID);
-}
-function adventureQuotaIncrement(before, after, memoryID) {
-  return before.count is int && before.count >= 0 && before.count < 500
-    && after.keys().hasOnly(['count', 'lastMemoryID'])
-    && after.count is int && after.count == before.count + 1
-    && after.lastMemoryID == memoryID;
-}
-function adventureCreateConsumesQuota(code, memoryID) {
-  let quota = adventureQuotaPath(code);
-  return adventureQuotaIncrement(get(quota).data, getAfter(quota).data, memoryID);
-}
-function adventureNewQuotaMemory(code, memoryID) {
-  let memory = adventureMemoryPath(code, memoryID);
-  return !exists(memory) && existsAfter(memory);
-}
-match /adventureBookQuotas/{code} {
-  allow get: if adventureAuthorized(code);
-  allow update: if adventureAuthorized(code)
-    && request.resource.data.lastMemoryID is string
-    && request.resource.data.lastMemoryID.matches('[A-Za-z0-9_-]{1,128}')
-    && adventureQuotaIncrement(resource.data, request.resource.data, request.resource.data.lastMemoryID)
-    && adventureNewQuotaMemory(code, request.resource.data.lastMemoryID);
-}
-`;
+import { collection, doc, getDoc, getDocs, limit, onSnapshot, query, runTransaction, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 
 let env;
 let candidateRules;
@@ -53,13 +19,7 @@ const fields = (uid, code = A) => ({
 });
 
 before(async () => {
-  const baseline = await readFile('adventure-book.combined.generated.rules', 'utf8');
-  assert.equal(baseline.split(createTail).length, 2, 'reviewed create rule changed');
-  const marker = 'match /adventureBooks/{code}/memories/{memoryID} {';
-  assert.equal(baseline.split(marker).length, 2, 'reviewed memory match changed');
-  candidateRules = baseline
-    .replace(createTail, createTail.replace('request.time;', 'request.time\n    && adventureCreateConsumesQuota(code, memoryID);'))
-    .replace(marker, counterRules + marker);
+  candidateRules = await readFile('adventure-book.shared-quota.generated.rules', 'utf8');
   env = await initializeTestEnvironment({ projectId, firestore: { rules: candidateRules } });
 });
 
@@ -179,10 +139,7 @@ test('cross-couple clients, revoked pairs, and missing locks cannot consume quot
 });
 
 test('cutover and rollback freeze creation while preserving inventory, quota and legacy edits', async () => {
-  const frozenRules = candidateRules
-    .replace('&& adventureCreateConsumesQuota(code, memoryID);', '&& false;')
-    .replace('&& adventureNewQuotaMemory(code, request.resource.data.lastMemoryID);', '&& false;');
-  assert.notEqual(frozenRules, candidateRules);
+  const frozenRules = await readFile('adventure-book.shared-quota.generated.frozen.rules', 'utf8');
   const ruleContexts = [];
   async function install(rules) {
     ruleContexts.push(await initializeTestEnvironment({ projectId, firestore: { rules } }));
@@ -220,5 +177,80 @@ test('cutover and rollback freeze creation while preserving inventory, quota and
     assert.equal((await getDoc(quota(c, B))).data().count, 3);
   } finally {
     await Promise.all(ruleContexts.map(context => context.cleanup()));
+  }
+});
+
+test('paired clients sync memories, both stories and conversation without partner lock access', async () => {
+  const host = db('a'), partner = db('b');
+  const lock = (d, uid) => doc(d, root, 'memberLocks', uid);
+  await assertSucceeds(getDoc(lock(host, 'a')));
+  await assertFails(getDoc(lock(host, 'b')));
+  await assertFails(getDoc(lock(partner, 'a')));
+  const books = query(collection(partner, 'adventureBooks', A, 'memories'), limit(50));
+  async function watch(ref, predicate, mutate) {
+    let stop, timer;
+    try {
+      let ready;
+      const initial = new Promise(resolve => { ready = resolve; });
+      const result = new Promise((resolve, reject) => {
+        timer = setTimeout(() => reject(Error('Timed out waiting for server snapshot')), 15000);
+        stop = onSnapshot(ref, { includeMetadataChanges: true }, snapshot => {
+          if (snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) return;
+          ready();
+          if (predicate(snapshot)) resolve();
+        }, reject);
+      });
+      await Promise.all([result, (async () => { await initial; await mutate(); })()]);
+    } finally {
+      clearTimeout(timer);
+      stop?.();
+    }
+  }
+  await watch(books, s => s.docs.some(d => d.id === 'shared'), () => create(host, 'shared', 'a'));
+  const child = (d, name, id) => doc(memory(d, 'shared'), name, id);
+  const stories = query(collection(memory(host, 'shared'), 'stories'), limit(2));
+  await watch(stories, s => s.docs.some(d => d.data().text === 'Partner story'),
+    () => setDoc(child(partner, 'stories', 'b'), { authorUid: 'b', text: 'Partner story', updatedAt: serverTimestamp() }));
+  await assertSucceeds(setDoc(child(host, 'stories', 'a'), {
+    authorUid: 'a', text: 'Host story', updatedAt: serverTimestamp(),
+  }));
+  await assertSucceeds(updateDoc(child(host, 'stories', 'a'), { text: 'Revised', updatedAt: serverTimestamp() }));
+  assert.equal((await getDoc(child(partner, 'stories', 'a'))).data().text, 'Revised');
+  await assertFails(updateDoc(child(partner, 'stories', 'a'), { text: 'Overwrite', updatedAt: serverTimestamp() }));
+  const comments = query(collection(memory(partner, 'shared'), 'comments'), limit(50));
+  await watch(comments, s => s.docs.some(d => d.data().text === 'Our conversation'),
+    () => setDoc(child(host, 'comments', 'first'), { authorUid: 'a', text: 'Our conversation', createdAt: serverTimestamp() }));
+  await assertFails(setDoc(child(host, 'photos', 'blocked'), {
+    ownerUid: 'a', storagePath: 'adventureBook/' + A + '/shared/blocked',
+    caption: '', position: 0, createdAt: serverTimestamp(),
+  }));
+  await env.withSecurityRulesDisabled(context => updateDoc(lock(context.firestore(), 'a'), { pairCode: B }));
+  await assertFails(getDoc(quota(partner)));
+  await assertFails(getDocs(books));
+});
+
+test('an open authorization listener fails when only the other member lock changes', async () => {
+  const partner = db('b');
+  let stop, timeout;
+  try {
+    let ready;
+    const initial = new Promise(resolve => { ready = resolve; });
+    const denied = new Promise((resolve, reject) => {
+      timeout = setTimeout(() => reject(Error('Authorization listener did not revoke')), 15000);
+      stop = onSnapshot(quota(partner), { includeMetadataChanges: true }, snapshot => {
+        if (!snapshot.metadata.fromCache) ready();
+      }, error => {
+        if (error.code === 'permission-denied') resolve();
+        else reject(error);
+      });
+    });
+    await Promise.all([denied, (async () => {
+      await initial;
+      await env.withSecurityRulesDisabled(context =>
+        updateDoc(doc(context.firestore(), root, 'memberLocks', 'a'), { pairCode: B }));
+    })()]);
+  } finally {
+    clearTimeout(timeout);
+    stop?.();
   }
 });

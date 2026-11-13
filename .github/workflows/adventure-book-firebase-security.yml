@@ -6,11 +6,13 @@ on:
       - feature/adventure-book-gallery-pagination
       - integration/adventure-book-video-calling
       - fix/build17-adventure-book-sample-entry
+      - feature/live-shared-adventure-book
     paths:
       # Recheck integration changes to the iOS client alongside candidate rules.
       - 'native/REACH/**'
       - 'native/firebase/adventure-book*'
       - 'native/firebase/prepare-adventure-rules.mjs'
+      - 'native/firebase/prepare-shared-adventure-rules.mjs'
       - 'native/firebase/merge-live-adventure-rules*'
       - '.github/workflows/adventure-book-firebase-security.yml'
   workflow_dispatch:
@@ -39,7 +41,9 @@ jobs:
       - name: Test fail-closed offline additive rules merge
         run: node --test merge-live-adventure-rules.test.mjs adventure-book-quota-plan.test.mjs
       - name: Assemble review-only Firestore rules
-        run: node prepare-adventure-rules.mjs
+        run: |
+          node prepare-adventure-rules.mjs
+          node prepare-shared-adventure-rules.mjs reviews/staging-2026-11-06-hardened/merged.rules adventure-book.shared-quota.generated
       - name: Run isolated Adventure Book Firestore security tests
         run: |
           printf '%s\n' '{"firestore":{"rules":"adventure-book.combined.generated.rules"},"storage":{"rules":"adventure-book.storage.proposed.rules"},"emulators":{"firestore":{"port":8080},"storage":{"port":9199},"ui":{"enabled":false}}}' > adventure-emulator.generated.json

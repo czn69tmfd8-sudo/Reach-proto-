@@ -2,7 +2,11 @@ import Foundation
 
 /// Enable only after shared-book rules and paired-device authorization are verified.
 enum AdventureBookAvailability {
+    #if REACH_LIVE_ADVENTURE_BOOK
+    static let liveSharedBookEnabled = true
+    #else
     static let liveSharedBookEnabled = false
+    #endif
 }
 
 /// Proposed Firestore document layout, kept independent of Firebase SDK so
@@ -77,9 +81,8 @@ struct AdventureStoryWrite: Equatable, Sendable {
     let expectedVersion: String?
 }
 
-/// Set only after the staging quota migration is separately approved and verified.
+/// Every new live memory must consume one server-enforced quota slot.
 enum AdventureBookQuotaPolicy {
-    static let enforcementEnabled = false
     static let maximumMemories = 500
 
     static func nextCount(from count: Int?) throws -> Int {

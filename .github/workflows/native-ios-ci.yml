@@ -9,6 +9,7 @@ on:
       - feature/adventure-book-gallery-pagination
       - integration/adventure-book-video-calling
       - fix/build17-adventure-book-sample-entry
+      - feature/live-shared-adventure-book
       - feature/adventure-book-single-app-integration
       - feature/adventure-book-visual-fidelity
       - feature/adventure-book-approved-integration
@@ -159,9 +160,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build-logs
+          settings=()
+          if [[ "$GITHUB_REF" == "refs/heads/feature/live-shared-adventure-book" ]]; then
+            settings+=('SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) REACH_LIVE_ADVENTURE_BOOK')
+          fi
           xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \
             -destination 'generic/platform=iOS' -derivedDataPath DeviceDerivedData \
-            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build-logs/device-compile.log
+            CODE_SIGNING_ALLOWED=NO "${settings[@]}" build 2>&1 | tee build-logs/device-compile.log
 
       - name: Preserve native build and test results
         if: always()
