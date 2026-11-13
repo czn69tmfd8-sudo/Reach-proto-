@@ -35,6 +35,13 @@ class ApprovedAdventureBookIntegrationTests(unittest.TestCase):
         for local_destination in ("AdventureLeatherCover", "gallery(spread:", "memory(at:"):
             self.assertIn(local_destination, sample)
 
+    def test_live_authorization_rechecks_use_the_rules_protected_quota_document(self):
+        repository = (VIEWS.parent / "Firebase" / "FirestoreAdventureBookRepository.swift").read_text()
+        self.assertNotIn("memberLocks/", repository)
+        self.assertIn("quotaDocument(code).getDocument(source: .server)", repository)
+        self.assertIn("try await self.verifiedCode(pairCode)", repository)
+        self.assertIn("accessRecheckTask?.cancel()", repository)
+
     def test_cover_gallery_memory_navigation_and_return(self):
         live = (VIEWS / "ReachAdventureBookLive.swift").read_text()
         self.assertIn("AdventureLeatherCover {", live)

@@ -44,5 +44,7 @@ cross the eight-card page boundary, edit each own story, and exchange comments.
 Check both phones after concurrent writes, reconnect, backgrounding and sign-out.
 Verify retries with the same memory/comment ID and stale story edits, a simulated
 final quota slot, and denial to an unrelated account. Revoke the pair and separately
-change a member lock while the book is open, confirming private content is cleared.
+change a member lock while the book is open, confirming private content is cleared
+on the next successful server recheck or earlier listener denial. Rechecks start
+every 10 seconds while open. Inspect the Rules-dependent read cost in staging.
 Recheck Existing Memories, pairing and the fullscreen call on both phones.

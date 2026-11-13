@@ -24,6 +24,7 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     private var dirtyMemoryIDs = Set<String>()
     private var observedBook: AdventureBook?
     private var accessListener: ListenerRegistration?
+    private var accessRecheckTask: Task<Void, Never>?
     private var accessAuthListener: AuthStateDidChangeListenerHandle?
 
     init(db: Firestore = Firestore.firestore()) {
@@ -365,6 +366,22 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
             }
         }
 
+        // Security rules deny each new request immediately. A listener may not
+        // emit when only a rules dependency changes, so recheck independently.
+        accessRecheckTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(10))
+                    guard let self, self.observationGeneration == generation else { return }
+                    _ = try await self.verifiedCode(pairCode)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    invalidate(error)
+                    return
+                }
+            }
+        }
         let state = AdventurePreviewAccessState()
         accessListener = quotaDocument(pairCode).addSnapshotListener(includeMetadataChanges: true) { snapshot, error in
             Task { @MainActor in
@@ -550,6 +567,8 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
 
     func stopObserving() {
         observationGeneration += 1
+        accessRecheckTask?.cancel()
+        accessRecheckTask = nil
         accessListener?.remove()
         accessListener = nil
         if let accessAuthListener { Auth.auth().removeStateDidChangeListener(accessAuthListener) }

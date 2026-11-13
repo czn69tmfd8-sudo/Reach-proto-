@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { after, before, beforeEach, test } from 'node:test';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
-import { collection, doc, getDoc, getDocs, limit, onSnapshot, query, runTransaction, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocFromServer, getDocs, limit, onSnapshot, query, runTransaction, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 
 let env;
 let candidateRules;
@@ -229,28 +229,11 @@ test('paired clients sync memories, both stories and conversation without partne
   await assertFails(getDocs(books));
 });
 
-test('an open authorization listener fails when only the other member lock changes', async () => {
+test('a fresh server recheck denies an open session when only the other lock changes', async () => {
   const partner = db('b');
-  let stop, timeout;
-  try {
-    let ready;
-    const initial = new Promise(resolve => { ready = resolve; });
-    const denied = new Promise((resolve, reject) => {
-      timeout = setTimeout(() => reject(Error('Authorization listener did not revoke')), 15000);
-      stop = onSnapshot(quota(partner), { includeMetadataChanges: true }, snapshot => {
-        if (!snapshot.metadata.fromCache) ready();
-      }, error => {
-        if (error.code === 'permission-denied') resolve();
-        else reject(error);
-      });
-    });
-    await Promise.all([denied, (async () => {
-      await initial;
-      await env.withSecurityRulesDisabled(context =>
-        updateDoc(doc(context.firestore(), root, 'memberLocks', 'a'), { pairCode: B }));
-    })()]);
-  } finally {
-    clearTimeout(timeout);
-    stop?.();
-  }
+  const access = quota(partner);
+  await assertSucceeds(getDocFromServer(access));
+  await env.withSecurityRulesDisabled(context =>
+    updateDoc(doc(context.firestore(), root, 'memberLocks', 'a'), { pairCode: B }));
+  await assertFails(getDocFromServer(access));
 });
