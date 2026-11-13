@@ -1,5 +1,10 @@
 import Foundation
 
+/// Enable only after shared-book rules and paired-device authorization are verified.
+enum AdventureBookAvailability {
+    static let liveSharedBookEnabled = false
+}
+
 /// Proposed Firestore document layout, kept independent of Firebase SDK so
 /// paths and ownership can be tested before staging rules are reviewed.
 enum AdventureBookPaths {

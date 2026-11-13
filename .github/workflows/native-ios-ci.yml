@@ -8,6 +8,7 @@ on:
       - feature/adventure-book-foundation
       - feature/adventure-book-gallery-pagination
       - integration/adventure-book-video-calling
+      - fix/build17-adventure-book-sample-entry
       - feature/adventure-book-single-app-integration
       - feature/adventure-book-visual-fidelity
       - feature/adventure-book-approved-integration

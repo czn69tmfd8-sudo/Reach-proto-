@@ -21,7 +21,11 @@ struct ReachUsView: View {
             switch space {
             case .scrapbook:
                 NavigationLink {
-                    ReachAdventureBookLive()
+                    if AdventureBookAvailability.liveSharedBookEnabled {
+                        ReachAdventureBookLive()
+                    } else {
+                        ReachAdventureBookPreview()
+                    }
                 } label: {
                     AdventureLeatherArtwork()
                         .aspectRatio(0.91, contentMode: .fit)
@@ -30,15 +34,19 @@ struct ReachUsView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Open Our Adventure Book")
-                .accessibilityHint("Opens your saved shared book. Cover prints are decorative examples.")
+                .accessibilityHint(AdventureBookAvailability.liveSharedBookEnabled
+                    ? "Opens your saved shared book."
+                    : "Opens the sample Adventure Book.")
                 NavigationLink { ReachAdventureBookPreview() } label: {
                     Label("View sample design", systemImage: "book")
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }.buttonStyle(.bordered)
                 NavigationLink { ReachScrapbookView() } label: { Label("Existing Memories", systemImage: "archivebox").frame(maxWidth: .infinity, minHeight: 48) }.buttonStyle(.bordered)
-                Text("Adventure Book is in staging development. Shared pages require approved Firebase rules; existing memories remain accessible and unchanged.")
-                    .font(.footnote)
-                    .multilineTextAlignment(.center)
+                if !AdventureBookAvailability.liveSharedBookEnabled {
+                    Text("The shared Adventure Book isn’t available yet.")
+                        .font(.footnote)
+                        .multilineTextAlignment(.center)
+                }
             case .story:
                 Picker("Story visibility", selection: $privateStory) {
                     Text("Shared timeline").tag(false)

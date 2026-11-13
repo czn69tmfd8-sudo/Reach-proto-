@@ -5,6 +5,7 @@ on:
       - feature/adventure-book-foundation
       - feature/adventure-book-gallery-pagination
       - integration/adventure-book-video-calling
+      - fix/build17-adventure-book-sample-entry
     paths:
       # Recheck integration changes to the iOS client alongside candidate rules.
       - 'native/REACH/**'
