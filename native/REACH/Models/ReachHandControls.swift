@@ -23,6 +23,10 @@ enum ReachCallPhase: Equatable {
         }
     }
 
+    var showsFullScreenCall: Bool {
+        self == .connected || self == .interrupted
+    }
+
     var hasStarted: Bool {
         switch self {
         case .preparing, .outgoing, .connecting, .connected, .interrupted: return true

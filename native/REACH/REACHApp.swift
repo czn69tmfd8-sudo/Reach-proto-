@@ -12,7 +12,15 @@ struct REACHApp: App {
                 // staging sign-in or listeners as an incidental launch effect.
                 Color.clear
             } else {
+                #if DEBUG && targetEnvironment(simulator)
+                if let preview = CallSimulatorPreview.requested {
+                    CallSimulatorPreviewShell(preview: preview)
+                } else {
+                    launchView
+                }
+                #else
                 launchView
+                #endif
             }
         }
     }

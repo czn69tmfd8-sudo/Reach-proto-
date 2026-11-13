@@ -4,6 +4,7 @@ on:
     branches:
       - feature/adventure-book-foundation
       - feature/adventure-book-gallery-pagination
+      - integration/adventure-book-video-calling
     paths:
       - 'native/firebase/adventure-book*'
       - 'native/firebase/prepare-adventure-rules.mjs'

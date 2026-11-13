@@ -4,8 +4,10 @@ on:
   push:
     branches:
       - native-reach
+      - feature/video-call-polish
       - feature/adventure-book-foundation
       - feature/adventure-book-gallery-pagination
+      - integration/adventure-book-video-calling
       - feature/adventure-book-single-app-integration
       - feature/adventure-book-visual-fidelity
       - feature/adventure-book-approved-integration
@@ -82,7 +84,7 @@ jobs:
           swift --version
 
       - name: Measure Apple JPEG encoder on travel photographs
-        if: github.ref == 'refs/heads/feature/adventure-book-gallery-pagination'
+        if: github.ref == 'refs/heads/feature/adventure-book-gallery-pagination' || github.ref == 'refs/heads/integration/adventure-book-video-calling'
         continue-on-error: true
         run: bash native/scripts/run-adventure-photo-benchmark.sh
 
@@ -119,6 +121,19 @@ jobs:
             -configuration Debug \
             CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY="-" \
             build 2>&1 | tee build-logs/build.log
+
+      - name: Capture fullscreen calling interface
+        if: github.ref == 'refs/heads/feature/video-call-polish' || github.ref == 'refs/heads/integration/adventure-book-video-calling'
+        working-directory: native
+        run: bash scripts/capture-call-simulator.sh
+
+      - name: Upload fullscreen call screenshots
+        if: github.ref == 'refs/heads/feature/video-call-polish' || github.ref == 'refs/heads/integration/adventure-book-video-calling'
+        uses: actions/upload-artifact@v4
+        with:
+          name: reach-fullscreen-call-screenshots
+          path: native/build-logs/call-visual/
+          if-no-files-found: error
 
       - name: Launch REACH on iPhone simulator
         working-directory: native
