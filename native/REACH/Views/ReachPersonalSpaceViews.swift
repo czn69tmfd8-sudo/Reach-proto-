@@ -54,12 +54,7 @@ private struct ReachProfilePanel: View {
                         .onChange(of: appearance.preferences.partnerName) { _, text in
                             if text.count > 40 { appearance.preferences.partnerName = String(text.prefix(40)) }
                         }
-                    Toggle("Show a personal message in Our Scrapbook", isOn: $appearance.preferences.showMessage)
-                    TextField("Your optional words", text: $appearance.preferences.personalMessage, axis: .vertical)
-                        .lineLimit(3...6).accessibilityLabel("Optional personal message")
-                        .onChange(of: appearance.preferences.personalMessage) { _, text in
-                            if text.count > 600 { appearance.preferences.personalMessage = String(text.prefix(600)) }
-                        }
+
                 }
                 .textFieldStyle(.roundedBorder)
                 .submitLabel(.done).onSubmit { ReachKeyboard.dismiss() }
