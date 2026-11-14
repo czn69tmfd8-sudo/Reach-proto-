@@ -1154,7 +1154,15 @@ workflows:
           test -z "$(find native/REACH -name GoogleService-Info.plist -print -quit)"
           grep -q 'PRODUCT_BUNDLE_IDENTIFIER: com.reachprototype.app' native/project.yml
           grep -q 'INFOPLIST_KEY_CFBundleDisplayName: REACH Staging' native/project.yml
-          git fetch origin ed42aa3922f8dd63eaa2ab41dfddaba2bf3bb929
+          # Legacy boundary tests inspect historical baselines; Codemagic's shallow checkout omits them.
+          if test "$(git rev-parse --is-shallow-repository)" = "true"; then
+            git fetch --unshallow origin
+          else
+            git fetch origin
+          fi
+          git cat-file -e 641cc0debc41f3e60517ab1880d8444ab9c5dc94^{commit}
+          git cat-file -e e7591c7c3ebd4c73c35a606de019859df60f9f48^{commit}
+          git cat-file -e ed42aa3922f8dd63eaa2ab41dfddaba2bf3bb929^{commit}
           git diff --exit-code ed42aa3922f8dd63eaa2ab41dfddaba2bf3bb929 HEAD -- native/REACH native/REACHTests native/Configuration native/project.yml native/firebase
           python3 native/scripts/prepare-store-export.py inputs
           python3 native/scripts/install-staging-config.py --required
