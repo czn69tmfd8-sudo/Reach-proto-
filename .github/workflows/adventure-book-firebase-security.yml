@@ -7,6 +7,7 @@ on:
       - integration/adventure-book-video-calling
       - fix/build17-adventure-book-sample-entry
       - feature/live-shared-adventure-book
+      - fix/build18-shared-adventure-book
     paths:
       # Recheck integration changes to the iOS client alongside candidate rules.
       - 'native/REACH/**'

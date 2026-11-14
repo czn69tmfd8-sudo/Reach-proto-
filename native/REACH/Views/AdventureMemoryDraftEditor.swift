@@ -1,9 +1,12 @@
+import PhotosUI
 import SwiftUI
 
 /// Collects a local memory draft. The caller decides whether and
 /// when a reviewed draft may be saved through a separately secured service.
 struct AdventureMemoryDraftEditor: View {
-    let onSave: (String, Date, String) -> Void
+    var allowPhoto = false
+    let onSave: (String, Date, String, PhotosPickerItem?) -> Void
+    @State private var photo: PhotosPickerItem?
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
     @State private var occurredAt = Date()
@@ -30,9 +33,13 @@ struct AdventureMemoryDraftEditor: View {
                     Text("\(story.utf8.count) / 6000 bytes")
                         .font(.caption)
                 }
-                Section {
-                    Text("Add Page saves through the active Adventure Book. Photo uploads remain unavailable until secure Storage activation.")
-                        .font(.footnote)
+                if allowPhoto {
+                    Section("Photograph") {
+                        PhotosPicker(selection: $photo, matching: .images) {
+                            Label(photo == nil ? "Choose photo" : "Change selected photo",
+                                  systemImage: "photo.badge.plus")
+                        }
+                    }
                 }
             }
             .navigationTitle("New Adventure")
@@ -44,7 +51,7 @@ struct AdventureMemoryDraftEditor: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add Page") {
                         guard valid else { return }
-                        onSave(title.trimmingCharacters(in: .whitespacesAndNewlines), occurredAt, story)
+                        onSave(title.trimmingCharacters(in: .whitespacesAndNewlines), occurredAt, story, photo)
                         dismiss()
                     }
                     .disabled(!valid)

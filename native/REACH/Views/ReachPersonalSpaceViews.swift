@@ -2,83 +2,31 @@ import SwiftUI
 import PhotosUI
 
 struct ReachUsView: View {
-    private enum Space: String, CaseIterable, Identifiable {
-        case scrapbook = "Our Adventure Book", story = "Our Story", goals = "Our Goals", questions = "Our Questions", plans = "Our Plans", profile = "Our Profile"
-        var id: Self { self }
-    }
-    @State private var space: Space = .scrapbook
-    @State private var privateStory = false
-    @State private var editingQuestion: RelationshipEntry?
-    @EnvironmentObject private var journal: RelationshipJournalStore
-
     var body: some View {
         ReachPage {
             Text("Us").font(.largeTitle.bold())
-            Text("A little space to grow together.").font(.subheadline)
-            Picker("Relationship space", selection: $space) {
-                ForEach(Space.allCases) { Text($0.rawValue).tag($0) }
-            }.pickerStyle(.menu).font(.headline)
-            switch space {
-            case .scrapbook:
-                NavigationLink {
-                    if AdventureBookAvailability.liveSharedBookEnabled {
-                        ReachAdventureBookLive()
-                    } else {
-                        ReachAdventureBookPreview()
-                    }
-                } label: {
-                    AdventureLeatherArtwork()
-                        .aspectRatio(0.91, contentMode: .fit)
-                        .frame(maxWidth: 390)
-                        .padding(.vertical, 8)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open Our Adventure Book")
-                .accessibilityHint(AdventureBookAvailability.liveSharedBookEnabled
-                    ? "Opens your saved shared book."
-                    : "Opens the sample Adventure Book.")
-                NavigationLink { ReachAdventureBookPreview() } label: {
-                    Label("View sample design", systemImage: "book")
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                }.buttonStyle(.bordered)
-                NavigationLink { ReachScrapbookView() } label: { Label("Existing Memories", systemImage: "archivebox").frame(maxWidth: .infinity, minHeight: 48) }.buttonStyle(.bordered)
-                if !AdventureBookAvailability.liveSharedBookEnabled {
-                    Text("The shared Adventure Book isn’t available yet.")
-                        .font(.footnote)
-                        .multilineTextAlignment(.center)
-                }
-            case .story:
-                Picker("Story visibility", selection: $privateStory) {
-                    Text("Shared timeline").tag(false)
-                    Text("Private dates").tag(true)
-                }.pickerStyle(.segmented)
-                if privateStory { RelationshipMilestonesView() }
-                else { SharedRelationshipShelf(kind: .milestone, privateCopy: .constant(nil)) }
-            case .goals:
-                SharedRelationshipShelf(kind: .goal, privateCopy: .constant(nil))
-            case .questions:
-                let prompt = RelationshipPrompts.daily(RelationshipPrompts.questions, on: Date())
-                ReachGlassPanel {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Today’s question").font(.headline)
-                        Text(prompt).font(.title3)
-                        Button("Answer privately") {
-                            editingQuestion = journal.entries(.question).first {
-                                $0.title == prompt && Calendar.current.isDateInToday($0.date)
-                            } ?? RelationshipEntry(kind: .question, title: prompt)
-                        }.buttonStyle(.bordered).disabled(journal.loadError != nil)
-                    }
-                }
-                JournalStorageNotice()
-                SharedRelationshipShelf(kind: .response, privateCopy: .constant(nil), suggestedTitle: prompt)
-            case .plans:
-                SharedRelationshipShelf(kind: .plan, privateCopy: .constant(nil), ideas: RelationshipPrompts.dateIdeas)
-            case .profile:
-                ReachProfilePanel()
+            NavigationLink {
+                ReachAdventureBookLive()
+            } label: {
+                AdventureLeatherArtwork(showSamplePrints: false)
+                    .aspectRatio(0.91, contentMode: .fit)
+                    .frame(maxWidth: 390)
+                    .padding(.vertical, 8)
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open Our Adventure Book")
+            NavigationLink {
+                ReachPage {
+                    Text("Our Profile").font(.largeTitle.bold())
+                    ReachProfilePanel()
+                }
+            } label: {
+                Label("Our Profile", systemImage: "person.crop.circle")
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.bordered)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .sheet(item: $editingQuestion) { RelationshipEntryEditor(entry: $0) }
     }
 }
 

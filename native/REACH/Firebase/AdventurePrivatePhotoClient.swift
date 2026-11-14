@@ -4,7 +4,11 @@ import FirebaseCore
 import Foundation
 
 enum AdventurePrivatePhotoGate {
+    #if REACH_ADVENTURE_BOOK_PHOTOS
+    static let enabled = true
+    #else
     static let enabled = false
+    #endif
 }
 
 /// Uses Firebase ID tokens, so Firestore evaluates the caller's rules.

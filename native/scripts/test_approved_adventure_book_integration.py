@@ -6,26 +6,14 @@ VIEWS = Path(__file__).resolve().parents[1] / "REACH" / "Views"
 
 
 class ApprovedAdventureBookIntegrationTests(unittest.TestCase):
-    def test_disabled_shared_book_cover_only_constructs_the_sample_destination(self):
-        us = (VIEWS / "ReachPersonalSpaceViews.swift").read_text()
-        model = (VIEWS.parent / "Models" / "AdventureBookRepository.swift").read_text()
-        self.assertIn("static let liveSharedBookEnabled = false", model)
-        scrapbook = us.split("case .scrapbook:", 1)[1].split("case .story:", 1)[0]
-        self.assertIn(
-            "NavigationLink {\n"
-            "                    if AdventureBookAvailability.liveSharedBookEnabled {\n"
-            "                        ReachAdventureBookLive()\n"
-            "                    } else {\n"
-            "                        ReachAdventureBookPreview()\n"
-            "                    }\n"
-            "                } label: {",
-            scrapbook,
-        )
-        self.assertEqual(scrapbook.count("ReachAdventureBookLive()"), 1)
-        self.assertIn("AdventureLeatherArtwork()", scrapbook)
-        self.assertIn("The shared Adventure Book isn’t available yet.", scrapbook)
-        self.assertIn('NavigationLink { ReachScrapbookView() }', scrapbook)
-        self.assertIn('Label("Existing Memories"', scrapbook)
+    def test_us_opens_only_live_adventure_book_and_profile(self):
+        us = (VIEWS / "ReachPersonalSpaceViews.swift").read_text().split("private struct ReachProfilePanel")[0]
+        self.assertEqual(us.count("NavigationLink"), 2)
+        self.assertIn("ReachAdventureBookLive()", us)
+        self.assertIn("ReachProfilePanel()", us)
+        self.assertIn("AdventureLeatherArtwork(showSamplePrints: false)", us)
+        for route in ("ReachAdventureBookPreview", "ReachScrapbookView", "SharedRelationshipShelf"):
+            self.assertNotIn(route, us)
 
     def test_sample_destination_has_no_firebase_entry_points(self):
         sample = (VIEWS / "ReachAdventureBookPreview.swift").read_text()
@@ -44,7 +32,7 @@ class ApprovedAdventureBookIntegrationTests(unittest.TestCase):
 
     def test_cover_gallery_memory_navigation_and_return(self):
         live = (VIEWS / "ReachAdventureBookLive.swift").read_text()
-        self.assertIn("AdventureLeatherCover {", live)
+        self.assertIn("AdventureLeatherCover(showSamplePrints: false) {", live)
         self.assertIn("page = 1", live)
         self.assertIn("galleryPage(Array(ordered[AdventureGalleryPagination.memoryRange", live)
         self.assertIn("memoryPage(memory)", live)

@@ -110,6 +110,20 @@ match /adventureBooks/{code}/memories/{memoryID} {
       && request.resource.data.createdAt == request.time;
     allow update, delete: if false;
   }
+  match /privatePhotoPreviews/preview {
+    allow get: if adventureAuthorized(code)
+      && exists(/databases/$(database)/documents/adventureBooks/$(code)/memories/$(memoryID));
+    allow create: if adventureAuthorized(code)
+      && exists(/databases/$(database)/documents/adventureBooks/$(code)/memories/$(memoryID))
+      && request.resource.data.keys().hasOnly(['ownerUid', 'operationID', 'bytes', 'createdAt'])
+      && request.resource.data.ownerUid == request.auth.uid
+      && request.resource.data.operationID is string
+      && request.resource.data.operationID.matches('[A-Za-z0-9_-]{1,128}')
+      && request.resource.data.bytes is bytes
+      && request.resource.data.bytes.size() > 0
+      && request.resource.data.bytes.size() <= 262144
+      && request.resource.data.createdAt == request.time;
+  }
   match /photos/{photoID} {
     allow get: if adventureAuthorized(code);
     allow list: if adventureAuthorized(code) && request.query.limit != null && request.query.limit <= 50;

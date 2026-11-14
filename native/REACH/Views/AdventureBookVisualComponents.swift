@@ -42,6 +42,7 @@ enum AdventureArtwork {
 }
 
 struct AdventureLeatherArtwork: View {
+    var showSamplePrints = true
     var body: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
@@ -57,39 +58,42 @@ struct AdventureLeatherArtwork: View {
                         .padding(.top, width * 0.08)
                     Spacer(minLength: 0)
                 }
-                HStack(spacing: -width * 0.11) {
-                    AdventureMountedPhoto(sample: 0, title: nil)
-                        .frame(width: width * 0.31, height: width * 0.29)
-                        .rotationEffect(.degrees(-13))
-                    AdventureMountedPhoto(sample: 3, title: nil)
-                        .frame(width: width * 0.26, height: width * 0.24)
-                        .rotationEffect(.degrees(8)).offset(y: width * 0.07)
-                    Spacer()
+                if showSamplePrints {
+                    HStack(spacing: -width * 0.11) {
+                        AdventureMountedPhoto(sample: 0, title: nil)
+                            .frame(width: width * 0.31, height: width * 0.29)
+                            .rotationEffect(.degrees(-13))
+                        AdventureMountedPhoto(sample: 3, title: nil)
+                            .frame(width: width * 0.26, height: width * 0.24)
+                            .rotationEffect(.degrees(8)).offset(y: width * 0.07)
+                        Spacer()
+                    }
+                    .padding(.leading, width * 0.10)
+                    .offset(y: geometry.size.height * 0.29)
                 }
-                .padding(.leading, width * 0.10)
-                .offset(y: geometry.size.height * 0.29)
             }
             .clipShape(RoundedRectangle(cornerRadius: 13))
             .shadow(color: .black.opacity(0.5), radius: 8, x: 3, y: 7)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Aged leather Adventure Book with stitching, brass clasp, embossed compass and decorative travel prints")
+        .accessibilityLabel("Aged leather Adventure Book with stitching, brass clasp, embossed compass")
     }
 }
 
 struct AdventureLeatherCover: View {
+    var showSamplePrints = true
     let open: () -> Void
     var body: some View {
         Button(action: open) {
             VStack(spacing: 10) {
-                AdventureLeatherArtwork().aspectRatio(0.91, contentMode: .fit)
+                AdventureLeatherArtwork(showSamplePrints: showSamplePrints).aspectRatio(0.91, contentMode: .fit)
                 Text("Touch to open").font(AdventureBookPalette.serif(15)).foregroundStyle(.white)
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Open Our Adventure Book")
-        .accessibilityHint("Opens the memories gallery. Cover prints are decorative examples.")
+        .accessibilityHint("Opens the Adventure Book.")
     }
 }
 

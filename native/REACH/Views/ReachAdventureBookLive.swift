@@ -13,7 +13,7 @@ struct ReachAdventureBookLive: View {
     @State private var error: String?
     @State private var busy = false
     @State private var showingNewMemory = false
-    @State private var pendingMemory: (memory: AdventureMemory, initialStory: String)?
+    @State private var pendingMemory: (memory: AdventureMemory, initialStory: String, photo: Data?, saved: Bool)?
     @State private var selectedMemory: AdventureMemory?
     @State private var selectedStoryVersion: Timestamp?
     @State private var commentDraft = ""
@@ -137,11 +137,18 @@ struct ReachAdventureBookLive: View {
                 } else {
                     TabView(selection: $page) {
                         ScrollView {
-                            AdventureLeatherCover {
-                                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4)) { page = 1 }
+                            AdventureLeatherCover(showSamplePrints: false) {
+                                if ordered.isEmpty {
+                                    if !busy && pendingMemory == nil { showingNewMemory = true }
+                                } else {
+                                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4)) { page = 1 }
+                                }
                             }
-                            Text("Decorative cover prints · your memories are inside")
-                                .font(.caption2).foregroundStyle(.white)
+                            if ordered.isEmpty {
+                                Button("Add Our First Memory") { showingNewMemory = true }
+                                    .buttonStyle(.borderedProminent)
+                                    .disabled(busy || pendingMemory != nil)
+                            }
                         }.tag(0)
                         ForEach(0..<spreadCount, id: \.self) { spread in
                             galleryPage(Array(ordered[AdventureGalleryPagination.memoryRange(spread: spread, memoryCount: ordered.count)]),
@@ -186,7 +193,16 @@ struct ReachAdventureBookLive: View {
             if scenePhase != .background { await connect() }
         }
         .task(id: photoSelection) { await uploadSelectedPhoto() }
-        .task(id: previewKey) { await loadPrivatePreviews(for: previewKey) }
+        .task(id: previewKey) {
+            let key = previewKey
+            guard AdventurePrivatePhotoGate.enabled, key.active,
+                  key.pairCode != nil, !key.scope.memoryIDs.isEmpty else { return }
+            repeat {
+                await loadPrivatePreviews(for: key)
+                do { try await Task.sleep(for: .seconds(10)) }
+                catch { return }
+            } while !Task.isCancelled && previewKey == key
+        }
         .task(id: privatePreviewSelection) { await preparePrivatePreview() }
         .onDisappear { clearPrivateContext() }
         .onChange(of: scenePhase) { _, phase in
@@ -201,8 +217,8 @@ struct ReachAdventureBookLive: View {
             }
         }
         .sheet(isPresented: $showingNewMemory) {
-            AdventureMemoryDraftEditor { title, date, story in
-                Task { await create(title: title, date: date, story: story) }
+            AdventureMemoryDraftEditor(allowPhoto: AdventurePrivatePhotoGate.enabled) { title, date, story, photo in
+                Task { await create(title: title, date: date, story: story, photo: photo) }
             }
         }
         .sheet(item: $selectedMemory) { memory in
@@ -419,8 +435,6 @@ struct ReachAdventureBookLive: View {
 
     private func loadPrivatePreviews(for key: PrivatePreviewKey) async {
         guard AdventurePrivatePhotoGate.enabled, !Task.isCancelled, previewKey == key else { return }
-        privatePreviews.removeAll()
-        displayedPreviewKey = nil
         guard key.active, let code = key.pairCode else {
             pendingPreview = nil
             return
@@ -594,7 +608,7 @@ struct ReachAdventureBookLive: View {
         }
     }
 
-    private func create(title: String, date: Date, story: String) async {
+    private func create(title: String, date: Date, story: String, photo: PhotosPickerItem?) async {
         guard !busy, pendingMemory == nil, let code = pairCode,
               let uid = Auth.auth().currentUser?.uid else { return }
         guard let currentBook = book,
@@ -608,7 +622,24 @@ struct ReachAdventureBookLive: View {
         let memory = AdventureMemory(id: UUID().uuidString.lowercased(), pairCode: code, creatorUID: uid,
                                      title: title, occurredAt: date, stories: [], photos: [],
                                      comments: [], pageOrder: nextOrder)
-        pendingMemory = (memory, story)
+        let epoch = connectionEpoch
+        var encodedPhoto: Data?
+        if let photo {
+            busy = true
+            defer { if connectionEpoch == epoch { busy = false } }
+            do {
+                guard let original = try await photo.loadTransferable(type: Data.self),
+                      let encoded = AdventurePhotoPreviewEncoder.encode(original) else {
+                    throw AdventurePrivatePhotoClient.Failure.malformed
+                }
+                encodedPhoto = encoded
+            } catch {
+                if connectionEpoch == epoch { self.error = error.localizedDescription }
+                return
+            }
+        }
+        guard connectionEpoch == epoch, !Task.isCancelled else { return }
+        pendingMemory = (memory, story, encodedPhoto, false)
         await submitPendingMemory()
     }
 
@@ -619,9 +650,19 @@ struct ReachAdventureBookLive: View {
         busy = true
         defer { if connectionEpoch == epoch { busy = false } }
         do {
-            try await repository.createMemory(pendingMemory.memory, initialStory: pendingMemory.initialStory)
+            if !pendingMemory.saved {
+                try await repository.createMemory(pendingMemory.memory, initialStory: pendingMemory.initialStory)
+                guard connectionEpoch == epoch else { return }
+                self.pendingMemory?.saved = true
+            }
+            if let bytes = pendingMemory.photo {
+                try await AdventurePrivatePhotoClient.live().publish(
+                    pairCode: pendingMemory.memory.pairCode, memoryID: pendingMemory.memory.id, bytes: bytes
+                )
+            }
             guard connectionEpoch == epoch else { return }
             self.pendingMemory = nil
+            previewRevision += 1
             error = nil
         } catch {
             if connectionEpoch == epoch { self.error = error.localizedDescription }

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { after, before, beforeEach, test } from 'node:test';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
-import { collection, doc, getDoc, getDocFromServer, getDocs, limit, onSnapshot, query, runTransaction, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { Bytes, collection, doc, getDoc, getDocFromServer, getDocs, limit, onSnapshot, query, runTransaction, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 
 let env;
 let candidateRules;
@@ -220,6 +220,19 @@ test('paired clients sync memories, both stories and conversation without partne
   const comments = query(collection(memory(partner, 'shared'), 'comments'), limit(50));
   await watch(comments, s => s.docs.some(d => d.data().text === 'Our conversation'),
     () => setDoc(child(host, 'comments', 'first'), { authorUid: 'a', text: 'Our conversation', createdAt: serverTimestamp() }));
+  const photo = d => child(d, 'privatePhotoPreviews', 'preview');
+  const bytes = new Uint8Array([255, 216, 255, 217]);
+  const preview = { ownerUid: 'a', operationID: 'synthetic-photo', bytes: Bytes.fromUint8Array(bytes), createdAt: serverTimestamp() };
+  await assertFails(setDoc(photo(partner), preview));
+  await assertSucceeds(setDoc(photo(host), preview));
+  for (const member of [host, partner]) {
+    assert.deepEqual((await getDocFromServer(photo(member))).data().bytes.toUint8Array(), bytes);
+    assert.equal((await getDocFromServer(child(member, 'stories', 'a'))).data().text, 'Revised');
+    assert.equal((await getDocFromServer(child(member, 'stories', 'b'))).data().text, 'Partner story');
+    assert.equal((await getDocFromServer(child(member, 'comments', 'first'))).data().text, 'Our conversation');
+  }
+  await assertFails(getDocFromServer(photo(db('c'))));
+  await assertFails(updateDoc(photo(partner), { operationID: 'overwrite' }));
   await assertFails(setDoc(child(host, 'photos', 'blocked'), {
     ownerUid: 'a', storagePath: 'adventureBook/' + A + '/shared/blocked',
     caption: '', position: 0, createdAt: serverTimestamp(),
@@ -227,6 +240,7 @@ test('paired clients sync memories, both stories and conversation without partne
   await env.withSecurityRulesDisabled(context => updateDoc(lock(context.firestore(), 'a'), { pairCode: B }));
   await assertFails(getDoc(quota(partner)));
   await assertFails(getDocs(books));
+  await assertFails(getDocFromServer(photo(partner)));
 });
 
 test('a fresh server recheck denies an open session when only the other lock changes', async () => {

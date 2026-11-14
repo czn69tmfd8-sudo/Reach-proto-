@@ -81,7 +81,7 @@ struct ReachAdventureBookPreview: View {
             AdventureStoryEditor(initialText: personalStory) { personalStory = $0 }
         }
         .sheet(isPresented: $showingMemoryEditor) {
-            AdventureMemoryDraftEditor { title, date, text in drafts.append((title, date, text)) }
+            AdventureMemoryDraftEditor { title, date, text, _ in drafts.append((title, date, text)) }
         }
     }
 
