@@ -35,9 +35,9 @@ struct AdventureMemoryDraftEditor: View {
                 }
                 if allowPhoto {
                     Section("Photograph") {
+                        let label = photo == nil ? "Choose photo" : "Change selected photo"
                         PhotosPicker(selection: $photo, matching: .images) {
-                            Label(photo == nil ? "Choose photo" : "Change selected photo",
-                                  systemImage: "photo.badge.plus")
+                            Label(label, systemImage: "photo.badge.plus")
                         }
                     }
                 }

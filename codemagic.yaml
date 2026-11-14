@@ -1323,8 +1323,8 @@ workflows:
           grep -q 'PRODUCT_BUNDLE_IDENTIFIER: com.reachprototype.app' native/project.yml
           grep -q 'INFOPLIST_KEY_CFBundleDisplayName: REACH Staging' native/project.yml
           if test "$(git rev-parse --is-shallow-repository)" = "true"; then git fetch --unshallow origin; else git fetch origin; fi
-          git cat-file -e 563aff1d80a919bc51dad18d74bb9e579c13f8b8^{commit}
-          git diff --exit-code 563aff1d80a919bc51dad18d74bb9e579c13f8b8 HEAD -- native/REACH native/REACHTests native/Configuration native/project.yml native/firebase
+          git cat-file -e 8dc043932be7a28bac579266b3d94e83a195e264^{commit}
+          git diff --exit-code 8dc043932be7a28bac579266b3d94e83a195e264 HEAD -- native/REACH native/REACHTests native/Configuration native/project.yml native/firebase
           xcodebuild -version | awk '/^Xcode / { if ($2 + 0 >= 26) ok=1 } END { exit !ok }'
           xcrun --sdk iphoneos --show-sdk-version | awk '{ if ($1 + 0 >= 26) ok=1 } END { exit !ok }'
           python3 native/scripts/prepare-store-export.py inputs
