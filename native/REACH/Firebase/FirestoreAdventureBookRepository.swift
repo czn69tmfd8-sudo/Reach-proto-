@@ -247,7 +247,7 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
     ) async throws {
         let occurredAt = Timestamp(date: memory.occurredAt)
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            db.runTransaction({ transaction, pointer -> Any? in
+            db.runTransaction({ @Sendable transaction, pointer -> Any? in
             do {
                 let existing = try transaction.getDocument(ref)
                 if existing.exists {
@@ -277,7 +277,7 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
                 pointer?.pointee = error as NSError
             }
             return nil
-            }, completion: { _, error in
+            }, completion: { @Sendable _, error in
                 if let error { continuation.resume(throwing: error) }
                 else { continuation.resume(returning: ()) }
             })
@@ -312,7 +312,7 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
               text.utf8.count <= 2000 else { throw AdventureBookRepositoryError.invalidMemory }
         let ref = db.document(base).collection("comments").document(commentID)
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            db.runTransaction({ transaction, pointer -> Any? in
+            db.runTransaction({ @Sendable transaction, pointer -> Any? in
                 do {
                     let existing = try transaction.getDocument(ref)
                     if let data = existing.data() {
@@ -328,7 +328,7 @@ final class FirestoreAdventureBookRepository: AdventureBookRepository {
                     pointer?.pointee = error as NSError
                 }
                 return nil
-            }, completion: { _, error in
+            }, completion: { @Sendable _, error in
                 if let error { continuation.resume(throwing: error) }
                 else { continuation.resume(returning: ()) }
             })

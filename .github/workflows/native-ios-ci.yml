@@ -11,6 +11,7 @@ on:
       - fix/build17-adventure-book-sample-entry
       - feature/live-shared-adventure-book
       - fix/build18-shared-adventure-book
+      - fix/build19-emergency
       - feature/adventure-book-single-app-integration
       - feature/adventure-book-visual-fidelity
       - feature/adventure-book-approved-integration
@@ -164,7 +165,7 @@ jobs:
           settings=()
           if [[ "$GITHUB_REF" == "refs/heads/feature/live-shared-adventure-book" ]]; then
             settings+=('SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) REACH_LIVE_ADVENTURE_BOOK')
-          elif [[ "$GITHUB_REF" == "refs/heads/fix/build18-shared-adventure-book" ]]; then
+          elif [[ "$GITHUB_REF" == "refs/heads/fix/build18-shared-adventure-book" || "$GITHUB_REF" == "refs/heads/fix/build19-emergency" ]]; then
             settings+=('SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) REACH_LIVE_ADVENTURE_BOOK REACH_ADVENTURE_BOOK_PHOTOS')
           fi
           xcodebuild -project REACH.xcodeproj -scheme REACH -configuration Release \

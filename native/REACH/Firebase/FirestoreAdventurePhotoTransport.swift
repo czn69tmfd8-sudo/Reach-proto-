@@ -131,7 +131,7 @@ final class FirestoreAdventurePhotoTransport {
             return
         }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            db.runTransaction({ transaction, pointer -> Any? in
+            db.runTransaction({ @Sendable transaction, pointer -> Any? in
             do {
                 let current = try transaction.getDocument(ref)
                 guard !current.exists else { throw AdventureBookRepositoryError.conflict }
@@ -144,7 +144,7 @@ final class FirestoreAdventurePhotoTransport {
                 pointer?.pointee = error as NSError
             }
             return nil
-            }, completion: { _, error in
+            }, completion: { @Sendable _, error in
                 if let error { continuation.resume(throwing: error) }
                 else { continuation.resume(returning: ()) }
             })

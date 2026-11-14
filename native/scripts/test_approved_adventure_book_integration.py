@@ -30,6 +30,16 @@ class ApprovedAdventureBookIntegrationTests(unittest.TestCase):
         self.assertIn("try await self.verifiedCode(pairCode)", repository)
         self.assertIn("accessRecheckTask?.cancel()", repository)
 
+    def test_live_write_callbacks_do_not_inherit_the_main_actor(self):
+        firebase = VIEWS.parent / "Firebase"
+        for name, count in (("FirestoreAdventureBookRepository.swift", 2),
+                            ("FirestoreAdventureStoryTransport.swift", 1),
+                            ("FirestoreAdventurePhotoTransport.swift", 1)):
+            source = (firebase / name).read_text()
+            self.assertEqual(source.count("db.runTransaction({ @Sendable"), count)
+            self.assertEqual(source.count("db.runTransaction"), count)
+            self.assertEqual(source.count("completion: { @Sendable _, error in"), count)
+
     def test_cover_gallery_memory_navigation_and_return(self):
         live = (VIEWS / "ReachAdventureBookLive.swift").read_text()
         self.assertIn("AdventureLeatherCover(showSamplePrints: false) {", live)

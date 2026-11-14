@@ -8,6 +8,7 @@ on:
       - fix/build17-adventure-book-sample-entry
       - feature/live-shared-adventure-book
       - fix/build18-shared-adventure-book
+      - fix/build19-emergency
     paths:
       # Recheck integration changes to the iOS client alongside candidate rules.
       - 'native/REACH/**'
