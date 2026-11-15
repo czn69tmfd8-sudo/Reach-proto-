@@ -19,6 +19,24 @@ final class AdventureBookTests: XCTestCase {
         XCTAssertFalse(book.reorder(["earlier", "earlier"], as: "author-b", members: members))
     }
 
+    func testChronologicalPagesAfterLateAddAndDateEdit() {
+        func datedMemory(_ day: Int, id: String, order: Int) -> AdventureMemory {
+            AdventureMemory(id: id, pairCode: pair, creatorUID: "author-a", title: id,
+                            occurredAt: Date(timeIntervalSince1970: Double(day) * 86400),
+                            stories: [], photos: [], comments: [], pageOrder: order)
+        }
+        var records = (1...8).reversed().map { datedMemory($0, id: "day-\($0)", order: 9 - $0) }
+        records.append(datedMemory(0, id: "late-added", order: 9))
+        let sorted = AdventureBook(pairCode: pair, memories: records).orderedMemories.map(\.id)
+        XCTAssertEqual(sorted, ["late-added"] + (1...8).map { "day-\($0)" })
+        XCTAssertEqual(AdventureGalleryPagination.page(forSelectedMemoryID: "day-8", orderedIDs: sorted), 3)
+        records[0] = datedMemory(0, id: "day-8", order: 1)
+        let edited = AdventureBook(pairCode: pair, memories: records).orderedMemories.map(\.id)
+        XCTAssertEqual(Array(edited.prefix(2)), ["day-8", "late-added"])
+        XCTAssertEqual(Set(edited), Set(sorted))
+        XCTAssertEqual(AdventureBook(pairCode: pair, memories: Array(records.reversed())).orderedMemories.map(\.id), edited)
+    }
+
     func testRejectOutsiderAndDuplicateMemory() {
         var book = AdventureBook(pairCode: pair, memories: [])
         XCTAssertFalse(book.insert(memory("one", order: 0), as: "outsider", members: members))

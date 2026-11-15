@@ -58,6 +58,10 @@ struct AdventurePrivatePhotoClient {
 
     static func live() throws -> Self {
         guard AdventurePrivatePhotoGate.enabled else { throw Failure.unavailable }
+        return try stagingTransport()
+    }
+
+    private static func stagingTransport() throws -> Self {
         try FirebaseBootstrap.configureStaging()
         let projectID = FirebaseApp.app()?.options.projectID
         try ReachEnvironmentGuard.validate(environment: .staging, configuredProjectID: projectID)
@@ -114,6 +118,62 @@ struct AdventurePrivatePhotoClient {
             }
             throw error
         }
+    }
+
+    // Reuse the authenticated, uncached transport for profile JPEGs.
+    static func profileTransport() throws -> Self {
+        try stagingTransport()
+    }
+
+    func readProfilePhoto(pairCode: String, ownerUID: String) async throws -> Data? {
+        let auth = try await credentials()
+        let path = try profilePath(pairCode: pairCode, uid: ownerUID)
+        let (data, status) = try await request(path: path, auth: auth)
+        if status == 404 { return nil }
+        try Self.requireSuccess(status)
+        guard data.count <= 400_000,
+              let document = try? JSONDecoder().decode(WireDocument.self, from: data),
+              document.name == path,
+              document.fields["ownerUid"]?.stringValue == ownerUID,
+              let bytes = document.fields["bytes"]?.bytesValue,
+              Self.isJPEG(bytes) else { throw Failure.malformed }
+        return bytes
+    }
+
+    func saveOwnProfilePhoto(pairCode: String, uid: String, bytes: Data?) async throws {
+        let auth = try await credentials()
+        guard auth.uid == uid else { throw Failure.unauthorized }
+        let path = try profilePath(pairCode: pairCode, uid: uid)
+        let write: [String: Any]
+        if let bytes {
+            guard Self.isJPEG(bytes) else { throw Failure.malformed }
+            write = [
+                "update": ["name": path, "fields": [
+                    "ownerUid": ["stringValue": uid],
+                    "bytes": ["bytesValue": bytes.base64EncodedString()]
+                ]],
+                "updateTransforms": [["fieldPath": "updatedAt", "setToServerValue": "REQUEST_TIME"]]
+            ]
+        } else {
+            write = ["delete": path]
+        }
+        let (_, status) = try await request(
+            path: "projects/\(projectID)/databases/(default)/documents:commit",
+            auth: auth, body: try JSONSerialization.data(withJSONObject: ["writes": [write]])
+        )
+        try Self.requireSuccess(status)
+    }
+
+    private func profilePath(pairCode: String, uid: String) throws -> String {
+        guard SharedContentPolicy.pairCode(pairCode), SharedContentPolicy.documentID(uid),
+              uid.utf8.allSatisfy({ (48...57).contains($0) || (65...90).contains($0) ||
+                  (97...122).contains($0) || $0 == 45 || $0 == 95 }) else { throw Failure.malformed }
+        return "projects/\(projectID)/databases/(default)/documents/reachProfilePhotos/\(pairCode)/members/\(uid)"
+    }
+
+    private static func requireSuccess(_ status: Int) throws {
+        if status == 401 || status == 403 { throw Failure.unauthorized }
+        guard (200..<300).contains(status) else { throw Failure.unavailable }
     }
 
     private func read(path: String, auth: Credentials) async throws -> Preview? {

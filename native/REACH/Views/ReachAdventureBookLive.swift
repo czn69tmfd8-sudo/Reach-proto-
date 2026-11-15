@@ -37,8 +37,9 @@ struct ReachAdventureBookLive: View {
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var appearance: ReachAppearanceStore
     @State private var page = 0
+    @State private var pageAfterSave: String?
     @State private var openedMemoryID: String?
-    @State private var repository = FirestoreAdventureBookRepository()
+    @State private var repository: FirestoreAdventureBookRepository?
     @State private var connectionEpoch = 0
     @State private var connecting = false
     @State private var loadedContentScope = AdventureBookContentScope()
@@ -49,6 +50,18 @@ struct ReachAdventureBookLive: View {
     @State private var previewRevision = 0
     @State private var previewUploading = false
     @State private var pendingPreview: (memoryID: String, bytes: Data)?
+
+    private var isVisualFixture = false
+
+    init() {}
+
+    #if DEBUG
+    init(visualBook: AdventureBook, page: Int) {
+        isVisualFixture = true
+        _book = State(initialValue: visualBook)
+        _page = State(initialValue: page)
+    }
+    #endif
 
     private struct PrivatePreviewKey: Equatable {
         let pairCode: String?
@@ -64,6 +77,12 @@ struct ReachAdventureBookLive: View {
     }
 
     private func preview(for id: String) -> UIImage? {
+        #if DEBUG
+        if isVisualFixture, let index = book?.orderedMemories.firstIndex(where: { $0.id == id }) {
+            let region = 2 + index % 4
+            return AdventureArtwork.regions.indices.contains(region) ? AdventureArtwork.regions[region] : nil
+        }
+        #endif
         guard AdventurePrivatePhotoGate.enabled, scenePhase == .active,
               displayedPreviewKey == previewKey else { return nil }
         return privatePreviews[id]
@@ -134,22 +153,22 @@ struct ReachAdventureBookLive: View {
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }
                     .foregroundStyle(.white)
+                    Color.clear.frame(height: 44).accessibilityHidden(true)
                 } else {
                     TabView(selection: $page) {
-                        ScrollView {
-                            AdventureLeatherCover(showSamplePrints: false) {
-                                if ordered.isEmpty {
-                                    if !busy && pendingMemory == nil { showingNewMemory = true }
-                                } else {
-                                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4)) { page = 1 }
-                                }
-                            }
+                        Button {
                             if ordered.isEmpty {
-                                Button("Add Our First Memory") { showingNewMemory = true }
-                                    .buttonStyle(.borderedProminent)
-                                    .disabled(busy || pendingMemory != nil)
+                                if !busy && pendingMemory == nil { showingNewMemory = true }
+                            } else {
+                                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4)) { page = 1 }
                             }
-                        }.tag(0)
+                        } label: {
+                            AdventureLeatherArtwork(showSamplePrints: false)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(ordered.isEmpty ? "Add Our First Memory" : "Open Our Adventure Book")
+                        .modifier(AdventureBookPageFrame())
+                        .tag(0)
                         ForEach(0..<spreadCount, id: \.self) { spread in
                             galleryPage(Array(ordered[AdventureGalleryPagination.memoryRange(spread: spread, memoryCount: ordered.count)]),
                                         spread: spread, totalSpreads: spreadCount)
@@ -158,10 +177,16 @@ struct ReachAdventureBookLive: View {
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
                     .animation(reduceMotion ? nil : .easeInOut(duration: 0.32), value: page)
+                    Button(ordered.isEmpty ? "Add Our First Memory" : "Add a Memory") {
+                        showingNewMemory = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isVisualFixture || busy || pendingMemory != nil || ordered.count >= 500)
+                    .frame(minHeight: 44)
                     HStack {
                         Button("Previous") { page = AdventureGalleryPagination.clampedPage(page - 1, memoryCount: ordered.count) }.disabled(page == 0)
                         Spacer()
-                        Text(page == 0 ? "Cover" : "Memories · \(page) of \(spreadCount)").font(.caption)
+                        Text(page == 0 ? "Cover" : "Page \(page) of \(spreadCount)").font(.caption)
                         Spacer()
                         Button("Next") { page = AdventureGalleryPagination.clampedPage(page + 1, memoryCount: ordered.count) }
                             .disabled(page == spreadCount)
@@ -177,6 +202,7 @@ struct ReachAdventureBookLive: View {
         }
         .onChange(of: book?.orderedMemories.map(\.id) ?? []) { _, ids in
             page = AdventureGalleryPagination.clampedPage(page, memoryCount: ids.count)
+            showSavedMemoryPage(in: ids)
             if let selected = openedMemoryID, !ids.contains(selected) {
                 openedMemoryID = nil
                 commentDraft = ""
@@ -184,13 +210,13 @@ struct ReachAdventureBookLive: View {
         }
         .onChange(of: contentScope, initial: true) { _, scope in
             loadedContentScope = AdventureBookContentScope()
-            repository.updateContentScope(scope)
+            repository?.updateContentScope(scope)
         }
         .background { ReachHomeBackground() }
         .toolbar(.hidden, for: .navigationBar)
         .reachKeyboardToolbar()
         .task(id: scenePhase == .background) {
-            if scenePhase != .background { await connect() }
+            if !isVisualFixture && scenePhase != .background { await connect() }
         }
         .task(id: photoSelection) { await uploadSelectedPhoto() }
         .task(id: previewKey) {
@@ -204,7 +230,7 @@ struct ReachAdventureBookLive: View {
             } while !Task.isCancelled && previewKey == key
         }
         .task(id: privatePreviewSelection) { await preparePrivatePreview() }
-        .onDisappear { clearPrivateContext() }
+        .onDisappear { if !isVisualFixture { clearPrivateContext() } }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background {
                 clearPrivateContext()
@@ -232,88 +258,82 @@ struct ReachAdventureBookLive: View {
         }
     }
 
+    private func showSavedMemoryPage(in ids: [String]) {
+        guard let id = pageAfterSave, let destination = AdventureGalleryPagination.page(
+            forSelectedMemoryID: id, orderedIDs: ids
+        ) else { return }
+        page = destination
+        pageAfterSave = nil
+    }
+
     private func galleryPage(_ memories: [AdventureMemory], spread: Int, totalSpreads: Int) -> some View {
-        AdventureParchmentPage {
-            VStack(alignment: .leading, spacing: 18) {
-                AdventureGalleryHeading()
-                Text("Page \(spread + 1) of \(totalSpreads)")
-                    .font(AdventureBookPalette.serif(14, relativeTo: .caption))
-                    .frame(maxWidth: .infinity)
-                if (book?.memories.count ?? 0) >= 500 {
-                    Text("This book has reached the current 500-memory safety limit.")
-                        .font(.caption)
-                        .accessibilityAddTraits(.isStaticText)
-                }
-                if memories.isEmpty {
-                    Text("Our story begins with the first memory we add.")
-                        .font(AdventureBookPalette.handwriting(21))
-                        .padding(.vertical, 28)
-                }
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: dynamicType.isAccessibilitySize ? 1 : 2), spacing: 18) {
-                    ForEach(Array(memories.enumerated()), id: \.element.id) { index, memory in
-                        Button {
-                            // A draft belongs to one memory only. Never carry it
-                            // into a different memory's conversation.
-                            if openedMemoryID != memory.id { commentDraft = "" }
-                            openedMemoryID = memory.id
-                        } label: {
-                            VStack(alignment: .leading, spacing: 6) {
-                                AdventureMountedFrame(title: memory.title) {
-                                    if let image = preview(for: memory.id), page == spread + 1 {
-                                        Image(uiImage: image).resizable().scaledToFill()
-                                            .frame(height: 112).clipped()
-                                            .clipShape(RoundedRectangle(cornerRadius: 3))
-                                    } else if let coverPhoto = memory.photos.first {
-                                        AdventureAuthenticatedPhoto(pairCode: memory.pairCode,
-                                            memoryID: memory.id, photo: coverPhoto, compact: true)
-                                    } else if page == spread + 1 && !loadedContentScope.photoIDs.contains(memory.id) {
-                                        ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-                                    } else {
-                                        VStack(spacing: 8) {
-                                            Image(systemName: "photo.on.rectangle.angled").font(.title)
-                                            Text("No photograph").font(.caption)
+        GeometryReader { viewport in
+            AdventureParchmentPage(useBookFrame: true) {
+                VStack(alignment: .leading, spacing: 18) {
+                    AdventureGalleryHeading()
+                    Text("Page \(spread + 1) of \(totalSpreads)")
+                        .font(AdventureBookPalette.serif(14, relativeTo: .caption))
+                        .frame(maxWidth: .infinity)
+                    if (book?.memories.count ?? 0) >= 500 {
+                        Text("This book has reached the current 500-memory safety limit.")
+                            .font(.caption)
+                            .accessibilityAddTraits(.isStaticText)
+                    }
+                    if memories.isEmpty {
+                        Text("Our story begins with the first memory we add.")
+                            .font(AdventureBookPalette.handwriting(21))
+                            .padding(.vertical, 28)
+                    }
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: dynamicType.isAccessibilitySize ? 1 : 2), spacing: 18) {
+                        ForEach(Array(memories.enumerated()), id: \.element.id) { index, memory in
+                            Button {
+                                // A draft belongs to one memory only. Never carry it
+                                // into a different memory's conversation.
+                                if openedMemoryID != memory.id { commentDraft = "" }
+                                openedMemoryID = memory.id
+                            } label: {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    AdventureMountedFrame(title: memory.title) {
+                                        if let image = preview(for: memory.id), page == spread + 1 {
+                                            Image(uiImage: image).resizable().scaledToFill()
+                                                .frame(height: 112).clipped()
+                                                .clipShape(RoundedRectangle(cornerRadius: 3))
+                                        } else if let coverPhoto = memory.photos.first {
+                                            AdventureAuthenticatedPhoto(pairCode: memory.pairCode,
+                                                memoryID: memory.id, photo: coverPhoto, compact: true)
+                                        } else if page == spread + 1 && !loadedContentScope.photoIDs.contains(memory.id) {
+                                            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                                        } else {
+                                            VStack(spacing: 8) {
+                                                Image(systemName: "photo.on.rectangle.angled").font(.title)
+                                                Text("No photograph").font(.caption)
+                                            }
+                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                            .background(AdventureBookPalette.paper.opacity(0.45))
                                         }
-                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                        .background(AdventureBookPalette.paper.opacity(0.45))
-                                    }
-                                }.frame(height: dynamicType.isAccessibilitySize ? 250 : 160)
-                                HStack {
-                                    Text(memory.occurredAt, style: .date)
-                                        .font(AdventureBookPalette.serif(13, relativeTo: .caption))
-                                    Spacer(minLength: 0)
-                                    Image(systemName: "heart").foregroundStyle(AdventureBookPalette.burgundy)
-                                }.padding(.horizontal, 4)
+                                    }.frame(height: dynamicType.isAccessibilitySize ? 250 : min(160, max(88, (viewport.size.height - 175) / 2)))
+                                    HStack {
+                                        Text(memory.occurredAt, style: .date)
+                                            .font(AdventureBookPalette.serif(13, relativeTo: .caption))
+                                        Spacer(minLength: 0)
+                                        Image(systemName: "heart").foregroundStyle(AdventureBookPalette.burgundy)
+                                    }.padding(.horizontal, 4)
+                                }
+                                .foregroundStyle(AdventureBookPalette.ink)
+                                .rotationEffect(.degrees(index.isMultiple(of: 2) ? -2 : 2))
                             }
-                            .foregroundStyle(AdventureBookPalette.ink)
-                            .rotationEffect(.degrees(index.isMultiple(of: 2) ? -2 : 2))
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Open memory: \(memory.title)")
+                            .accessibilityHint("Opens this memory’s stories, photographs and conversation")
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Open memory: \(memory.title)")
-                        .accessibilityHint("Opens this memory’s stories, photographs and conversation")
                     }
-                }
-                if AdventureGalleryPagination.canAppendMemory(
-                    loadedCount: book?.memories.count ?? 500, queryLimit: 500
-                ) {
-                    Button { showingNewMemory = true } label: {
-                        Label("Add a New Memory", systemImage: "plus")
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                    }
-                    .font(AdventureBookPalette.serif(18)).foregroundStyle(.white)
-                    .background(AdventureBookPalette.burgundy, in: Capsule())
-                    .disabled(busy || pendingMemory != nil).padding(.horizontal, 14)
-                } else {
-                    Text("Adding more memories is paused at the current 500-memory safety limit.")
-                        .font(.caption)
-                        .foregroundStyle(AdventureBookPalette.ink)
-                        .accessibilityAddTraits(.isStaticText)
                 }
             }
         }
     }
 
     private func memoryPage(_ memory: AdventureMemory) -> some View {
-        AdventureParchmentPage {
+        AdventureParchmentPage(useBookFrame: true) {
             VStack(alignment: .leading, spacing: 14) {
                 Text(memory.title).font(AdventureBookPalette.handwriting(28, relativeTo: .title2))
                     .frame(maxWidth: .infinity).multilineTextAlignment(.center)
@@ -529,7 +549,8 @@ struct ReachAdventureBookLive: View {
 
     private func clearPrivateContext() {
         connectionEpoch += 1
-        repository.stopObserving()
+        repository?.stopObserving()
+        repository = nil
         connecting = false
         book = nil
         pairCode = nil
@@ -540,6 +561,7 @@ struct ReachAdventureBookLive: View {
         selectedMemory = nil
         selectedStoryVersion = nil
         openedMemoryID = nil
+        pageAfterSave = nil
         loadedContentScope = AdventureBookContentScope()
         commentDraft = ""
         pendingComment = nil
@@ -590,11 +612,13 @@ struct ReachAdventureBookLive: View {
                 pendingPhoto = recovered
                 pendingPhotoPosition = restored.position
             }
-            try await repository.observe(pairCode: code) { result in
+            let repository = FirestoreAdventureBookRepository()
+            self.repository = repository
+            try await repository.observe(pairCode: code) { [weak repository] result in
                 guard connectionEpoch == epoch else { return }
                 switch result {
                 case .success(let updated):
-                    loadedContentScope = repository.loadedScope
+                    loadedContentScope = repository?.loadedScope ?? AdventureBookContentScope()
                     book = updated
                 case .failure(let failure):
                     clearPrivateContext()
@@ -644,7 +668,7 @@ struct ReachAdventureBookLive: View {
     }
 
     private func submitPendingMemory() async {
-        guard !busy, let pendingMemory, pendingMemory.memory.pairCode == pairCode,
+        guard !busy, let repository, let pendingMemory, pendingMemory.memory.pairCode == pairCode,
               pendingMemory.memory.creatorUID == Auth.auth().currentUser?.uid else { return }
         let epoch = connectionEpoch
         busy = true
@@ -662,6 +686,9 @@ struct ReachAdventureBookLive: View {
             }
             guard connectionEpoch == epoch else { return }
             self.pendingMemory = nil
+            // Navigate after the synchronized book contains the newly saved ID.
+            pageAfterSave = pendingMemory.memory.id
+            showSavedMemoryPage(in: book?.orderedMemories.map(\.id) ?? [])
             previewRevision += 1
             error = nil
         } catch {
@@ -691,7 +718,7 @@ struct ReachAdventureBookLive: View {
 
     private func saveStory(memoryID: String, text: String, version: Timestamp?, epoch: Int) async {
         guard connectionEpoch == epoch else { return }
-        guard let code = pairCode, Auth.auth().currentUser != nil else { return }
+        guard let repository, let code = pairCode, Auth.auth().currentUser != nil else { return }
         do {
             // Use the exact version captured when the editor opened.
             // Transaction retries reject a stale version if the partner or
@@ -704,7 +731,7 @@ struct ReachAdventureBookLive: View {
     }
 
     private func postComment(memoryID: String, text: String) async {
-        guard let code = pairCode, !busy else { return }
+        guard let repository, let code = pairCode, !busy else { return }
         let epoch = connectionEpoch
         let commentID: String
         if let pendingComment, pendingComment.memoryID == memoryID, pendingComment.text == text {

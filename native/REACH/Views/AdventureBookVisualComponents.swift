@@ -97,6 +97,17 @@ struct AdventureLeatherCover: View {
     }
 }
 
+/// The live cover and parchment take the same safe-area viewport.
+struct AdventureBookPageFrame: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .frame(maxWidth: 620, maxHeight: .infinity)
+            .clipped()
+            .padding(6)
+            .frame(maxWidth: .infinity)
+    }
+}
+
 struct AdventurePaperSurface: View {
     var body: some View {
         AdventureArtwork.image(1).resizable()
@@ -105,8 +116,14 @@ struct AdventurePaperSurface: View {
 }
 
 struct AdventureParchmentPage<Content: View>: View {
+    var useBookFrame = false
     @ViewBuilder let content: Content
     var body: some View {
+        if useBookFrame { page.modifier(AdventureBookPageFrame()) }
+        else { page.padding(6) }
+    }
+
+    private var page: some View {
         ScrollView {
             content.frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 32)
@@ -115,7 +132,6 @@ struct AdventureParchmentPage<Content: View>: View {
         .foregroundStyle(AdventureBookPalette.ink)
         .background { AdventurePaperSurface() }
         .shadow(color: .black.opacity(0.36), radius: 8, x: 2, y: 5)
-        .padding(.horizontal, 6).padding(.vertical, 6)
         .environment(\.colorScheme, .light)
     }
 }

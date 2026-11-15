@@ -42,7 +42,7 @@ class ApprovedAdventureBookIntegrationTests(unittest.TestCase):
 
     def test_cover_gallery_memory_navigation_and_return(self):
         live = (VIEWS / "ReachAdventureBookLive.swift").read_text()
-        self.assertIn("AdventureLeatherCover(showSamplePrints: false) {", live)
+        self.assertIn("AdventureBookPageFrame()", live)
         self.assertIn("page = 1", live)
         self.assertIn("galleryPage(Array(ordered[AdventureGalleryPagination.memoryRange", live)
         self.assertIn("memoryPage(memory)", live)

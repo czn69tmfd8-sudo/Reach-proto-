@@ -8,8 +8,8 @@ struct AdventureBook: Equatable, Sendable, Codable {
 
     var orderedMemories: [AdventureMemory] {
         memories.sorted {
-            if $0.pageOrder != $1.pageOrder { return $0.pageOrder < $1.pageOrder }
             if $0.occurredAt != $1.occurredAt { return $0.occurredAt < $1.occurredAt }
+            if $0.pageOrder != $1.pageOrder { return $0.pageOrder < $1.pageOrder }
             return $0.id < $1.id
         }
     }
@@ -55,10 +55,10 @@ struct AdventureBook: Equatable, Sendable, Codable {
 }
 
 /// Pure gallery navigation shared by the live book and its tests.
-/// Gallery page 0 is the cover; gallery pages 1...N each hold eight memories.
+/// Gallery page 0 is the cover; gallery pages 1...N each hold four memories.
 /// Individual memories are opened by stable ID, never by a shifting page index.
 struct AdventureGalleryPagination {
-    static let memoriesPerSpread = 8
+    static let memoriesPerSpread = 4
 
     static func spreadCount(memoryCount: Int) -> Int {
         max(1, max(0, memoryCount) / memoriesPerSpread + (max(0, memoryCount) % memoriesPerSpread == 0 ? 0 : 1))

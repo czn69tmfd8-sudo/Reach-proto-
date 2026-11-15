@@ -10,7 +10,7 @@ class AdventureBookVisualRegressionTests(unittest.TestCase):
         source = (VIEWS / "AdventureBookVisualComponents.swift").read_text()
         for forbidden in ("FirebaseAuth", "FirebaseFirestore", "FirebaseStorage", "Firestore.firestore(", "Auth.auth("):
             self.assertNotIn(forbidden, source)
-        for expected in ("AdventureLeatherCover", "AdventureParchmentPage",
+        for expected in ("AdventureLeatherArtwork", "AdventureParchmentPage",
                          "AdventureStoryCard", "Touch to open", "accessibilityReduceMotion"):
             if expected == "accessibilityReduceMotion":
                 continue
@@ -19,7 +19,7 @@ class AdventureBookVisualRegressionTests(unittest.TestCase):
     def test_live_book_keeps_shared_data_and_editing(self):
         source = (VIEWS / "ReachAdventureBookLive.swift").read_text()
         for expected in ("FirestoreAdventureBookRepository()", "repository.observe(",
-                         "AdventureLeatherCover", "galleryPage(Array(ordered[AdventureGalleryPagination.memoryRange",
+                         "AdventureLeatherArtwork", "galleryPage(Array(ordered[AdventureGalleryPagination.memoryRange",
                          "AdventureStoryCard", "AdventureAuthenticatedPhoto(",
                          "AdventurePhotoFeatureGate.liveUploadsEnabled",
                          "saveOwnStory(", "postComment(", "onDisappear",
@@ -64,7 +64,7 @@ class AdventureBookVisualRegressionTests(unittest.TestCase):
         self.assertIn("let epoch = connectionEpoch", editor)
         self.assertIn("version: version, epoch: epoch", editor)
         self.assertIn("guard connectionEpoch == epoch else { return }", save)
-        self.assertIn("guard let code = pairCode, Auth.auth().currentUser != nil else { return }", save)
+        self.assertIn("guard let repository, let code = pairCode, Auth.auth().currentUser != nil else { return }", save)
         self.assertIn("expectedVersion: version", save)
 
     def test_gallery_does_not_auto_import_private_content(self):

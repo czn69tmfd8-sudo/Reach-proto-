@@ -27,7 +27,10 @@ struct REACHApp: App {
 
     @ViewBuilder private var launchView: some View {
         #if DEBUG
-        if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--adventure-sample-page=") }),
+        if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--adventure-gallery-page=") }),
+           let value = Int(argument.split(separator: "=").last ?? ""), (0...3).contains(value) {
+            AdventureBookVisualValidationShell(page: value, useLiveGallery: true)
+        } else if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--adventure-sample-page=") }),
            let value = Int(argument.split(separator: "=").last ?? ""), (0...2).contains(value) {
             AdventureBookVisualValidationShell(page: value)
         } else {

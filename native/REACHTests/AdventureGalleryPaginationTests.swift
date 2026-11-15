@@ -7,17 +7,17 @@ final class AdventureGalleryPaginationTests: XCTestCase {
         let cover = AdventureBookContentScope(orderedIDs: ids)
         XCTAssertTrue(cover.memoryIDs.isEmpty)
 
-        let spread = AdventureBookContentScope(orderedIDs: ids, page: 62)
-        XCTAssertEqual(spread.memoryIDs, Set(ids[488..<496]))
-        XCTAssertEqual(spread.memoryIDs.flatMap { spread.level(for: $0).collections }, Array(repeating: "photos", count: 8))
-        XCTAssertEqual(spread.level(for: ids[487]), .summary)
+        let spread = AdventureBookContentScope(orderedIDs: ids, page: 125)
+        XCTAssertEqual(spread.memoryIDs, Set(ids[496..<500]))
+        XCTAssertEqual(spread.memoryIDs.flatMap { spread.level(for: $0).collections }, Array(repeating: "photos", count: 4))
+        XCTAssertEqual(spread.level(for: ids[495]), .summary)
 
-        let open = AdventureBookContentScope(orderedIDs: ids, page: 62, openedMemoryID: ids[489])
-        XCTAssertEqual(open.memoryIDs, [ids[489]])
-        XCTAssertEqual(open.level(for: ids[489]).collections, ["stories", "comments", "photos"])
-        XCTAssertEqual(open.level(for: ids[490]), .summary)
+        let open = AdventureBookContentScope(orderedIDs: ids, page: 125, openedMemoryID: ids[497])
+        XCTAssertEqual(open.memoryIDs, [ids[497]])
+        XCTAssertEqual(open.level(for: ids[497]).collections, ["stories", "comments", "photos"])
+        XCTAssertEqual(open.level(for: ids[498]), .summary)
 
-        let missing = AdventureBookContentScope(orderedIDs: ids, page: 63, openedMemoryID: "missing")
+        let missing = AdventureBookContentScope(orderedIDs: ids, page: 125, openedMemoryID: "missing")
         XCTAssertNil(missing.detailID)
         XCTAssertEqual(missing.memoryIDs, Set(ids[496..<500]))
     }
@@ -28,8 +28,8 @@ final class AdventureGalleryPaginationTests: XCTestCase {
         XCTAssertEqual(AdventureGalleryPagination.clampedPage(99, memoryCount: 0), 1)
     }
 
-    func testEightSlotsAndAutomaticAdditionalSpreads() {
-        for (count, expected) in [(1, 1), (7, 1), (8, 1), (9, 2), (16, 2), (17, 3), (80, 10)] {
+    func testFourSlotsAndAutomaticAdditionalSpreads() {
+        for (count, expected) in [(1, 1), (3, 1), (4, 1), (5, 2), (7, 2), (8, 2), (9, 3), (16, 4), (17, 5)] {
             XCTAssertEqual(AdventureGalleryPagination.spreadCount(memoryCount: count), expected)
             let flattened = (0..<expected).flatMap {
                 Array(AdventureGalleryPagination.memoryRange(spread: $0, memoryCount: count))
@@ -40,8 +40,8 @@ final class AdventureGalleryPaginationTests: XCTestCase {
 
     func testGalleryPageRestorationAndBounds() {
         XCTAssertEqual(AdventureGalleryPagination.spread(forMemoryAt: 0), 1)
-        XCTAssertEqual(AdventureGalleryPagination.spread(forMemoryAt: 7), 1)
-        XCTAssertEqual(AdventureGalleryPagination.spread(forMemoryAt: 8), 2)
+        XCTAssertEqual(AdventureGalleryPagination.spread(forMemoryAt: 3), 1)
+        XCTAssertEqual(AdventureGalleryPagination.spread(forMemoryAt: 4), 2)
         XCTAssertNil(AdventureGalleryPagination.spread(forMemoryAt: -1))
         XCTAssertEqual(AdventureGalleryPagination.clampedPage(2, memoryCount: 10), 2)
         XCTAssertEqual(AdventureGalleryPagination.clampedPage(2, memoryCount: 3), 1)
@@ -57,7 +57,7 @@ final class AdventureGalleryPaginationTests: XCTestCase {
 
     func testExtremeCountsDoNotOverflow() {
         XCTAssertEqual(AdventureGalleryPagination.spreadCount(memoryCount: Int.max),
-                       Int.max / 8 + 1)
+                       Int.max / 4 + 1)
         XCTAssertEqual(AdventureGalleryPagination.clampedPage(Int.max, memoryCount: 1), 1)
         XCTAssertTrue(AdventureGalleryPagination.memoryRange(spread: Int.max, memoryCount: 1).isEmpty)
         XCTAssertEqual(AdventureGalleryPagination.spreadCount(memoryCount: -5), 1)
@@ -65,7 +65,7 @@ final class AdventureGalleryPaginationTests: XCTestCase {
 
     func testMemoryRestorationAfterRemoteReorder() {
         let initial = (0..<17).map { "memory-\($0)" }
-        XCTAssertEqual(AdventureGalleryPagination.page(forSelectedMemoryID: "memory-8", orderedIDs: initial), 2)
+        XCTAssertEqual(AdventureGalleryPagination.page(forSelectedMemoryID: "memory-8", orderedIDs: initial), 3)
         let reordered = ["memory-8"] + initial.filter { $0 != "memory-8" }
         XCTAssertEqual(AdventureGalleryPagination.page(forSelectedMemoryID: "memory-8", orderedIDs: reordered), 1)
         XCTAssertNil(AdventureGalleryPagination.page(forSelectedMemoryID: "deleted", orderedIDs: reordered))
@@ -92,13 +92,13 @@ final class AdventureGalleryPaginationTests: XCTestCase {
         XCTAssertTrue(AdventureGalleryPagination.canAppendMemory(loadedCount: 50, queryLimit: 500))
         XCTAssertTrue(AdventureGalleryPagination.canAppendMemory(loadedCount: 499, queryLimit: 500))
         XCTAssertFalse(AdventureGalleryPagination.canAppendMemory(loadedCount: 500, queryLimit: 500))
-        XCTAssertEqual(AdventureGalleryPagination.spreadCount(memoryCount: 500), 63)
-        XCTAssertEqual(AdventureGalleryPagination.memoryRange(spread: 62, memoryCount: 500), 496..<500)
+        XCTAssertEqual(AdventureGalleryPagination.spreadCount(memoryCount: 500), 125)
+        XCTAssertEqual(AdventureGalleryPagination.memoryRange(spread: 124, memoryCount: 500), 496..<500)
     }
 
     func testLargeGalleryDoesNotOverflowRange() {
-        XCTAssertEqual(AdventureGalleryPagination.memoryRange(spread: 124, memoryCount: 1000), 992..<1000)
-        XCTAssertEqual(AdventureGalleryPagination.spreadCount(memoryCount: 1000), 125)
+        XCTAssertEqual(AdventureGalleryPagination.memoryRange(spread: 249, memoryCount: 1000), 996..<1000)
+        XCTAssertEqual(AdventureGalleryPagination.spreadCount(memoryCount: 1000), 250)
     }
 
     func testTwoPhoneSharedMemoryConvergesAfterServerSnapshots() {

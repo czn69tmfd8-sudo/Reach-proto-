@@ -1,0 +1,19 @@
+// Review-only addition to the existing REACH staging Firestore rules.
+function profilePhotoMember(code, uid) {
+  return adventureAuthorized(code)
+    && uid in [
+      get(adventurePairPath(code)).data.hostUid,
+      get(adventurePairPath(code)).data.partnerUid
+    ];
+}
+match /reachProfilePhotos/{code}/members/{uid} {
+  allow get: if profilePhotoMember(code, uid);
+  allow create, update: if adventureAuthorized(code) && request.auth.uid == uid
+    && request.resource.data.keys().hasOnly(['ownerUid', 'bytes', 'updatedAt'])
+    && request.resource.data.ownerUid == uid
+    && request.resource.data.bytes is bytes
+    && request.resource.data.bytes.size() > 0
+    && request.resource.data.bytes.size() <= 262144
+    && request.resource.data.updatedAt == request.time;
+  allow delete: if adventureAuthorized(code) && request.auth.uid == uid;
+}
