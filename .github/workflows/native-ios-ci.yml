@@ -28,7 +28,7 @@ on:
 concurrency:
   # Keep the current Adventure Book validation behind its own branch-local
   # queue while the earlier pagination checkpoints finish in the old queue.
-  group: native-ios-ci-${{ github.ref }}${{ github.ref == 'refs/heads/feature/adventure-book-gallery-pagination' && '-native-preview-validation' || '' }}${{ github.ref == 'refs/heads/feature/live-shared-adventure-book' && '-shared-book-validation' || '' }}
+  group: native-ios-ci-${{ github.ref }}${{ github.ref == 'refs/heads/feature/adventure-book-gallery-pagination' && '-native-preview-validation' || '' }}${{ github.ref == 'refs/heads/feature/live-shared-adventure-book' && '-shared-book-validation' || '' }}${{ github.ref == 'refs/heads/feature/build20-profile-and-adventure-book' && '-layout-validation' || '' }}
   cancel-in-progress: false
   queue: max
 
@@ -153,6 +153,7 @@ jobs:
         run: bash scripts/run-simulator-tests.sh
 
       - name: Capture offline Adventure Book reference screens
+        timeout-minutes: 16
         working-directory: native
         run: |
           set -euo pipefail

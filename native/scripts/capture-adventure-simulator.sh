@@ -35,34 +35,40 @@ if [[ "${REACH_CAPTURE_LIVE_GALLERY:-0}" == 1 ]]; then
   fixture_dir="$OUTPUT/gallery-pagination"
   mkdir -p "$fixture_dir"
   restore_ui
-  # Use the smallest and largest available standard iPhones on the runner.
-  fixture_devices=$(python3 - "$OUTPUT/simulator-devices.json" <<'PY'
+  # Reuse the already-booted test device. Boot one alternate size on
+  # the same runtime to keep the captures comparable and limit runner load.
+  fixture_devices=$(python3 - "$OUTPUT/simulator-devices.json" "$DEVICE_ID" <<'PYTHON'
 import json
 import sys
 
 with open(sys.argv[1]) as report:
     devices = json.load(report)["devices"]
-phones = {
-    phone["name"]: phone["udid"]
+primary_id = sys.argv[2]
+phones = next(
+    [phone for phone in entries if phone.get("isAvailable") and phone["name"].startswith("iPhone")]
     for runtime, entries in devices.items()
-    if ".iOS-" in runtime
-    for phone in entries
-    if phone.get("isAvailable") and phone["name"].startswith("iPhone")
-}
-choices = [
-    ("small", ("SE", " mini", "16e", "17e", " iPhone 16", " iPhone 17", "Pro")),
-    ("large", ("Pro Max", "Plus", "Air")),
+    if ".iOS-" in runtime and any(phone["udid"] == primary_id for phone in entries)
+)
+primary = next(phone for phone in phones if phone["udid"] == primary_id)
+alternate_choices = [
+    phone for phone in phones
+    if phone["udid"] != primary_id and phone["name"] != primary["name"]
 ]
-used = set()
-for size, preferences in choices:
-    match = next((name for needle in preferences for name in phones if needle.strip() in name and name not in used), None)
-    if match is None:
-        match = next((name for name in phones if name not in used), None)
-    if match is None:
-        raise SystemExit("Two distinct iPhone simulator sizes are required")
-    used.add(match)
-    print(size, phones[match], match, sep="|")
-PY
+if not alternate_choices:
+    raise SystemExit("Two distinct iPhone simulator sizes are required")
+compact_tokens = ("SE", "mini", "16e", "17e")
+primary_is_compact = any(token in primary["name"] for token in compact_tokens)
+preferences = ("Pro Max", "Plus", "Air") if primary_is_compact else compact_tokens
+alternate = next(
+    (phone for token in preferences for phone in alternate_choices if token in phone["name"]),
+    alternate_choices[0],
+)
+for label, phone in [
+    ("compact" if primary_is_compact else "standard", primary),
+    ("large" if primary_is_compact else "compact", alternate),
+]:
+    print(label, phone["udid"], phone["name"], sep="|")
+PYTHON
 )
   while IFS='|' read -r SIZE DEVICE_ID NAME; do
     mkdir -p "$fixture_dir/$SIZE"
@@ -78,5 +84,6 @@ PY
       xcrun simctl io "$DEVICE_ID" screenshot "$fixture_dir/$SIZE/page-$PAGE.png"
     done
     restore_ui
+    xcrun simctl shutdown "$DEVICE_ID"
   done <<< "$fixture_devices"
 fi
