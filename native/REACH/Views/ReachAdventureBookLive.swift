@@ -295,9 +295,11 @@ struct ReachAdventureBookLive: View {
                                 VStack(alignment: .leading, spacing: 6) {
                                     AdventureMountedFrame(title: memory.title) {
                                         if let image = preview(for: memory.id), page == spread + 1 {
-                                            Image(uiImage: image).resizable().scaledToFill()
-                                                .frame(height: 112).clipped()
-                                                .clipShape(RoundedRectangle(cornerRadius: 3))
+                                            GeometryReader { mount in
+                                                Image(uiImage: image).resizable().scaledToFill()
+                                                    .frame(width: mount.size.width, height: mount.size.height)
+                                                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                                            }
                                         } else if let coverPhoto = memory.photos.first {
                                             AdventureAuthenticatedPhoto(pairCode: memory.pairCode,
                                                 memoryID: memory.id, photo: coverPhoto, compact: true)
@@ -311,7 +313,7 @@ struct ReachAdventureBookLive: View {
                                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                                             .background(AdventureBookPalette.paper.opacity(0.45))
                                         }
-                                    }.frame(height: dynamicType.isAccessibilitySize ? 250 : min(160, max(88, (viewport.size.height - 175) / 2)))
+                                    }.frame(height: dynamicType.isAccessibilitySize ? 250 : min(160, max(88, (viewport.size.height - 200) / 2)))
                                     HStack {
                                         Text(memory.occurredAt, style: .date)
                                             .font(AdventureBookPalette.serif(13, relativeTo: .caption))

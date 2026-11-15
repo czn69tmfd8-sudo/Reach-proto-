@@ -62,12 +62,17 @@ struct ReachHomeIdentityHeader: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 8) {
-                portrait(appearance.ownPhoto, label: appearance.preferences.ownLabel, tint: .pink)
-                ReachConnectionHeart(active: paired)
-                portrait(appearance.partnerPhoto, label: appearance.preferences.partnerLabel, tint: .purple)
+            #if REACH_SHARED_PROFILE_PHOTOS
+            if paired {
+                SharedProfilePhotographs(editable: false) { own, partner in
+                    identityPortraits(own, partner)
+                }
+            } else {
+                identityPortraits(nil, nil)
             }
-            .frame(maxWidth: .infinity)
+            #else
+            identityPortraits(appearance.ownPhoto, appearance.partnerPhoto)
+            #endif
             if paired {
                 Label("Pairing verified", systemImage: "checkmark.circle")
                     .font(.caption.weight(.medium))
@@ -76,6 +81,15 @@ struct ReachHomeIdentityHeader: View {
             }
         }
         .foregroundStyle(.white)
+    }
+
+    private func identityPortraits(_ own: UIImage?, _ partner: UIImage?) -> some View {
+        HStack(spacing: 8) {
+            portrait(own, label: appearance.preferences.ownLabel, tint: .pink)
+            ReachConnectionHeart(active: paired)
+            portrait(partner, label: appearance.preferences.partnerLabel, tint: .purple)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private func portrait(_ photo: UIImage?, label: String, tint: Color) -> some View {
@@ -93,7 +107,7 @@ struct ReachHomeIdentityHeader: View {
             .clipShape(Circle())
             .overlay(Circle().strokeBorder(tint.opacity(0.9), lineWidth: 2))
             .shadow(color: tint.opacity(0.35), radius: 12)
-            .accessibilityLabel(photo == nil ? "\(label): profile photo not set" : "\(label): local profile photo")
+            .accessibilityLabel(photo == nil ? "\(label): profile photo not set" : "\(label): profile photo")
             Text(label).font(.caption.weight(.semibold)).multilineTextAlignment(.center)
                 .frame(width: min(photoSize, 104))
                 .fixedSize(horizontal: false, vertical: true)

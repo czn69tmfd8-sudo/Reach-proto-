@@ -80,6 +80,48 @@ final class AdventurePrivatePhotoClientTests: XCTestCase {
     }
 
     @MainActor
+    func testProfilePhotoUsesPairScopedOwnerWritesAndAuthenticatedPartnerReads() async throws {
+        let root = "projects/demo-reach-adventure/databases/(default)/documents/reachProfilePhotos/ABCDEFGHJKLM/members/"
+        var requests: [URLRequest] = []
+        let client = fixture { request in
+            requests.append(request)
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer synthetic-token")
+            XCTAssertEqual(request.cachePolicy, .reloadIgnoringLocalCacheData)
+            if request.httpMethod == "GET" {
+                XCTAssertTrue(request.url?.absoluteString.hasSuffix(root + "partner") == true)
+                return (try JSONSerialization.data(withJSONObject: ["name": root + "partner", "fields": [
+                    "ownerUid": ["stringValue": "partner"],
+                    "bytes": ["bytesValue": self.bytes.base64EncodedString()]
+                ]]), 200)
+            }
+            return (Data(), 200)
+        }
+
+        for payload in [bytes, nil] {
+            do {
+                try await client.saveOwnProfilePhoto(pairCode: pairCode, uid: "partner", bytes: payload)
+                XCTFail("Partner write reached the transport")
+            } catch {
+                XCTAssertEqual(error as? AdventurePrivatePhotoClient.Failure, .unauthorized)
+            }
+        }
+        XCTAssertTrue(requests.isEmpty)
+        let partner = try await client.readProfilePhoto(pairCode: pairCode, ownerUID: "partner")
+        XCTAssertEqual(partner, bytes)
+        try await client.saveOwnProfilePhoto(pairCode: pairCode, uid: "owner", bytes: bytes)
+        try await client.saveOwnProfilePhoto(pairCode: pairCode, uid: "owner", bytes: nil)
+        XCTAssertEqual(requests.count, 3)
+        let update = try XCTUnwrap(requests[1].httpBody)
+        let updateBody = try XCTUnwrap(JSONSerialization.jsonObject(with: update) as? [String: [[String: Any]]])
+        XCTAssertEqual((updateBody["writes"]?.first?["update"] as? [String: Any])?["name"] as? String, root + "owner")
+        XCTAssertEqual((updateBody["writes"]?.first?["updateTransforms"] as? [[String: String]])?.first,
+                       ["fieldPath": "updatedAt", "setToServerValue": "REQUEST_TIME"])
+        let deletion = try XCTUnwrap(requests[2].httpBody)
+        let deleteBody = try XCTUnwrap(JSONSerialization.jsonObject(with: deletion) as? [String: [[String: String]]])
+        XCTAssertEqual(deleteBody["writes"], [["delete": root + "owner"]])
+    }
+
+    @MainActor
     private func fixture(
         currentUID: @escaping @MainActor () -> String? = { "owner" },
         send: @escaping @MainActor (URLRequest) async throws -> (Data, Int)

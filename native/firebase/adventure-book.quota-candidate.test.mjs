@@ -19,7 +19,7 @@ const fields = (uid, code = A) => ({
 });
 
 before(async () => {
-  candidateRules = await readFile('adventure-book.shared-quota.generated.rules', 'utf8');
+  candidateRules = await readFile(process.env.REACH_ENFORCEMENT_CANDIDATE ?? 'adventure-book.shared-quota.generated.rules', 'utf8');
   env = await initializeTestEnvironment({ projectId, firestore: { rules: candidateRules } });
 });
 

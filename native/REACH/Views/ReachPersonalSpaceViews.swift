@@ -34,6 +34,11 @@ struct ReachUsView: View {
 
 private struct ReachProfilePanel: View {
     @EnvironmentObject private var appearance: ReachAppearanceStore
+    #if REACH_SHARED_PROFILE_PHOTOS
+    private let slot: ReachAppearanceStore.Photo = .background
+    #else
+    @State private var slot: ReachAppearanceStore.Photo = .background
+    #endif
     @State private var selection: PhotosPickerItem?
     @State private var imageError: String?
     @State private var loading = false
@@ -63,24 +68,35 @@ private struct ReachProfilePanel: View {
             ReachGlassPanel {
                 VStack(alignment: .leading, spacing: 16) {
                     #if REACH_SHARED_PROFILE_PHOTOS
-                    SharedProfilePhotographs()
+                    SharedProfilePhotographs(editable: true) { own, partner in
+                        HStack(spacing: 24) {
+                            profilePortrait(own, name: appearance.preferences.ownLabel)
+                            profilePortrait(partner, name: appearance.preferences.partnerLabel)
+                        }
+                    }
                     Divider()
+                    #else
+                    Picker("Local photo to change", selection: $slot) {
+                        ForEach(ReachAppearanceStore.Photo.allCases) { value in Text(value.label).tag(value) }
+                    }.pickerStyle(.menu).disabled(loading)
                     #endif
                     PhotosPicker(selection: $selection, matching: .images) {
-                        Label("Choose a background for this iPhone", systemImage: "photo")
+                        Label(slot == .background ? "Choose a background for this iPhone" : "Choose local photograph", systemImage: "photo")
                             .frame(minHeight: 44)
                     }.disabled(loading)
-                    if appearance.backgroundPhoto != nil {
-                        Button("Restore original sunset", role: .destructive) {
-                            do { try appearance.setPhoto(nil, for: .background) } catch { imageError = error.localizedDescription }
+                    if appearance.image(for: slot) != nil {
+                        Button(slot == .background ? "Restore original sunset" : "Remove local photo", role: .destructive) {
+                            do { try appearance.setPhoto(nil, for: slot) } catch { imageError = error.localizedDescription }
                         }.frame(minHeight: 44).disabled(loading)
                     }
                     if let imageError { Text(imageError).font(.footnote) }
                 }
             }
         }
+        .onChange(of: slot) { _, _ in selection = nil; imageError = nil }
         .task(id: selection) {
             guard let selection else { return }
+            let selectedSlot = slot
             loading = true; imageError = nil
             defer { loading = false; self.selection = nil }
             do {
@@ -88,23 +104,38 @@ private struct ReachProfilePanel: View {
                     throw ReachAppearanceStore.AppearanceError.image
                 }
                 try Task.checkCancellation()
-                try appearance.setPhoto(data, for: .background)
+                try appearance.setPhoto(data, for: selectedSlot)
             } catch is CancellationError { return }
             catch { imageError = error.localizedDescription }
+        }
+    }
+
+    private func profilePortrait(_ image: UIImage?, name: String) -> some View {
+        VStack {
+            ZStack {
+                Circle().fill(.ultraThinMaterial)
+                if let image { Image(uiImage: image).resizable().scaledToFill() }
+                else { Image(systemName: "person.crop.circle").font(.largeTitle) }
+            }
+            .frame(width: 74, height: 74)
+            .clipShape(Circle())
+            Text(name).font(.caption)
         }
     }
 }
 
 #if REACH_SHARED_PROFILE_PHOTOS
-private struct SharedProfilePhotographs: View {
+struct SharedProfilePhotographs<Portraits: View>: View {
     struct Pair: Equatable {
         let code: String
         let own: String
         let partner: String
     }
 
+    let editable: Bool
+    @ViewBuilder let portraits: (UIImage?, UIImage?) -> Portraits
+
     @Environment(\.scenePhase) private var scene
-    @EnvironmentObject private var appearance: ReachAppearanceStore
     @State private var pair: Pair?
     @State private var own: UIImage?
     @State private var partner: UIImage?
@@ -112,22 +143,22 @@ private struct SharedProfilePhotographs: View {
     @State private var error: String?
     @State private var saving = false
     @State private var authRevision = 0
+    @State private var mutationRevision = 0
 
     var body: some View {
         VStack(spacing: 12) {
-            HStack(spacing: 24) {
-                portrait(own, name: appearance.preferences.ownLabel)
-                portrait(partner, name: appearance.preferences.partnerLabel)
-            }
-            PhotosPicker(selection: $selection, matching: .images) {
-                Label("Choose my profile photo", systemImage: "person.crop.circle")
-            }.disabled(pair == nil || saving)
-            if own != nil {
-                Button("Remove my profile photo", role: .destructive) {
-                    Task { await save(nil) }
+            portraits(own, partner)
+            if editable {
+                PhotosPicker(selection: $selection, matching: .images) {
+                    Label("Choose my profile photo", systemImage: "person.crop.circle")
                 }.disabled(pair == nil || saving)
+                if own != nil {
+                    Button("Remove my profile photo", role: .destructive) {
+                        Task { await save(nil) }
+                    }.disabled(pair == nil || saving)
+                }
+                if let error { Text(error).font(.footnote) }
             }
-            if let error { Text(error).font(.footnote) }
         }
         .task {
             guard (try? AdventurePrivatePhotoClient.profileTransport()) != nil else { return }
@@ -156,19 +187,6 @@ private struct SharedProfilePhotographs: View {
         .onDisappear { clear() }
     }
 
-    private func portrait(_ image: UIImage?, name: String) -> some View {
-        VStack {
-            ZStack {
-                Circle().fill(.ultraThinMaterial)
-                if let image { Image(uiImage: image).resizable().scaledToFill() }
-                else { Image(systemName: "person.crop.circle").font(.largeTitle) }
-            }
-            .frame(width: 74, height: 74)
-            .clipShape(Circle())
-            Text(name).font(.caption)
-        }
-    }
-
     private func clear() {
         pair = nil
         own = nil
@@ -177,6 +195,7 @@ private struct SharedProfilePhotographs: View {
     }
 
     private func refresh() async {
+        let revision = mutationRevision
         do {
             let client = try AdventurePrivatePhotoClient.profileTransport()
             guard let uid = Auth.auth().currentUser?.uid else {
@@ -197,7 +216,9 @@ private struct SharedProfilePhotographs: View {
             let images = try await (ownBytes, partnerBytes)
             guard !Task.isCancelled, scene == .active, Auth.auth().currentUser?.uid == uid else { return }
             pair = scope
-            own = images.0.flatMap { UIImage(data: $0) }
+            if revision == mutationRevision && !saving {
+                own = images.0.flatMap { UIImage(data: $0) }
+            }
             partner = images.1.flatMap { UIImage(data: $0) }
             if !saving { error = nil }
         } catch {
@@ -210,7 +231,11 @@ private struct SharedProfilePhotographs: View {
     private func save(_ item: PhotosPickerItem?) async {
         guard !saving, let scope = pair, scene == .active else { return }
         saving = true
-        defer { saving = false }
+        mutationRevision += 1
+        defer {
+            mutationRevision += 1
+            saving = false
+        }
         do {
             var encoded: Data?
             if let item {
