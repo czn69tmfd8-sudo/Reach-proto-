@@ -80,8 +80,18 @@ PYTHON
     for PAGE in 0 1 2 3; do
       xcrun simctl terminate "$DEVICE_ID" com.reachprototype.app || true
       xcrun simctl launch "$DEVICE_ID" com.reachprototype.app --adventure-gallery-page="$PAGE"
-      sleep 7
-      xcrun simctl io "$DEVICE_ID" screenshot "$fixture_dir/$SIZE/page-$PAGE.png"
+      screenshot="$fixture_dir/$SIZE/page-$PAGE.png"
+      # Cold starts can temporarily render a blank launch screen.
+      for attempt in 1 2 3 4 5 6; do
+        sleep 7
+        xcrun simctl io "$DEVICE_ID" screenshot "$screenshot"
+        if [[ $(wc -c < "$screenshot") -ge 150000 ]]; then break; fi
+      done
+      if [[ $(wc -c < "$screenshot") -lt 150000 ]]; then
+        echo "Gallery fixture did not finish rendering for $NAME at page $PAGE" >&2
+        rm -f "$screenshot"
+        exit 1
+      fi
     done
     restore_ui
     xcrun simctl shutdown "$DEVICE_ID"
