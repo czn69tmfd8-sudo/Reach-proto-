@@ -187,6 +187,11 @@ struct SharedProfilePhotographs<Portraits: View>: View {
         .onDisappear { clear() }
     }
 
+    private static func decodedPortrait(_ data: Data) -> UIImage? {
+        guard let thumbnail = AdventurePhotoPreviewEncoder.thumbnail(data, maximumEdge: 320) else { return nil }
+        return UIImage(cgImage: thumbnail)
+    }
+
     private func clear() {
         pair = nil
         own = nil
@@ -217,9 +222,9 @@ struct SharedProfilePhotographs<Portraits: View>: View {
             guard !Task.isCancelled, scene == .active, Auth.auth().currentUser?.uid == uid else { return }
             pair = scope
             if revision == mutationRevision && !saving {
-                own = images.0.flatMap { UIImage(data: $0) }
+                own = images.0.flatMap { Self.decodedPortrait($0) }
             }
-            partner = images.1.flatMap { UIImage(data: $0) }
+            partner = images.1.flatMap { Self.decodedPortrait($0) }
             if !saving { error = nil }
         } catch {
             guard !Task.isCancelled, scene == .active else { return }
@@ -249,7 +254,7 @@ struct SharedProfilePhotographs<Portraits: View>: View {
             try await AdventurePrivatePhotoClient.profileTransport()
                 .saveOwnProfilePhoto(pairCode: scope.code, uid: scope.own, bytes: encoded)
             guard !Task.isCancelled, pair == scope, scene == .active else { return }
-            own = encoded.flatMap { UIImage(data: $0) }
+            own = encoded.flatMap { Self.decodedPortrait($0) }
             error = nil
         } catch {
             guard !Task.isCancelled, pair == scope else { return }
