@@ -141,7 +141,7 @@ struct SharedProfilePhotographs<Portraits: View>: View {
     @State private var own: UIImage?
     @State private var partner: UIImage?
     @State private var selection: PhotosPickerItem?
-    @State private var error: String?
+    @State private var photoError: String?
     @State private var saving = false
     @State private var authRevision = 0
     @State private var mutationRevision = 0
@@ -163,7 +163,7 @@ struct SharedProfilePhotographs<Portraits: View>: View {
                         Task { await save(nil) }
                     }.disabled(pair == nil || saving)
                 }
-                if let error { Text(error).font(.footnote) }
+                if let photoError { Text(photoError).font(.footnote) }
             }
         }
         .task {
@@ -231,11 +231,11 @@ struct SharedProfilePhotographs<Portraits: View>: View {
                 own = images.0.flatMap { Self.decodedPortrait($0) }
             }
             partner = images.1.flatMap { Self.decodedPortrait($0) }
-            if !saving { error = nil }
+            if !saving { photoError = nil }
         } catch {
             guard !Task.isCancelled, scene == .active else { return }
             clear()
-            error = "Shared profile photos are unavailable."
+            photoError = "Shared profile photos are unavailable."
         }
     }
 
@@ -261,10 +261,10 @@ struct SharedProfilePhotographs<Portraits: View>: View {
                 .saveOwnProfilePhoto(pairCode: scope.code, uid: scope.own, bytes: encoded)
             guard !Task.isCancelled, pair == scope, scene == .active else { return }
             own = encoded.flatMap { Self.decodedPortrait($0) }
-            error = nil
+            photoError = nil
         } catch {
             guard !Task.isCancelled, pair == scope else { return }
-            error = "Couldn’t save your profile photo. Try again."
+            photoError = "Couldn’t save your profile photo. Try again."
         }
     }
 }
