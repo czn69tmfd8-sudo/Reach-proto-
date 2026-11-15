@@ -44,6 +44,7 @@ private struct ReachProfilePanel: View {
     @State private var loading = false
 
     var body: some View {
+        let pickerTitle = slot == .background ? "Choose a background for this iPhone" : "Choose local photograph"
         VStack(spacing: 16) {
             ReachGlassPanel {
                 VStack(alignment: .leading, spacing: 16) {
@@ -81,7 +82,7 @@ private struct ReachProfilePanel: View {
                     }.pickerStyle(.menu).disabled(loading)
                     #endif
                     PhotosPicker(selection: $selection, matching: .images) {
-                        Label(slot == .background ? "Choose a background for this iPhone" : "Choose local photograph", systemImage: "photo")
+                        Label(pickerTitle, systemImage: "photo")
                             .frame(minHeight: 44)
                     }.disabled(loading)
                     if appearance.image(for: slot) != nil {
@@ -133,7 +134,7 @@ struct SharedProfilePhotographs<Portraits: View>: View {
     }
 
     let editable: Bool
-    @ViewBuilder let portraits: (UIImage?, UIImage?) -> Portraits
+    private let portraits: (UIImage?, UIImage?) -> Portraits
 
     @Environment(\.scenePhase) private var scene
     @State private var pair: Pair?
@@ -144,6 +145,11 @@ struct SharedProfilePhotographs<Portraits: View>: View {
     @State private var saving = false
     @State private var authRevision = 0
     @State private var mutationRevision = 0
+
+    init(editable: Bool, @ViewBuilder portraits: @escaping (UIImage?, UIImage?) -> Portraits) {
+        self.editable = editable
+        self.portraits = portraits
+    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -164,7 +170,7 @@ struct SharedProfilePhotographs<Portraits: View>: View {
             guard (try? AdventurePrivatePhotoClient.profileTransport()) != nil else { return }
             let auth = Auth.auth()
             let (events, continuation) = AsyncStream<Void>.makeStream()
-            let handle = auth.addStateDidChangeListener { _, _ in continuation.yield() }
+            let handle = auth.addStateDidChangeListener { _, _ in _ = continuation.yield(()) }
             defer { auth.removeStateDidChangeListener(handle) }
             for await _ in events {
                 clear()

@@ -149,6 +149,7 @@ jobs:
           xcrun simctl launch "$DEVICE_ID" com.reachprototype.app
 
       - name: Run unit tests with simulator signing and diagnostics
+        id: simulator-tests
         working-directory: native
         run: bash scripts/run-simulator-tests.sh
 
@@ -162,7 +163,19 @@ jobs:
           fi
           bash scripts/capture-adventure-simulator.sh
 
+      - name: Upload gallery layout screenshots
+        if: github.ref == 'refs/heads/feature/build20-profile-and-adventure-book' && !cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adventure-book-gallery-screenshots
+          path: |
+            native/build-logs/adventure-visual/gallery-pagination/
+            native/build-logs/adventure-visual/source-commit.txt
+            native/build-logs/adventure-visual/xcode-version.txt
+          if-no-files-found: ignore
+
       - name: Compile physical iPhone code without signing credentials
+        if: success() || (github.ref == 'refs/heads/feature/build20-profile-and-adventure-book' && !cancelled() && steps.simulator-tests.outcome == 'success')
         working-directory: native
         run: |
           set -euo pipefail
