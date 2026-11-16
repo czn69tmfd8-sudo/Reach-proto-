@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import {
   collection, deleteDoc, disableNetwork, doc, documentId, enableNetwork, getDocFromServer,
-  getDocsFromServer, limit, orderBy, query, serverTimestamp, setDoc, startAfter, updateDoc
+  getDocsFromServer, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, startAfter, updateDoc
 } from 'firebase/firestore';
 
 const code = 'ABCDEFGHJKLM';
@@ -131,4 +131,18 @@ test('an authorized queued write syncs once after coming back online', { timeout
   await queued;
   const page = await getDocsFromServer(query(messages(db('b')), limit(50)));
   assert.deepEqual(page.docs.map(doc => doc.id), [ids[0]]);
+});
+
+test('a partner receives a committed message on a live listener', { timeout: 15000 }, async () => {
+  const b = db('b');
+  const received = Promise.withResolvers();
+  const stop = onSnapshot(query(messages(b), limit(50)), page => {
+    if (page.docs.some(doc => doc.id === ids[0])) received.resolve();
+  }, received.reject);
+  try {
+    await assertSucceeds(setDoc(message(db('a')), data('a')));
+    await received.promise;
+  } finally {
+    stop();
+  }
 });

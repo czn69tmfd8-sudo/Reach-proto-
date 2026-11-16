@@ -34,4 +34,4 @@ jobs:
           node prepare-profile-photo-rules.mjs adventure-book.shared-quota.generated.rules profile-photos.generated.rules
       - name: Verify Messenger access rules in the emulator
         run: |
-          npx firebase emulators:exec --only firestore --project demo-reach-messenger --config firebase.json 'node --test messenger.rules.test.mjs'
+          npx firebase emulators:exec --only firestore --project demo-reach-messenger --config firebase.json 'node --test messenger.rules.emulator.mjs'
