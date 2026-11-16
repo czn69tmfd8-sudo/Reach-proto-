@@ -84,7 +84,14 @@ enum CallAudioRoute: Equatable {
             try rtc.setCategory(.playAndRecord, with: categoryOptions)
         }
         if self != .speaker { try rtc.overrideOutputAudioPort(.none) }
-        if system.preferredInput?.uid != input?.uid { try rtc.setPreferredInput(input) }
+        if system.preferredInput?.uid != input?.uid {
+            if let input { try rtc.setPreferredInput(input) }
+            else {
+                // WebRTC's wrapper imports a non-optional input. Clear the
+                // preference through AVAudioSession while holding its RTC lock.
+                try system.setPreferredInput(nil)
+            }
+        }
         if self == .speaker { try rtc.overrideOutputAudioPort(.speaker) }
     }
 
