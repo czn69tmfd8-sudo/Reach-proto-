@@ -10,6 +10,7 @@ on:
       - fix/build18-shared-adventure-book
       - fix/build19-emergency
       - feature/build20-profile-and-adventure-book
+      - fix/build21-call-controls
     paths:
       # Recheck integration changes to the iOS client alongside candidate rules.
       - 'native/REACH/**'

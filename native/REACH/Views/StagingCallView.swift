@@ -13,8 +13,6 @@ struct StagingCallView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @State private var muted = false
-    @State private var cameraEnabled = true
     @State private var showsCall = false
 
     private var controls: ReachHandControls {
@@ -49,8 +47,7 @@ struct StagingCallView: View {
             if let peer = call.peer, call.phase.hasStarted {
                 ReachGlassPanel {
                     VStack(alignment: .leading, spacing: 12) {
-                        Toggle("Mute microphone", isOn: $muted).onChange(of: muted) { _, value in peer.setMuted(value) }
-                        Toggle("Send video", isOn: $cameraEnabled).onChange(of: cameraEnabled) { _, value in peer.setCameraEnabled(value) }
+                        CallInlineMediaControls(peer: peer)
                     }
                 }
             }
@@ -60,7 +57,7 @@ struct StagingCallView: View {
         }
         .fullScreenCover(isPresented: $showsCall) {
             if let peer = call.peer {
-                ActiveVideoCallView(call: call, peer: peer, muted: $muted, cameraEnabled: $cameraEnabled)
+                ActiveVideoCallView(call: call, peer: peer)
                     .interactiveDismissDisabled()
             }
         }
@@ -123,8 +120,6 @@ struct StagingCallView: View {
     }
 
     private func start(joining roomID: String? = nil) {
-        muted = false
-        cameraEnabled = true
         Task { await call.start(joining: roomID) }
     }
 
@@ -161,5 +156,14 @@ struct StagingCallView: View {
         .accessibilityValue(subtitle)
         .accessibilityHint(enabled ? hint : "")
         .accessibilityIdentifier(id)
+    }
+}
+
+private struct CallInlineMediaControls: View {
+    @ObservedObject var peer: NativeWebRTCPeer
+
+    var body: some View {
+        Toggle("Mute microphone", isOn: Binding(get: { peer.muted }, set: { peer.setMuted($0) }))
+        Toggle("Send video", isOn: Binding(get: { peer.cameraEnabled }, set: { peer.setCameraEnabled($0) }))
     }
 }
