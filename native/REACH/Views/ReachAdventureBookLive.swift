@@ -268,8 +268,14 @@ struct ReachAdventureBookLive: View {
 
     private func galleryPage(_ memories: [AdventureMemory], spread: Int, totalSpreads: Int) -> some View {
         GeometryReader { viewport in
+            // Keep the second row's dates above the textured lower parchment edge.
+            let compactGallery = viewport.size.width <= 375 && !dynamicType.isAccessibilitySize
+            let gallerySpacing: CGFloat = compactGallery ? 12 : 18
+            let reservedHeight: CGFloat = compactGallery ? 216 : 200
+            let mountedHeight = dynamicType.isAccessibilitySize
+                ? 250 : min(160, max(88, (viewport.size.height - reservedHeight) / 2))
             AdventureParchmentPage(useBookFrame: true) {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: gallerySpacing) {
                     AdventureGalleryHeading()
                     Text("Page \(spread + 1) of \(totalSpreads)")
                         .font(AdventureBookPalette.serif(14, relativeTo: .caption))
@@ -284,7 +290,7 @@ struct ReachAdventureBookLive: View {
                             .font(AdventureBookPalette.handwriting(21))
                             .padding(.vertical, 28)
                     }
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: dynamicType.isAccessibilitySize ? 1 : 2), spacing: 18) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: dynamicType.isAccessibilitySize ? 1 : 2), spacing: gallerySpacing) {
                         ForEach(Array(memories.enumerated()), id: \.element.id) { index, memory in
                             Button {
                                 // A draft belongs to one memory only. Never carry it
@@ -313,7 +319,7 @@ struct ReachAdventureBookLive: View {
                                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                                             .background(AdventureBookPalette.paper.opacity(0.45))
                                         }
-                                    }.frame(height: dynamicType.isAccessibilitySize ? 250 : min(160, max(88, (viewport.size.height - 200) / 2)))
+                                    }.frame(height: mountedHeight)
                                     HStack {
                                         Text(memory.occurredAt, style: .date)
                                             .font(AdventureBookPalette.serif(13, relativeTo: .caption))
