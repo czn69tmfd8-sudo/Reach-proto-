@@ -5,6 +5,7 @@ on:
     branches:
       - native-reach
       - feature/video-call-polish
+      - feature/messenger
       - feature/adventure-book-foundation
       - feature/adventure-book-gallery-pagination
       - integration/adventure-book-video-calling

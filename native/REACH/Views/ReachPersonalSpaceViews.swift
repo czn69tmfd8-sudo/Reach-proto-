@@ -10,13 +10,16 @@ struct ReachUsView: View {
             NavigationLink {
                 ReachAdventureBookLive()
             } label: {
-                AdventureLeatherArtwork(showSamplePrints: false)
-                    .aspectRatio(0.91, contentMode: .fit)
-                    .frame(maxWidth: 390)
-                    .padding(.vertical, 8)
+                navigationCard("Our Adventure Book", icon: "book.closed")
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Open Our Adventure Book")
+            NavigationLink {
+                ReachMessengerView()
+            } label: {
+                navigationCard("Our Messages", icon: "bubble.left.and.bubble.right")
+            }
+            .buttonStyle(.plain)
             NavigationLink {
                 ReachPage {
                     Text("Our Profile").font(.largeTitle.bold())
@@ -30,9 +33,19 @@ struct ReachUsView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
     }
+
+    private func navigationCard(_ title: String, icon: String) -> some View {
+        ReachGlassPanel {
+            HStack {
+                Label(title, systemImage: icon).font(.headline)
+                Spacer()
+                Image(systemName: "chevron.right").accessibilityHidden(true)
+            }
+        }
+    }
 }
 
-private struct ReachProfilePanel: View {
+struct ReachProfilePanel: View {
     @EnvironmentObject private var appearance: ReachAppearanceStore
     #if REACH_SHARED_PROFILE_PHOTOS
     private let slot: ReachAppearanceStore.Photo = .background

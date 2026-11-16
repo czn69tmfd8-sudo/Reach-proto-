@@ -85,9 +85,29 @@ struct ReachHomeIdentityHeader: View {
 
     private func identityPortraits(_ own: UIImage?, _ partner: UIImage?) -> some View {
         HStack(spacing: 8) {
-            portrait(own, label: appearance.preferences.ownLabel, tint: .pink)
+            NavigationLink {
+                ReachPage {
+                    Text("Our Profile").font(.largeTitle.bold())
+                    ReachProfilePanel()
+                }
+                .toolbar(.visible, for: .navigationBar)
+            } label: {
+                portrait(own, label: appearance.preferences.ownLabel, tint: .pink)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open your profile")
             ReachConnectionHeart(active: paired)
-            portrait(partner, label: appearance.preferences.partnerLabel, tint: .purple)
+            if paired {
+                NavigationLink {
+                    ReachMessengerView()
+                } label: {
+                    portrait(partner, label: appearance.preferences.partnerLabel, tint: .purple)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open messages with \(appearance.preferences.partnerLabel)")
+            } else {
+                portrait(partner, label: appearance.preferences.partnerLabel, tint: .purple)
+            }
         }
         .frame(maxWidth: .infinity)
     }
