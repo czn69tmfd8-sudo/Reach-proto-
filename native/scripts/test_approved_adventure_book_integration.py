@@ -6,12 +6,14 @@ VIEWS = Path(__file__).resolve().parents[1] / "REACH" / "Views"
 
 
 class ApprovedAdventureBookIntegrationTests(unittest.TestCase):
-    def test_us_opens_only_live_adventure_book_and_profile(self):
-        us = (VIEWS / "ReachPersonalSpaceViews.swift").read_text().split("private struct ReachProfilePanel")[0]
-        self.assertEqual(us.count("NavigationLink"), 2)
+    def test_us_opens_live_adventure_book_messenger_and_profile(self):
+        us = (VIEWS / "ReachPersonalSpaceViews.swift").read_text().split("struct ReachProfilePanel")[0]
+        self.assertEqual(us.count("NavigationLink"), 3)
         self.assertIn("ReachAdventureBookLive()", us)
         self.assertIn("ReachProfilePanel()", us)
-        self.assertIn("AdventureLeatherArtwork(showSamplePrints: false)", us)
+        self.assertIn("ReachMessengerView()", us)
+        self.assertIn('navigationCard("Our Adventure Book"', us)
+        self.assertIn('navigationCard("Our Messages"', us)
         for route in ("ReachAdventureBookPreview", "ReachScrapbookView", "SharedRelationshipShelf"):
             self.assertNotIn(route, us)
 
