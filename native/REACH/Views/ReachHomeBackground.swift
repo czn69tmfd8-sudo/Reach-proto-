@@ -58,18 +58,14 @@ struct ReachConnectionHeart: View {
 struct ReachHomeIdentityHeader: View {
     @EnvironmentObject private var appearance: ReachAppearanceStore
     var paired = false
+    var own: UIImage?
+    var partner: UIImage?
     @ScaledMetric(relativeTo: .title) private var photoSize: CGFloat = 104
 
     var body: some View {
         VStack(spacing: 10) {
             #if REACH_SHARED_PROFILE_PHOTOS
-            if paired {
-                SharedProfilePhotographs(editable: false) { own, partner in
-                    identityPortraits(own, partner)
-                }
-            } else {
-                identityPortraits(nil, nil)
-            }
+            identityPortraits(paired ? own : nil, paired ? partner : nil)
             #else
             identityPortraits(appearance.ownPhoto, appearance.partnerPhoto)
             #endif

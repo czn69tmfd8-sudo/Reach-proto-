@@ -12,6 +12,7 @@ on:
       - feature/build20-profile-and-adventure-book
       - fix/build21-call-controls
       - integration/build21-messenger-call-controls
+      - fix/build22-home-stability
     paths:
       # Recheck integration changes to the iOS client alongside candidate rules.
       - 'native/REACH/**'

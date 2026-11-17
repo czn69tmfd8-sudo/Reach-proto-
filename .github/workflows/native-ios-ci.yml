@@ -15,6 +15,7 @@ on:
       - feature/build20-profile-and-adventure-book
       - fix/build21-call-controls
       - integration/build21-messenger-call-controls
+      - fix/build22-home-stability
       - feature/messenger
       - feature/adventure-book-single-app-integration
       - feature/adventure-book-visual-fidelity

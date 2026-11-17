@@ -147,6 +147,8 @@ struct SharedProfilePhotographs<Portraits: View>: View {
     }
 
     let editable: Bool
+    private let enabled: Bool
+    private let expectedPairCode: String?
     private let portraits: (UIImage?, UIImage?) -> Portraits
 
     @Environment(\.scenePhase) private var scene
@@ -159,14 +161,18 @@ struct SharedProfilePhotographs<Portraits: View>: View {
     @State private var authRevision = 0
     @State private var mutationRevision = 0
 
-    init(editable: Bool, @ViewBuilder portraits: @escaping (UIImage?, UIImage?) -> Portraits) {
+    init(editable: Bool, enabled: Bool = true, expectedPairCode: String? = nil,
+         @ViewBuilder portraits: @escaping (UIImage?, UIImage?) -> Portraits) {
         self.editable = editable
+        self.enabled = enabled
+        self.expectedPairCode = expectedPairCode
         self.portraits = portraits
     }
 
     var body: some View {
         VStack(spacing: 12) {
-            portraits(own, partner)
+            let visible = enabled && scene == .active && (expectedPairCode == nil || pair?.code == expectedPairCode)
+            portraits(visible ? own : nil, visible ? partner : nil)
             if editable {
                 PhotosPicker(selection: $selection, matching: .images) {
                     Label("Choose my profile photo", systemImage: "person.crop.circle")
@@ -190,8 +196,9 @@ struct SharedProfilePhotographs<Portraits: View>: View {
                 authRevision += 1
             }
         }
-        .task(id: "\(scene)-\(authRevision)") {
-            guard scene == .active else { clear(); return }
+        .task(id: "\(scene)-\(authRevision)-\(enabled)-\(expectedPairCode ?? "")") {
+            guard enabled, scene == .active else { clear(); return }
+            if let expectedPairCode, pair?.code != expectedPairCode { clear() }
             while !Task.isCancelled {
                 await refresh()
                 do { try await Task.sleep(for: .seconds(5)) }
@@ -233,6 +240,9 @@ struct SharedProfilePhotographs<Portraits: View>: View {
                 throw AdventurePrivatePhotoClient.Failure.unauthorized
             }
             let scope = Pair(code: lock.pairCode, own: uid, partner: other)
+            if let expectedPairCode, scope.code != expectedPairCode {
+                throw AdventurePrivatePhotoClient.Failure.unauthorized
+            }
             guard !Task.isCancelled, scene == .active, Auth.auth().currentUser?.uid == uid else { return }
             if pair != scope { clear() }
             async let ownBytes = client.readProfilePhoto(pairCode: scope.code, ownerUID: uid)
@@ -247,6 +257,10 @@ struct SharedProfilePhotographs<Portraits: View>: View {
             if !saving { photoError = nil }
         } catch {
             guard !Task.isCancelled, scene == .active else { return }
+            // Home's verified-pair display window still governs visibility.
+            // Authorization denials and changed identity always clear the portraits.
+            if expectedPairCode != nil, let pair, pair.own == Auth.auth().currentUser?.uid,
+               ReachHomeAvailability.isTransientReadError(error) { return }
             clear()
             photoError = "Shared profile photos are unavailable."
         }

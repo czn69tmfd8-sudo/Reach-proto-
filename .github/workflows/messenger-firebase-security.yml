@@ -4,6 +4,7 @@ on:
     branches:
       - feature/messenger
       - integration/build21-messenger-call-controls
+      - fix/build22-home-stability
     paths:
       - 'native/firebase/**'
       - '.github/workflows/messenger-firebase-security.yml'

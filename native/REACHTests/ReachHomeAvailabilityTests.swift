@@ -13,6 +13,33 @@ final class ReachHomeAvailabilityTests: XCTestCase {
         RoomRecord(hostUid: host, partnerUid: partner, pairCode: code, createdAt: now,
                    expiresAt: now.addingTimeInterval(expiry), active: active, offer: nil, answer: nil)
     }
+    func testTransientFailurePreservesPairingOnlyWithinTheOriginalWindow() {
+        XCTAssertTrue(ReachHomeAvailability.retainsPairingAfterRefreshFailure(
+            transient: true, checkedAt: now, now: now.addingTimeInterval(14)))
+        XCTAssertFalse(ReachHomeAvailability.retainsPairingAfterRefreshFailure(
+            transient: true, checkedAt: now, now: now.addingTimeInterval(15)))
+        XCTAssertFalse(ReachHomeAvailability.retainsPairingAfterRefreshFailure(
+            transient: false, checkedAt: now, now: now.addingTimeInterval(1)))
+    }
+
+    func testRefreshTimeoutReleasesCallerEvenWhenReadIsSlow() async {
+        do {
+            let _: Int = try await ReachHomeAvailability.boundedRefresh(seconds: 0.02) {
+                try await Task.sleep(for: .seconds(2))
+                return 1
+            }
+            XCTFail("A stalled read must not block the next refresh")
+        } catch {
+            XCTAssertEqual(error as? CallbackDeadlineError, CallbackDeadlineError(operation: "Home availability refresh"))
+        }
+        do {
+            let next = try await ReachHomeAvailability.boundedRefresh { 2 }
+            XCTAssertEqual(next, 2)
+        } catch {
+            XCTFail("A subsequent refresh should succeed: \(error)")
+        }
+    }
+
     func testNoHandActionsBeforeVerifiedPairing() {
         for hint in [ReachHomeAvailability.checking, .unpaired, .invitation, .unavailable] {
             XCTAssertFalse(hint.canOpen(at: now)); XCTAssertFalse(hint.canTake(at: now)); XCTAssertFalse(hint.paired(at: now))
