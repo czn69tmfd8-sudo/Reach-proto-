@@ -1,27 +1,23 @@
 import SwiftUI
+import UIKit
 
 struct RootView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var appearance = ReachAppearanceStore()
     @StateObject private var journal = RelationshipJournalStore()
+    @State private var homeNavigationID = UUID()
 
-    var body: some View {
-        TabView(selection: $appState.selectedTab) {
-            NavigationStack { StagingConnectionView() }
-                .tabItem { Label("Reach", systemImage: "heart.fill") }.tag(AppTab.reach)
-            NavigationStack { TogetherView() }
-                .tabItem { Label("Together", systemImage: "sparkles") }.tag(AppTab.together)
-            NavigationStack { ReachUsView() }
-                .tabItem { Label("Us", systemImage: "person.2.fill") }.tag(AppTab.us)
-        }
-        .background(ReachKeyboardObserver().frame(width: 0, height: 0))
-        .environmentObject(appearance)
-        .environmentObject(journal)
-        .tint(.pink)
-    }
-}
+    @MainActor private static let glowingHeart: UIImage = {
+        let size = CGSize(width: 28, height: 28)
+        let heart = UIImage(systemName: "heart.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 19, weight: .semibold))
+        return UIGraphicsImageRenderer(size: size).image { context in
+            guard let heart else { return }
+            let origin = CGPoint(x: (size.width - heart.size.width) / 2, y: (size.height - heart.size.height) / 2)
+            context.cgContext.setShadow(offset: .zero, blur: 5, color: UIColor.systemPink.cgColor)
+            heart.withTintColor(.systemPink, renderingMode: .alwaysOriginal).draw(at: origin)
+        }.withRenderingMode(.alwaysOriginal)
+    }()
 
-private struct StagingConnectionView: View {
     private enum Action: Equatable, Sendable {
         case refresh, create, accept(String), revoke(String), clearOwnSession(String)
     }
@@ -62,39 +58,22 @@ private struct StagingConnectionView: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            ReachPage {
-                homeHeader
-                ReachHomeIdentityHeader(paired: status.isPaired && status.checkedAt.addingTimeInterval(15) > timeline.date)
-                    .shadow(color: .black.opacity(0.7), radius: 5)
-                StagingCallView(call: call, stopID: mediaStopID, availability: status.availability,
-                                roomID: status.roomID, now: timeline.date, pairingBusy: action != nil && action != .refresh) { roomID in
-                    action = .clearOwnSession(roomID)
-                }
-                if call.phase.showsHandCards && (!status.isPaired || status.availability.state == .unavailable) {
-                    Button(status.canPair ? "Set up pairing" : "Manage pairing") { menuPage = .pairing }
-                        .buttonStyle(.bordered).tint(.white).frame(minHeight: 44)
-                }
-                if let error { Text(error).font(.footnote).multilineTextAlignment(.center) }
-                ReachDailyMomentView(now: timeline.date)
-            }
+            tabs(now: timeline.date)
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .sheet(item: $menuPage) { page in
-            NavigationStack {
-                ReachPage {
-                    if page == .pairing { pairingPanel }
-                    else { ReachConnectionInformation(page: page.rawValue, call: call) }
-                }
-                .navigationTitle(page.title).navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { menuPage = nil } } }
-            }
-        }
+        .background(ReachKeyboardObserver().frame(width: 0, height: 0))
+        .environmentObject(appearance)
+        .environmentObject(journal)
+        .tint(.pink)
         .task(id: action) {
             guard let action else { return }
             error = nil
             do {
                 let updated = try await Self.perform(action)
                 guard !Task.isCancelled else { return }
+                if case .refresh = action, scenePhase != .active {
+                    self.action = nil
+                    return
+                }
                 status = updated
                 if case .accept = action { input = "" }
             } catch {
@@ -121,6 +100,69 @@ private struct StagingConnectionView: View {
         .onChange(of: scenePhase) { _, phase in
             status.availability = .checking
             if phase == .active && action == nil { action = .refresh }
+        }
+    }
+
+    private func tabs(now: Date) -> some View {
+        let incoming = scenePhase == .active && ReachHandControls(
+            availability: status.availability, now: now, phase: call.phase,
+            roomID: status.roomID, busy: call.busy || (action != nil && action != .refresh)
+        ).canTake
+        return TabView(selection: Binding(get: { appState.selectedTab }, set: { tab in
+            if tab == .reach && incoming {
+                // Reveal the hand card even if Home was left on a detail screen.
+                homeNavigationID = UUID()
+            }
+            appState.selectedTab = tab
+        })) {
+            NavigationStack { home(now: now) }
+                .id(homeNavigationID)
+                .tabItem {
+                    Label {
+                        Text("Reach")
+                    } icon: {
+                        if incoming {
+                            Image(uiImage: Self.glowingHeart).renderingMode(.original)
+                        } else {
+                            Image(systemName: "heart.fill")
+                        }
+                    }
+                    .accessibilityLabel(incoming ? "Reach, their hand is open" : "Reach")
+                }
+                .tag(AppTab.reach)
+            NavigationStack { TogetherView() }
+                .tabItem { Label("Together", systemImage: "sparkles") }.tag(AppTab.together)
+            NavigationStack { ReachUsView() }
+                .tabItem { Label("Us", systemImage: "person.2.fill") }.tag(AppTab.us)
+        }
+    }
+
+    private func home(now: Date) -> some View {
+        ReachPage {
+            homeHeader
+            ReachHomeIdentityHeader(paired: status.isPaired && status.checkedAt.addingTimeInterval(15) > now)
+                .shadow(color: .black.opacity(0.7), radius: 5)
+            StagingCallView(call: call, stopID: mediaStopID, availability: status.availability,
+                            roomID: status.roomID, now: now, pairingBusy: action != nil && action != .refresh) { roomID in
+                action = .clearOwnSession(roomID)
+            }
+            if call.phase.showsHandCards && (!status.isPaired || status.availability.state == .unavailable) {
+                Button(status.canPair ? "Set up pairing" : "Manage pairing") { menuPage = .pairing }
+                    .buttonStyle(.bordered).tint(.white).frame(minHeight: 44)
+            }
+            if let error { Text(error).font(.footnote).multilineTextAlignment(.center) }
+            ReachDailyMomentView(now: now)
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .sheet(item: $menuPage) { page in
+            NavigationStack {
+                ReachPage {
+                    if page == .pairing { pairingPanel }
+                    else { ReachConnectionInformation(page: page.rawValue, call: call) }
+                }
+                .navigationTitle(page.title).navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { menuPage = nil } } }
+            }
         }
     }
 

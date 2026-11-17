@@ -144,4 +144,24 @@ final class ReachHomeAvailabilityTests: XCTestCase {
             XCTAssertFalse(controls.canWithdraw)
         }
     }
+
+    func testIncomingHandIndicatorUsesOnlyTheSameVerifiedTakeStateAcrossTabs() {
+        var offered = room(expiry: 3)
+        offered.offer = SessionDescriptionRecord(type: "offer", sdp: "v=0")
+        func canTake(_ record: PairRecord, _ candidate: RoomRecord?, at date: Date) -> Bool {
+            let availability = ReachHandControls.verifiedAvailability(
+                partnership: partnership, pair: record, room: candidate, now: now
+            )
+            return ReachHandControls(availability: availability, now: date,
+                                     phase: .idle, roomID: record.activeRoom, busy: false).canTake
+        }
+        XCTAssertTrue(canTake(pair(), offered, at: now))
+        XCTAssertFalse(canTake(pair(), offered, at: now.addingTimeInterval(3)))
+        XCTAssertFalse(canTake(pair(room: nil, opener: nil), nil, at: now))
+        var revoked = pair()
+        revoked.revoked = true
+        XCTAssertFalse(canTake(revoked, offered, at: now))
+        offered.active = false
+        XCTAssertFalse(canTake(pair(), offered, at: now))
+    }
 }
