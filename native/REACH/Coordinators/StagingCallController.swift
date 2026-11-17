@@ -7,7 +7,7 @@ final class StagingCallController: ObservableObject {
     @Published private(set) var peer: NativeWebRTCPeer?
     @Published private(set) var phase = ReachCallPhase.idle
     @Published private(set) var busy = false
-    @Published private(set) var speakerOverride = false
+    private var selectedAudioRoute = CallAudioRoute.automatic
     @Published private(set) var diagnostics = ReachPrivateDiagnostics()
     private var generation = UUID()
     private var tasks: [Task<Void, Never>] = []
@@ -28,20 +28,30 @@ final class StagingCallController: ObservableObject {
     }
     #endif
 
-    func setSpeakerOverride(_ enabled: Bool) throws {
+    func setAudioRoute(_ route: CallAudioRoute) throws {
         guard phase.showsFullScreenCall, peer != nil else { return }
-        try CallAudioOutput.setSpeakerOverride(enabled)
-        speakerOverride = enabled
+        do {
+            try route.apply()
+            selectedAudioRoute = route
+        } catch {
+            try? selectedAudioRoute.apply()
+            throw error
+        }
     }
 
-    func audioOutputChanged(to output: CallAudioOutput) {
-        if output != .speaker && output != .unavailable { speakerOverride = false }
+    func restoreAudioRoute() {
+        guard phase.showsFullScreenCall, peer != nil, selectedAudioRoute != .automatic else { return }
+        do { try selectedAudioRoute.apply() }
+        catch {
+            selectedAudioRoute = .automatic
+            try? selectedAudioRoute.apply()
+        }
     }
 
     private func closeMedia() {
-        if speakerOverride {
-            try? CallAudioOutput.setSpeakerOverride(false)
-            speakerOverride = false
+        if selectedAudioRoute != .automatic {
+            selectedAudioRoute = .automatic
+            try? selectedAudioRoute.apply()
         }
         peer?.close()
     }
@@ -232,6 +242,7 @@ final class StagingCallController: ObservableObject {
         case .connected:
             phase = phase.receiving(event)
             diagnostics.record(.connected)
+            restoreAudioRoute()
         case .disconnected:
             phase = phase.receiving(event)
             diagnostics.record(.interrupted)

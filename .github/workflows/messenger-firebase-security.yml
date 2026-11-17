@@ -1,0 +1,46 @@
+name: Messenger Firestore emulator
+on:
+  push:
+    branches:
+      - feature/messenger
+      - integration/build21-messenger-call-controls
+    paths:
+      - 'native/firebase/**'
+      - '.github/workflows/messenger-firebase-security.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  emulator:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: native/firebase
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: native/firebase/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci
+      - name: Assemble the Build 21 rules baseline
+        run: |
+          node prepare-shared-adventure-rules.mjs reviews/staging-2026-11-06-hardened/merged.rules adventure-book.shared-quota.generated
+          node prepare-profile-photo-rules.mjs adventure-book.shared-quota.generated.rules profile-photos.generated.rules
+      - name: Assemble and fingerprint the exact combined candidate
+        run: |
+          node prepare-messenger-rules.mjs profile-photos.generated.rules messenger.integrated.generated.rules
+          sha256sum profile-photos.generated.rules messenger.proposed.rules messenger.integrated.generated.rules
+      - name: Verify Messenger and protected features against the combined rules
+        env:
+          REACH_MESSENGER_RULES_CANDIDATE: messenger.integrated.generated.rules
+          REACH_ENFORCEMENT_CANDIDATE: messenger.integrated.generated.rules
+        run: |
+          printf '%s\n' '{"firestore":{"rules":"messenger.integrated.generated.rules"},"emulators":{"firestore":{"port":8080},"ui":{"enabled":false},"singleProjectMode":false}}' > messenger-emulator.generated.json
+          npx firebase emulators:exec --only firestore --project demo-reach-messenger --config messenger-emulator.generated.json 'node --test --test-concurrency=1 messenger.rules.emulator.mjs rules.test.mjs deployed-web.test.mjs profile-photos.test.mjs adventure-book.quota-candidate.test.mjs'

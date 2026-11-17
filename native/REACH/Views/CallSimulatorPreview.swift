@@ -27,13 +27,11 @@ extension EnvironmentValues {
 struct CallSimulatorPreviewShell: View {
     let preview: CallSimulatorPreview
     @StateObject private var call = StagingCallController()
-    @State private var muted = false
-    @State private var cameraEnabled = true
 
     var body: some View {
         Group {
             if let peer = call.peer {
-                ActiveVideoCallView(call: call, peer: peer, muted: $muted, cameraEnabled: $cameraEnabled)
+                ActiveVideoCallView(call: call, peer: peer)
             } else {
                 Color.black.ignoresSafeArea()
             }

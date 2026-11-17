@@ -7,12 +7,15 @@ import SwiftUI
 final class NativeWebRTCPeer: NSObject, ObservableObject {
     @Published private(set) var localVideo: RTCVideoTrack?
     @Published private(set) var remoteVideo: RTCVideoTrack?
+    @Published private(set) var muted = false
+    @Published private(set) var cameraEnabled = true
     var onCandidate: ((ReachIceCandidate) -> Void)?
     var onState: ((String) -> Void)?
     var onTransportEvent: ((ReachTransportWatchdog.Event) -> Void)?
     private var peer: RTCPeerConnection?
     private var camera: CameraCaptureLifetime?
-    private var audio: RTCAudioTrack?
+    private var audioSender: RTCRtpSender?
+    private var videoSender: RTCRtpSender?
     private let controls = ReachMediaControls()
     private var closed = false
     private var preparing = false
@@ -39,14 +42,17 @@ final class NativeWebRTCPeer: NSObject, ObservableObject {
         peer = connection
         try configureAudio()
         let track = factory.audioTrack(with: factory.audioSource(with: RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)), trackId: "reach-audio")
-        audio = track
-        controls.bindMicrophone { [weak track] in track?.isEnabled = $0 }
-        connection.add(track, streamIds: ["reach"])
+        track.isEnabled = !muted
+        guard let audioSender = connection.add(track, streamIds: ["reach"]) else { throw PeerError.creation }
+        self.audioSender = audioSender
+        controls.bindMicrophone(Self.outgoingTrackSetter(sender: audioSender, source: track))
         let source = factory.videoSource()
         let video = factory.videoTrack(with: source, trackId: "reach-video")
+        video.isEnabled = cameraEnabled
+        guard let videoSender = connection.add(video, streamIds: ["reach"]) else { throw PeerError.creation }
+        self.videoSender = videoSender
         localVideo = video
-        controls.bindCamera { [weak video] in video?.isEnabled = $0 }
-        connection.add(video, streamIds: ["reach"])
+        controls.bindCamera(Self.outgoingTrackSetter(sender: videoSender, source: video))
         #if !targetEnvironment(simulator)
         let capturer = RTCCameraVideoCapturer(delegate: source)
         guard let device = RTCCameraVideoCapturer.captureDevices().first(where: { $0.position == .front }) ?? RTCCameraVideoCapturer.captureDevices().first,
@@ -126,8 +132,26 @@ final class NativeWebRTCPeer: NSObject, ObservableObject {
         try checkOpen()
     }
 
-    func setMuted(_ muted: Bool) { controls.setMuted(muted) }
-    func setCameraEnabled(_ enabled: Bool) { controls.setCameraEnabled(enabled) }
+    // Retain the registered sender and source for the lifetime of the binding.
+    // WebRTC may hand back a different ObjC wrapper for the same native track.
+    static func outgoingTrackSetter(sender: RTCRtpSender, source: RTCMediaStreamTrack) -> (Bool) -> Void {
+        { enabled in
+            source.isEnabled = enabled
+            if let current = sender.track, current.isEnabled != enabled { current.isEnabled = enabled }
+        }
+    }
+
+    func setMuted(_ muted: Bool) {
+        guard !closed else { return }
+        controls.setMuted(muted)
+        self.muted = !(audioSender?.track?.isEnabled ?? !muted)
+    }
+
+    func setCameraEnabled(_ enabled: Bool) {
+        guard !closed else { return }
+        controls.setCameraEnabled(enabled)
+        cameraEnabled = videoSender?.track?.isEnabled ?? enabled
+    }
     func close() {
         guard !closed else { return }
         closed = true
@@ -135,7 +159,9 @@ final class NativeWebRTCPeer: NSObject, ObservableObject {
         controls.close()
         camera?.close(); camera = nil
         peer?.delegate = nil; peer?.close(); peer = nil
-        audio = nil; localVideo = nil; remoteVideo = nil
+        audioSender = nil; videoSender = nil
+        localVideo = nil; remoteVideo = nil
+        muted = true; cameraEnabled = false
     }
     private func checkOpen() throws { if closed || Task.isCancelled { throw CancellationError() } }
 }

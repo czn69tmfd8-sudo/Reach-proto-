@@ -44,8 +44,8 @@ final class WebRTCEngineTests: XCTestCase {
         XCTAssertEqual(joiner.signalingState, .closed)
     }
 
-    func testSetupPrivacyChoicesApplyToRealSDKTracks() async {
-        await MainActor.run {
+    func testSetupPrivacyChoicesApplyToRegisteredSDKSends() async throws {
+        try await MainActor.run {
             RTCInitializeSSL()
             let factory = RTCPeerConnectionFactory(
                 encoderFactory: RTCDefaultVideoEncoderFactory(),
@@ -54,16 +54,34 @@ final class WebRTCEngineTests: XCTestCase {
             let audio = factory.audioTrack(with: factory.audioSource(with:
                 RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)), trackId: "privacy-audio")
             let video = factory.videoTrack(with: factory.videoSource(), trackId: "privacy-video")
+            let config = RTCConfiguration()
+            config.sdpSemantics = .unifiedPlan
+            let constraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
+            let peer = try XCTUnwrap(factory.peerConnection(with: config, constraints: constraints, delegate: nil))
+            defer { peer.close() }
+            let audioSender = try XCTUnwrap(peer.add(audio, streamIds: ["reach"]))
+            let videoSender = try XCTUnwrap(peer.add(video, streamIds: ["reach"]))
             let controls = ReachMediaControls()
             controls.setMuted(true); controls.setCameraEnabled(false)
-            controls.bindMicrophone { audio.isEnabled = $0 }
-            controls.bindCamera { video.isEnabled = $0 }
-            XCTAssertFalse(audio.isEnabled); XCTAssertFalse(video.isEnabled)
+            controls.bindMicrophone(NativeWebRTCPeer.outgoingTrackSetter(sender: audioSender, source: audio))
+            controls.bindCamera(NativeWebRTCPeer.outgoingTrackSetter(sender: videoSender, source: video))
+            XCTAssertEqual(audioSender.track?.isEnabled, false)
+            XCTAssertEqual(videoSender.track?.isEnabled, false)
+            for _ in 0..<3 {
+                controls.setMuted(false)
+                XCTAssertEqual(audioSender.track?.isEnabled, true)
+                XCTAssertEqual(videoSender.track?.isEnabled, false)
+                controls.setCameraEnabled(true)
+                XCTAssertEqual(videoSender.track?.isEnabled, true)
+                controls.setMuted(true); controls.setCameraEnabled(false)
+                XCTAssertEqual(audioSender.track?.isEnabled, false)
+                XCTAssertEqual(videoSender.track?.isEnabled, false)
+            }
             controls.setMuted(false); controls.setCameraEnabled(true)
-            XCTAssertTrue(audio.isEnabled); XCTAssertTrue(video.isEnabled)
             controls.close()
             controls.setMuted(false); controls.setCameraEnabled(true)
-            XCTAssertFalse(audio.isEnabled); XCTAssertFalse(video.isEnabled)
+            XCTAssertEqual(audioSender.track?.isEnabled, false)
+            XCTAssertEqual(videoSender.track?.isEnabled, false)
         }
     }
 

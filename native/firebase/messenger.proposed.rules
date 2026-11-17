@@ -1,0 +1,59 @@
+// Add inside match /databases/{database}/documents after reviewing the active rules.
+// Messenger stays outside the Adventure Book document tree.
+function messengerPairPath(code) {
+  return /databases/$(database)/documents/nativeStaging/v1/pairInvites/$(code);
+}
+function messengerLockPath(uid) {
+  return /databases/$(database)/documents/nativeStaging/v1/memberLocks/$(uid);
+}
+function messengerMember(code, pair) {
+  return pair.get('revoked', false) == false
+    && pair.hostUid is string && pair.partnerUid is string
+    && pair.hostUid != pair.partnerUid
+    && request.auth.uid in [pair.hostUid, pair.partnerUid]
+    && get(messengerLockPath(pair.hostUid)).data.pairCode == code
+    && get(messengerLockPath(pair.partnerUid)).data.pairCode == code;
+}
+function messengerAuthorized(code) {
+  return request.auth != null
+    && code.matches('[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{12}')
+    && messengerMember(code, get(messengerPairPath(code)).data);
+}
+function messengerMessageValid(message) {
+  return message.keys().hasAll(['senderUid', 'kind', 'text', 'createdAt'])
+    && message.keys().hasOnly(['senderUid', 'kind', 'text', 'createdAt'])
+    && message.senderUid == request.auth.uid
+    && message.kind == 'text'
+    && message.text is string
+    && message.text.size() > 0
+    && message.text.toUtf8().size() <= 4000
+    && message.createdAt == request.time;
+}
+function messengerReceiptValid(code, messageID) {
+  let receipt = request.resource.data;
+  let messagePath = /databases/$(database)/documents/messenger/$(code)/messages/$(messageID);
+  return receipt.keys().hasAll(['messageID', 'createdAt'])
+    && receipt.keys().hasOnly(['messageID', 'createdAt'])
+    && messageID is string
+    && messageID.matches('[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}')
+    && receipt.createdAt is timestamp
+    && get(messagePath).data.createdAt == receipt.createdAt;
+}
+match /messenger/{code}/messages/{messageID} {
+  allow get: if messengerAuthorized(code);
+  allow list: if messengerAuthorized(code) && request.query.limit != null && request.query.limit <= 50
+    && (request.query.offset == null || request.query.offset == 0);
+  allow create: if messengerAuthorized(code)
+    && messageID.matches('[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}')
+    && messengerMessageValid(request.resource.data);
+  allow update, delete: if false;
+}
+match /messenger/{code}/readReceipts/{uid} {
+  allow get: if messengerAuthorized(code) && request.auth.uid == uid;
+  allow create: if messengerAuthorized(code) && request.auth.uid == uid
+    && messengerReceiptValid(code, request.resource.data.messageID);
+  allow update: if messengerAuthorized(code) && request.auth.uid == uid
+    && messengerReceiptValid(code, request.resource.data.messageID)
+    && request.resource.data.createdAt >= resource.data.createdAt;
+  allow list, delete: if false;
+}

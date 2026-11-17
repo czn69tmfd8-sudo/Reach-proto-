@@ -14,7 +14,7 @@ const photo = (uid, value = 7, length = 8) => ({
 });
 
 before(async () => {
-  const rules = await readFile('profile-photos.generated.rules', 'utf8');
+  const rules = await readFile(process.env.REACH_MESSENGER_RULES_CANDIDATE ?? 'profile-photos.generated.rules', 'utf8');
   env = await initializeTestEnvironment({ projectId: 'demo-reach-adventure', firestore: { rules } });
 });
 beforeEach(async () => {

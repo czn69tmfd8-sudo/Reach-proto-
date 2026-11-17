@@ -52,6 +52,25 @@ platform/background limitations and both partners' experience have been reviewed
 Exit gate: repeatable foreground calls across agreed networks/device versions;
 privacy-preserving diagnostics; approved installation/testing route.
 
+### Cross-tab Open Hand indicator
+
+Schedule after the microphone, camera, and audio routing repair. The REACH
+navigation heart shows a steady glow on every tab while the existing verified
+invitation state says the partner's hand is open and valid. Reuse the existing
+pair and room synchronization at the navigation level so tab changes do not
+create an independent invitation state. Clear the glow when the hand closes,
+the invitation expires, the connection is revoked, or the state can no longer
+be verified. Use no animation, pulse, or repeated notification.
+
+Tapping the heart selects Home and exposes the existing Take Their Hand
+interaction. Only an explicit tap on that interaction may accept the call.
+Preserve Open My Hand, Take Their Hand, and the FaceTime-to-REACH transition.
+Keep implementation separate from Messenger and use the existing Firebase rules.
+
+Validate on all tabs, including close, expiry, revocation, stale state, and
+repeated tab changes. Confirm on two iPhones that navigation alone starts
+no audio or video and the explicit hand interaction still works.
+
 ## Phase 2 — Private Coach foundations (future, gated)
 
 Before feature implementation, decide account recovery/migration, persistence and

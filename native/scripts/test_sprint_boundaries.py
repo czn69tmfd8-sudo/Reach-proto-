@@ -15,7 +15,6 @@ class SprintBoundaryTests(unittest.TestCase):
             'native/REACH/Firebase/ReachEnvironment.swift',
             'native/REACH/Models/PairingAuthorization.swift',
             'native/REACH/Models/ReachHomeAvailability.swift',
-            'native/REACH/Media/NativeWebRTCPeer.swift',
             'native/REACH/Media/ReachTransportWatchdog.swift',
             'native/REACH/Services/PermissionService.swift',
             'native/project.yml',
@@ -34,6 +33,14 @@ class SprintBoundaryTests(unittest.TestCase):
                     self.assertEqual(current.replace(addition, b''), original)
                 else:
                     self.assertEqual(current, original)
+
+    def test_webrtc_signaling_operations_remain_byte_identical(self):
+        path = 'native/REACH/Media/NativeWebRTCPeer.swift'
+        original = subprocess.check_output(['git', 'show', BASELINE + ':' + path], cwd=ROOT)
+        current = (ROOT / path).read_bytes()
+        def signaling(source):
+            return source.split(b'    func makeDescription(', 1)[1].split(b'    func setMuted(', 1)[0]
+        self.assertEqual(signaling(current).split(b'    // Retain the registered sender', 1)[0], signaling(original))
 
     def test_private_content_has_no_backend_import_or_upload_dependency(self):
         for path in ['native/REACH/Models/RelationshipJournal.swift',
@@ -74,8 +81,9 @@ class SprintBoundaryTests(unittest.TestCase):
         source = (ROOT / 'native/REACH/Views/ReachDailyMomentView.swift').read_text()
         for forbidden in ['import Firebase', 'Firestore', 'URLSession', 'NativeWebRTCPeer', 'PairingAuthorization']:
             self.assertNotIn(forbidden, source)
-        self.assertIn('ReachDailyMomentView(now: timeline.date)',
-                      (ROOT / 'native/REACH/Views/RootView.swift').read_text())
+        root = (ROOT / 'native/REACH/Views/RootView.swift').read_text()
+        self.assertIn('tabs(now: timeline.date)', root)
+        self.assertIn('ReachDailyMomentView(now: now)', root)
 
     def test_relationship_validation_signs_only_the_simulator_and_preserves_build_five_workflows(self):
         baseline = '641cc0debc41f3e60517ab1880d8444ab9c5dc94'

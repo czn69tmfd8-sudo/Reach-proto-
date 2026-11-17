@@ -24,12 +24,17 @@ final class CallPresentationTests: XCTestCase {
         call.connectSimulatorPreview()
         XCTAssertEqual(call.phase, .connected)
         let peer = try XCTUnwrap(call.peer)
+        peer.setMuted(true)
+        peer.setCameraEnabled(false)
         call.connectSimulatorPreview()
         XCTAssertTrue(call.peer === peer)
+        XCTAssertTrue(peer.muted)
+        XCTAssertFalse(peer.cameraEnabled)
         await call.end()
         XCTAssertEqual(call.phase, .idle)
         XCTAssertNil(call.peer)
-        XCTAssertFalse(call.speakerOverride)
+        XCTAssertTrue(peer.muted)
+        XCTAssertFalse(peer.cameraEnabled)
     }
     #endif
 
@@ -43,7 +48,16 @@ final class CallPresentationTests: XCTestCase {
         XCTAssertEqual(CallAudioOutput(ports: []), .unavailable)
     }
 
-    func testWebRTCCallOptionsRequestTheSpeakerDefault() {
-        XCTAssertTrue(ReachAudioConfiguration.callOptions.contains(.defaultToSpeaker))
+    func testAudioRoutingPreservesTheCallDefaultAndCanRequestReceiver() {
+        XCTAssertEqual(CallAudioRoute.automatic.mode, .videoChat)
+        XCTAssertEqual(CallAudioRoute.automatic.categoryOptions, ReachAudioConfiguration.callOptions)
+        XCTAssertEqual(CallAudioRoute.receiver.mode, .voiceChat)
+        XCTAssertFalse(CallAudioRoute.receiver.categoryOptions.contains(.defaultToSpeaker))
+        XCTAssertEqual(CallAudioRoute.receiver.categoryOptions,
+                       ReachAudioConfiguration.callOptions.subtracting(.defaultToSpeaker))
+        XCTAssertNil(CallAudioRoute.automatic.expectedOutput)
+        XCTAssertEqual(CallAudioRoute.speaker.expectedOutput, .speaker)
+        XCTAssertEqual(CallAudioRoute.receiver.expectedOutput, .receiver)
+        XCTAssertEqual(CallAudioRoute.bluetooth("test").expectedOutput, .bluetooth)
     }
 }

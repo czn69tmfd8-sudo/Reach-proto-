@@ -13,6 +13,9 @@ on:
       - fix/build18-shared-adventure-book
       - fix/build19-emergency
       - feature/build20-profile-and-adventure-book
+      - fix/build21-call-controls
+      - integration/build21-messenger-call-controls
+      - feature/messenger
       - feature/adventure-book-single-app-integration
       - feature/adventure-book-visual-fidelity
       - feature/adventure-book-approved-integration
@@ -113,7 +116,7 @@ jobs:
           set -euo pipefail
           mkdir -p build-logs
           settings=()
-          if [[ "$GITHUB_REF" == "refs/heads/feature/build20-profile-and-adventure-book" ]]; then
+          if [[ "$GITHUB_REF" == "refs/heads/feature/build20-profile-and-adventure-book" || "$GITHUB_REF" == "refs/heads/fix/build21-call-controls" || "$GITHUB_REF" == "refs/heads/feature/messenger" || "$GITHUB_REF" == "refs/heads/integration/build21-messenger-call-controls" ]]; then
             settings+=('SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) REACH_LIVE_ADVENTURE_BOOK REACH_ADVENTURE_BOOK_PHOTOS REACH_SHARED_PROFILE_PHOTOS')
           elif [[ "$GITHUB_REF" == "refs/heads/feature/live-shared-adventure-book" ]]; then
             settings+=('SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) REACH_LIVE_ADVENTURE_BOOK')

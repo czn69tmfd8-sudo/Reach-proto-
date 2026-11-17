@@ -5,14 +5,14 @@ import SwiftUI
 struct ActiveVideoCallView: View {
     @ObservedObject var call: StagingCallController
     @ObservedObject var peer: NativeWebRTCPeer
-    @Binding var muted: Bool
-    @Binding var cameraEnabled: Bool
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var screenAwake = ScreenAwakeController()
     @State private var audioOutput = CallAudioOutput.current
     @State private var controlsVisible = true
     @State private var audioError = false
+    @State private var audioInterrupted = false
+    @State private var requestedOutput: CallAudioOutput?
     #if DEBUG && targetEnvironment(simulator)
     @Environment(\.callSimulatorPreview) private var simulatorPreview
     #endif
@@ -37,7 +37,7 @@ struct ActiveVideoCallView: View {
             .accessibilityIdentifier("reach.toggleCallControls")
         }
         .overlay(alignment: .topTrailing) {
-            if cameraEnabled && hasLocalVideo {
+            if peer.cameraEnabled && hasLocalVideo {
                 localVideo
                     .frame(width: 92, height: 124)
                     .background(.black)
@@ -77,6 +77,18 @@ struct ActiveVideoCallView: View {
             if phase == .active { refreshAudioOutput() }
         }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification).receive(on: RunLoop.main)) { _ in
+            refreshAudioOutput()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification).receive(on: RunLoop.main)) { notification in
+            guard let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+            audioInterrupted = type == .began
+            if type == .ended {
+                let options = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+                if AVAudioSession.InterruptionOptions(rawValue: options).contains(.shouldResume) {
+                    call.restoreAudioRoute()
+                }
+            }
             refreshAudioOutput()
         }
         .onDisappear {
@@ -124,32 +136,20 @@ struct ActiveVideoCallView: View {
 
     private var callControls: some View {
         VStack(spacing: 8) {
-            Text(audioError ? "Couldn’t change audio output. \(audioOutput.title)" : audioOutput.title)
+            Text(audioStatus)
                 .font(.footnote)
                 .multilineTextAlignment(.center)
                 .accessibilityIdentifier("reach.callAudioOutput")
             HStack(spacing: 12) {
-                control(muted ? "Unmute microphone" : "Mute microphone",
-                        icon: muted ? "mic.slash.fill" : "mic.fill", id: "reach.callMute") {
-                    muted.toggle()
-                    peer.setMuted(muted)
+                control(peer.muted ? "Unmute microphone" : "Mute microphone",
+                        icon: peer.muted ? "mic.slash.fill" : "mic.fill", id: "reach.callMute") {
+                    peer.setMuted(!peer.muted)
                 }
-                control(cameraEnabled ? "Stop sending video" : "Send video",
-                        icon: cameraEnabled ? "video.fill" : "video.slash.fill", id: "reach.callVideo") {
-                    cameraEnabled.toggle()
-                    peer.setCameraEnabled(cameraEnabled)
+                control(peer.cameraEnabled ? "Stop sending video" : "Send video",
+                        icon: peer.cameraEnabled ? "video.fill" : "video.slash.fill", id: "reach.callVideo") {
+                    peer.setCameraEnabled(!peer.cameraEnabled)
                 }
-                control(call.speakerOverride ? "Use automatic audio routing" : "Use iPhone speaker",
-                        icon: audioOutput == .speaker ? "speaker.wave.2.fill" : "speaker.fill", id: "reach.callSpeaker") {
-                    do {
-                        try call.setSpeakerOverride(!call.speakerOverride)
-                        audioError = false
-                        audioOutput = .current
-                    } catch {
-                        audioError = true
-                        refreshAudioOutput()
-                    }
-                }
+                audioRouteControl
                 control("End call", icon: "phone.down.fill", id: "reach.endCall", tint: .red) {
                     Task { await call.end() }
                 }
@@ -159,6 +159,46 @@ struct ActiveVideoCallView: View {
         .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 22))
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
+    }
+
+    private var audioStatus: String {
+        if audioInterrupted { return "Audio interrupted. \(audioOutput.title)" }
+        if audioError { return "Couldn’t change audio output. \(audioOutput.title)" }
+        if requestedOutput != nil { return "Requested audio output is not active. \(audioOutput.title)" }
+        return audioOutput.title
+    }
+
+    private var audioRouteControl: some View {
+        Menu {
+            Button("Automatic") { selectAudioRoute(.automatic) }
+            Button("iPhone speaker") { selectAudioRoute(.speaker) }
+            Button("iPhone receiver") { selectAudioRoute(.receiver) }
+            ForEach(CallAudioRoute.bluetoothInputs, id: \.uid) { device in
+                Button(device.portName) { selectAudioRoute(.bluetooth(device.uid)) }
+            }
+        } label: {
+            Image(systemName: audioOutput == .speaker ? "speaker.wave.2.fill" : "speaker.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .frame(width: 48, height: 48)
+                .background(.gray.opacity(0.8), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(audioInterrupted)
+        .accessibilityLabel("Audio output")
+        .accessibilityValue(audioOutput.title)
+        .accessibilityIdentifier("reach.callSpeaker")
+    }
+
+    private func selectAudioRoute(_ route: CallAudioRoute) {
+        do {
+            try call.setAudioRoute(route)
+            requestedOutput = route.expectedOutput
+            audioError = false
+        } catch {
+            requestedOutput = nil
+            audioError = true
+        }
+        refreshAudioOutput()
     }
 
     private func control(_ title: String, icon: String, id: String, tint: Color = .gray,
@@ -176,6 +216,6 @@ struct ActiveVideoCallView: View {
 
     private func refreshAudioOutput() {
         audioOutput = .current
-        call.audioOutputChanged(to: audioOutput)
+        if audioOutput == requestedOutput { requestedOutput = nil }
     }
 }

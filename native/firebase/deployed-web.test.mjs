@@ -12,7 +12,10 @@ assert.equal(sha256(baseline),'437d87ced527f053b807ba7744fc61bb74ed3a3f0e2c93e2a
 const merged=process.env.REACH_RULES_REVIEW_DIR
  ? await readReview(process.env.REACH_RULES_REVIEW_DIR,native)
  : await readReview('reviews/staging-2026-11-06-hardened',native);
-for(const [label,rules] of [['deployed',baseline],['additive',await rulesForRegression(merged)]]) {
+const variants=[['deployed',baseline],['additive',await rulesForRegression(merged)]];
+const candidate=process.env.REACH_MESSENGER_RULES_CANDIDATE;
+if(candidate) variants.push(['messenger',await readFile(candidate,'utf8')]);
+for(const [label,rules] of variants) {
  describe(`web compatibility: ${label}`,()=>{
   let env;
   const code='ABCDEFGHJKLM';
