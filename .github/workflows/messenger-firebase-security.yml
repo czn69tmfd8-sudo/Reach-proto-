@@ -5,6 +5,7 @@ on:
       - feature/messenger
       - integration/build21-messenger-call-controls
       - fix/build22-home-stability
+      - release/build-23-preparation
     paths:
       - 'native/firebase/**'
       - '.github/workflows/messenger-firebase-security.yml'
