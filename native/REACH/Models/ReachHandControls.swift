@@ -47,15 +47,17 @@ enum ReachCallPhase: Equatable {
 
 struct ReachHandControls {
     let canOpen: Bool
+    let openRequiresPreflight: Bool
     let canTake: Bool
     let showsOutgoing: Bool
     let canWithdraw: Bool
 
-    init(availability: ReachHomeAvailability, now: Date, phase: ReachCallPhase, roomID: String?, busy: Bool) {
+    init(availability: ReachHomeAvailability, now: Date, phase: ReachCallPhase, roomID: String?, busy: Bool, openPreflight: Bool = false) {
         let idle = phase.showsHandCards && phase != .outgoing
         let verifiedOwnHand = idle && availability.state == .ownHand
             && availability.paired(at: now) && roomID != nil
-        canOpen = idle && !busy && availability.canOpen(at: now)
+        openRequiresPreflight = openPreflight
+        canOpen = idle && !busy && (availability.canOpen(at: now) || openPreflight)
         canTake = idle && !busy && roomID != nil && availability.canTake(at: now)
         showsOutgoing = phase == .outgoing || verifiedOwnHand
         canWithdraw = phase == .outgoing || (verifiedOwnHand && !busy)

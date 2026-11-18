@@ -16,6 +16,8 @@ struct ReachDiagnosticSample: Identifiable, Equatable, Sendable {
         case connected = "Media transport connected"
         case interrupted = "Media transport interrupted"
         case ended = "Media stopped"
+        case firestoreAuthorizationDenied = "Firestore denied a call operation"
+        case stagingServiceUnavailable = "Network or staging service unavailable during setup"
         case failed = "Connection could not continue"
         case cleanupUnconfirmed = "Media stopped; server cleanup unconfirmed"
     }

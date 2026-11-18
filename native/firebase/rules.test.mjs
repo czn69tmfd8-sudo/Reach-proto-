@@ -3,7 +3,7 @@ import {readReview,rulesForRegression,sha256} from './prepare-rules-review.mjs';
 import {readFile} from 'node:fs/promises';
 import {after, before, beforeEach, test} from 'node:test';
 import {initializeTestEnvironment, assertSucceeds, assertFails} from '@firebase/rules-unit-testing';
-import {doc, getDoc, getDocs, collection, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp} from 'firebase/firestore';
+import {doc, getDoc, getDocFromServer, getDocs, collection, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, disableNetwork, enableNetwork} from 'firebase/firestore';
 
 let env;
 const code = 'ABCDEFGHJKLM';
@@ -49,6 +49,25 @@ test('fresh installations create and accept atomically, persist own locks',async
  await invite(); await assertSucceeds(accept());
  await assertSucceeds(getDoc(lock(db('a'),'a'))); await assertSucceeds(getDoc(lock(db('b'),'b')));
  await assertFails(getDoc(lock(db('a'),'b'))); await assertFails(getDoc(pair(db('c'))));
+});
+test('a local server-read failure and an expired room leave the verified pair intact',async()=>{
+ await fixture();
+ const opener=db('a'), partner=db('b');
+ await disableNetwork(opener);
+ try {
+  await assert.rejects(getDocFromServer(pair(opener)),{code:'unavailable'});
+  assert.equal((await assertSucceeds(getDocFromServer(pair(partner)))).data().activeRoom,'r1');
+  assert.equal((await assertSucceeds(getDocFromServer(room(partner)))).data().active,true);
+ } finally {
+  await enableNetwork(opener);
+ }
+ assert.equal((await assertSucceeds(getDocFromServer(room(opener)))).data().active,true);
+ await adminPatch('rooms/r1',{expiresAt:Date.now()-1000});
+ for(const device of [opener,partner]) {
+  assert.equal((await assertSucceeds(getDocFromServer(pair(device)))).data().activeRoom,'r1');
+  await assertFails(getDocFromServer(room(device)));
+ }
+ await assertFails(open('a','replacement'));
 });
 test('anonymous requests and invitation enumeration are denied',async()=>{
  await invite(); await assertFails(getDoc(pair(db()))); await assertFails(getDocs(collection(db('b'),root+'pairInvites')));

@@ -56,7 +56,7 @@ final class StagingCallController: ObservableObject {
         peer?.close()
     }
 
-    func start(joining expectedRoomID: String? = nil) async {
+    func start(in scope: ReachCallPairScope, joining expectedRoomID: String? = nil) async {
         guard !busy, !phase.hasStarted else { return }
         let join = expectedRoomID != nil
         busy = true
@@ -66,10 +66,13 @@ final class StagingCallController: ObservableObject {
         let token = UUID(); generation = token
         do {
             let dependencies = try FirebaseDependencyFactory.staging()
-            guard let uid = await dependencies.auth.currentUID(),
+            let uid = scope.uid
+            guard await dependencies.auth.currentUID() == uid,
                   let lock = try await dependencies.pairs.memberLock(uid: uid),
+                  scope.matches(lock),
                   let pair = try await dependencies.pairs.pair(code: lock.pairCode),
-                  case .authorized(let partnership) = PairingAuthorization.resolve(uid: uid, memberLock: lock, pairCode: lock.pairCode, pair: pair) else {
+                  case .authorized(let partnership) = PairingAuthorization.resolve(uid: uid, memberLock: lock, pairCode: lock.pairCode, pair: pair),
+                  await dependencies.auth.currentUID() == uid else {
                 // Distinguish a failed local pairing preflight from a denied room transaction.
                 // No UIDs, pairing codes, or room identifiers are included in user-facing copy.
                 throw StagingCallPreflightError.notAuthorized
@@ -220,7 +223,15 @@ final class StagingCallController: ObservableObject {
             guard generation == token else { return }
             if phase == .preparing { phase = .outgoing }
             busy = false
-        } catch { await fail(error, token: token) }
+        } catch {
+            let checkpoint: ReachDiagnosticSample.Event?
+            switch ReachHomeReadOutcome(error: error) {
+            case .authorizationDenied: checkpoint = .firestoreAuthorizationDenied
+            case .localDeadline, .serviceUnavailable: checkpoint = .stagingServiceUnavailable
+            default: checkpoint = nil
+            }
+            await fail(error, token: token, checkpoint: checkpoint)
+        }
     }
 
     private func drainRemoteCandidates(media: NativeWebRTCPeer, token: UUID) async throws {

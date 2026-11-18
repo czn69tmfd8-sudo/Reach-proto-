@@ -24,11 +24,72 @@ final class ReachHomeAvailabilityTests: XCTestCase {
             partnership: other, pair: record, room: nil, pairCheckedAt: later, now: later
         )
 
-        XCTAssertEqual(first.afterRefreshFailure(transient: true, knownRelationship: true, now: later), .checking)
+        let outcome = ReachHomeReadOutcome(error: CallbackDeadlineError(operation: "Home availability refresh"))
+        let reconnecting = first.afterRefreshFailure(
+            transient: outcome.isTransient, knownRelationship: true, now: later
+        ) ?? .unavailable
+        XCTAssertEqual(reconnecting, .checking)
+        XCTAssertFalse(ReachHomeAvailability.pairingIsFresh(checkedAt: now, now: later))
         XCTAssertFalse(first.canOpen(at: later))
         XCTAssertTrue(second.canOpen(at: later))
+
+        // Build 24 loses both controls on the first device when this window
+        // expires. The known pair now exposes only an explicit Open preflight.
+        let preflight = reconnecting.allowsOpenPreflight(knownPair: true, pairRead: outcome, roomRead: nil, now: later)
+        let controls = ReachHandControls(availability: reconnecting, now: later,
+                                         phase: .idle, roomID: nil, busy: false, openPreflight: preflight)
+        XCTAssertTrue(controls.canOpen)
+        XCTAssertTrue(controls.openRequiresPreflight)
+        XCTAssertFalse(controls.canTake)
+        XCTAssertTrue(first.allowsOpenPreflight(knownPair: true, pairRead: .verified, roomRead: nil, now: later))
+        XCTAssertFalse(first.allowsOpenPreflight(knownPair: false, pairRead: .verified, roomRead: nil, now: later))
         XCTAssertNil(first.afterRefreshFailure(transient: true, knownRelationship: false, now: later))
         XCTAssertNil(first.afterRefreshFailure(transient: false, knownRelationship: true, now: later))
+    }
+
+    func testOptionalRoomDeadlineOffersOpenPreflightButNeverTake() {
+        let outcome = ReachHomeReadOutcome(error: CallbackDeadlineError(operation: "Home availability refresh"))
+        let hint = ReachHomeAvailability.afterRoomReadFailure(outcome)
+        XCTAssertEqual(outcome, .localDeadline)
+        XCTAssertEqual(hint, .checking)
+        for roomRead in [ReachHomeReadOutcome.checking, outcome] {
+            let preflight = hint.allowsOpenPreflight(knownPair: true, pairRead: .verified, roomRead: roomRead, now: now)
+            let controls = ReachHandControls(availability: hint, now: now,
+                                             phase: .idle, roomID: "room", busy: false, openPreflight: preflight)
+            XCTAssertTrue(controls.canOpen)
+            XCTAssertTrue(controls.openRequiresPreflight)
+            XCTAssertFalse(controls.canTake)
+            XCTAssertFalse(hint.allowsOpenPreflight(knownPair: false, pairRead: .verified, roomRead: roomRead, now: now))
+            XCTAssertFalse(ReachHandControls(availability: hint, now: now, phase: .idle,
+                                             roomID: "room", busy: true, openPreflight: preflight).canOpen)
+        }
+        XCTAssertFalse(hint.allowsOpenPreflight(knownPair: true, pairRead: .verified, roomRead: .unavailable, now: now))
+    }
+
+    func testFirestoreAuthorizationDenialDoesNotPermitOpenPreflight() {
+        for code in [7, 16] {
+            let outcome = ReachHomeReadOutcome(error: NSError(domain: "FIRFirestoreErrorDomain", code: code))
+            XCTAssertEqual(outcome, .authorizationDenied)
+            XCTAssertFalse(outcome.isTransient)
+            XCTAssertNil(ReachHomeAvailability.checking.afterRefreshFailure(
+                transient: outcome.isTransient, knownRelationship: true, now: now
+            ))
+            let hint = ReachHomeAvailability.afterRoomReadFailure(outcome)
+            XCTAssertFalse(hint.allowsOpenPreflight(knownPair: true, pairRead: .verified, roomRead: outcome, now: now))
+            XCTAssertFalse(hint.canOpen(at: now))
+        }
+
+        for code in [4, 14] {
+            let outcome = ReachHomeReadOutcome(error: NSError(domain: "FIRFirestoreErrorDomain", code: code))
+            XCTAssertEqual(outcome, .serviceUnavailable)
+            XCTAssertTrue(outcome.isTransient)
+        }
+    }
+
+    func testExplicitCallScopeCannotFollowAReplacementPair() {
+        let scope = ReachCallPairScope(uid: "local", code: "PAIR")
+        XCTAssertTrue(scope.matches(MemberLockRecord(pairCode: "PAIR")))
+        XCTAssertFalse(scope.matches(MemberLockRecord(pairCode: "OTHER")))
     }
 
     func testTakeRequiresFreshPairAndVerifiedOfferAfterIndependentRoomRead() {

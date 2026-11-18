@@ -5,7 +5,9 @@ struct StagingCallView: View {
     let stopID: UUID
     let availability: ReachHomeAvailability
     let roomID: String?
+    let scope: ReachCallPairScope?
     let now: Date
+    let openPreflight: Bool
     let pairingBusy: Bool
     let withdrawOwnRoom: (String) -> Void
 
@@ -17,7 +19,7 @@ struct StagingCallView: View {
 
     private var controls: ReachHandControls {
         ReachHandControls(availability: availability, now: now, phase: call.phase,
-                          roomID: roomID, busy: call.busy || pairingBusy)
+                          roomID: roomID, busy: call.busy || pairingBusy, openPreflight: openPreflight)
     }
 
     var body: some View {
@@ -100,7 +102,7 @@ struct StagingCallView: View {
                 }
             }
         } else {
-            handButton("Open my hand", subtitle: controls.canOpen ? "Invite your partner" : "Unavailable",
+            handButton("Open my hand", subtitle: openSubtitle,
                        symbol: "hand.raised.fill", tint: .pink, enabled: controls.canOpen, id: "reach.openHand",
                        hint: "Opens an invitation and uses your camera and microphone with permission.") {
                 start()
@@ -114,13 +116,19 @@ struct StagingCallView: View {
         }
     }
 
+    private var openSubtitle: String {
+        guard controls.canOpen else { return "Unavailable" }
+        return controls.openRequiresPreflight ? "Check and invite" : "Invite your partner"
+    }
+
     private var takeSubtitle: String {
         if controls.canTake { return "Their hand is open" }
         return availability.paired(at: now) ? "Waiting for their hand" : "Unavailable"
     }
 
     private func start(joining roomID: String? = nil) {
-        Task { await call.start(joining: roomID) }
+        guard scenePhase == .active, let scope else { return }
+        Task { await call.start(in: scope, joining: roomID) }
     }
 
     private func handButton(_ title: String, subtitle: String, symbol: String, tint: Color,

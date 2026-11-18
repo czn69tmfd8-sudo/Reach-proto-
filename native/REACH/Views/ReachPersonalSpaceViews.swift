@@ -260,7 +260,7 @@ struct SharedProfilePhotographs<Portraits: View>: View {
             // Home's verified-pair display window still governs visibility.
             // Authorization denials and changed identity always clear the portraits.
             if expectedPairCode != nil, let pair, pair.own == Auth.auth().currentUser?.uid,
-               ReachHomeAvailability.isTransientReadError(error) { return }
+               ReachHomeReadOutcome(error: error).isTransient { return }
             clear()
             photoError = "Shared profile photos are unavailable."
         }

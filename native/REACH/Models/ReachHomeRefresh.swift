@@ -9,7 +9,19 @@ extension ReachHomeAvailability {
     /// The caller clears identity on a definitive denial or an auth change.
     func afterRefreshFailure(transient: Bool, knownRelationship: Bool, now: Date) -> Self? {
         guard transient, knownRelationship else { return nil }
-        return paired(at: now) ? self : .checking
+        return paired(at: now) || state == .unavailable ? self : .checking
+    }
+
+    func allowsOpenPreflight(knownPair: Bool, pairRead: ReachHomeReadOutcome?,
+                             roomRead: ReachHomeReadOutcome?, now: Date) -> Bool {
+        guard knownPair else { return false }
+        if state == .ready { return !canOpen(at: now) }
+        return state == .checking && (pairRead?.isTransient == true ||
+            roomRead == .checking || roomRead?.isTransient == true)
+    }
+
+    static func afterRoomReadFailure(_ outcome: ReachHomeReadOutcome) -> Self {
+        outcome.isTransient ? .checking : .unavailable
     }
 
     static func afterRoomCheck(
@@ -35,5 +47,45 @@ extension ReachHomeAvailability {
                 catch { deadline.resolve(.failure(error)) }
             }
         }
+    }
+}
+
+/// Redacted results of read-only preflight. A local deadline says nothing about
+/// what Firestore would have returned after the UI stopped waiting.
+enum ReachHomeReadOutcome: String {
+    case checking = "Checking"
+    case verified = "Verified"
+    case unavailable = "No eligible record"
+    case localDeadline = "Local check timed out"
+    case serviceUnavailable = "Network or service unavailable"
+    case authorizationDenied = "Firestore authorization denied"
+    case failed = "Read failed"
+
+    init(error: Error) {
+        let failure = error as NSError
+        switch (failure.domain, failure.code) {
+        case _ where error is CallbackDeadlineError:
+            self = .localDeadline
+        case ("FIRFirestoreErrorDomain", 7), ("FIRFirestoreErrorDomain", 16):
+            self = .authorizationDenied
+        case ("FIRFirestoreErrorDomain", 4), ("FIRFirestoreErrorDomain", 14),
+             (NSURLErrorDomain, URLError.timedOut.rawValue),
+             (NSURLErrorDomain, URLError.networkConnectionLost.rawValue),
+             (NSURLErrorDomain, URLError.notConnectedToInternet.rawValue):
+            self = .serviceUnavailable
+        default:
+            self = .failed
+        }
+    }
+
+    var isTransient: Bool { self == .localDeadline || self == .serviceUnavailable }
+}
+
+struct ReachCallPairScope: Sendable {
+    let uid: String
+    let code: String
+
+    func matches(_ lock: MemberLockRecord) -> Bool {
+        lock.pairCode == code
     }
 }
