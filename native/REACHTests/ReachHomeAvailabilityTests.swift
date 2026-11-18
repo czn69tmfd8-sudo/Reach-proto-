@@ -13,13 +13,38 @@ final class ReachHomeAvailabilityTests: XCTestCase {
         RoomRecord(hostUid: host, partnerUid: partner, pairCode: code, createdAt: now,
                    expiresAt: now.addingTimeInterval(expiry), active: active, offer: nil, answer: nil)
     }
-    func testTransientFailurePreservesPairingOnlyWithinTheOriginalWindow() {
-        XCTAssertTrue(ReachHomeAvailability.retainsPairingAfterRefreshFailure(
-            transient: true, checkedAt: now, now: now.addingTimeInterval(14)))
-        XCTAssertFalse(ReachHomeAvailability.retainsPairingAfterRefreshFailure(
-            transient: true, checkedAt: now, now: now.addingTimeInterval(15)))
-        XCTAssertFalse(ReachHomeAvailability.retainsPairingAfterRefreshFailure(
-            transient: false, checkedAt: now, now: now.addingTimeInterval(1)))
+    func testTwoDevicesKeepKnownPairingWithDifferentRefreshResults() {
+        let record = pair(room: nil, opener: nil)
+        let other = Partnership(id: "PAIR", localMemberID: "partner", partnerMemberID: "local", partnerDisplayName: "Partner", isAuthorized: true)
+        let first = ReachHomeAvailability.afterRoomCheck(
+            partnership: partnership, pair: record, room: nil, pairCheckedAt: now, now: now
+        )
+        let later = now.addingTimeInterval(16)
+        let second = ReachHomeAvailability.afterRoomCheck(
+            partnership: other, pair: record, room: nil, pairCheckedAt: later, now: later
+        )
+
+        XCTAssertEqual(first.afterRefreshFailure(transient: true, knownRelationship: true, now: later), .checking)
+        XCTAssertFalse(first.canOpen(at: later))
+        XCTAssertTrue(second.canOpen(at: later))
+        XCTAssertNil(first.afterRefreshFailure(transient: true, knownRelationship: false, now: later))
+        XCTAssertNil(first.afterRefreshFailure(transient: false, knownRelationship: true, now: later))
+    }
+
+    func testTakeRequiresFreshPairAndVerifiedOfferAfterIndependentRoomRead() {
+        let record = pair()
+        var offered = room()
+        let later = now.addingTimeInterval(8)
+        func hint(_ room: RoomRecord?, checkedAt: Date, observedAt: Date) -> ReachHomeAvailability {
+            .afterRoomCheck(partnership: partnership, pair: record, room: room, pairCheckedAt: checkedAt, now: observedAt)
+        }
+        XCTAssertFalse(hint(nil, checkedAt: now, observedAt: later).canTake(at: later))
+        XCTAssertFalse(hint(offered, checkedAt: now, observedAt: later).canTake(at: later))
+        offered.offer = SessionDescriptionRecord(type: "offer", sdp: "v=0")
+        let observed = hint(offered, checkedAt: now, observedAt: later)
+        XCTAssertTrue(ReachHandControls(availability: observed, now: later, phase: .idle, roomID: "room", busy: false).canTake)
+        XCTAssertFalse(ReachHandControls(availability: observed, now: later, phase: .preparing, roomID: "room", busy: true).canTake)
+        XCTAssertFalse(observed.canTake(at: now.addingTimeInterval(15)))
     }
 
     func testRefreshTimeoutReleasesCallerEvenWhenReadIsSlow() async {

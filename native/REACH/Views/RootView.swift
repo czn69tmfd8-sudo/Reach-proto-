@@ -1,3 +1,4 @@
+import FirebaseAuth
 import FirebaseFirestore
 import SwiftUI
 import UIKit
@@ -27,6 +28,12 @@ struct RootView: View {
             return false
         }
     }
+    private struct RoomCheck: Sendable {
+        let id: String
+        let pair: PairRecord
+        let partnership: Partnership
+        let store: any ReachRoomStore
+    }
     private struct Status: Sendable {
         let message: String
         var invitation: String?
@@ -37,6 +44,8 @@ struct RootView: View {
         var isPaired = false
         var availability: ReachHomeAvailability = .unavailable
         var checkedAt = Date()
+        var verifiedUID: String?
+        var roomCheck: RoomCheck?
     }
     private enum MenuPage: String, Identifiable {
         case pairing, connection, privacy, security, about
@@ -54,6 +63,7 @@ struct RootView: View {
     @StateObject private var call = StagingCallController()
     @State private var menuPage: MenuPage?
     @State private var status = Status(message: "Checking staging pairing…", availability: .checking)
+    @State private var authenticatedUID: String?
     @State private var input = ""
     @State private var action: Action? = .refresh()
     @State private var confirmRevocation = false
@@ -85,15 +95,39 @@ struct RootView: View {
                     self.action = nil
                     return
                 }
+                let previous = status
                 status = updated
+                if let check = updated.roomCheck {
+                    if previous.verifiedUID == updated.verifiedUID,
+                       previous.revocableCode == updated.revocableCode,
+                       previous.roomID == updated.roomID,
+                       previous.ownRoomID == updated.ownRoomID,
+                       previous.availability.paired(at: Date()) {
+                        status.availability = previous.availability
+                    }
+                    let room = try? await ReachHomeAvailability.boundedRefresh {
+                        try await check.store.room(id: check.id)
+                    }
+                    guard !Task.isCancelled, self.action == action, scenePhase == .active else {
+                        if !Task.isCancelled, self.action == action { self.action = nil }
+                        return
+                    }
+                    guard Auth.auth().currentUser?.uid == updated.verifiedUID else {
+                        throw StagingCallPreflightError.notAuthorized
+                    }
+                    status.availability = ReachHomeAvailability.afterRoomCheck(
+                        partnership: check.partnership, pair: check.pair, room: room,
+                        pairCheckedAt: updated.checkedAt, now: Date()
+                    )
+                }
                 if case .accept = action { input = "" }
             } catch {
                 guard !Task.isCancelled, self.action == action else { return }
                 let transient = action.isRefresh && ReachHomeAvailability.isTransientReadError(error)
-                if status.isPaired && ReachHomeAvailability.retainsPairingAfterRefreshFailure(
-                    transient: transient, checkedAt: status.checkedAt, now: Date()
+                if let recovery = status.availability.afterRefreshFailure(
+                    transient: transient, knownRelationship: hasKnownRelationship, now: Date()
                 ) {
-                    // Keep the existing display authorization only until its original expiry.
+                    status.availability = recovery
                     self.action = nil
                     return
                 }
@@ -108,6 +142,22 @@ struct RootView: View {
                 }
             }
             self.action = nil
+        }
+        .task {
+            guard (try? FirebaseBootstrap.configureStaging()) != nil else { return }
+            let auth = Auth.auth()
+            let (changes, continuation) = AsyncStream<Void>.makeStream()
+            let handle = auth.addStateDidChangeListener { _, _ in continuation.yield(()) }
+            defer { auth.removeStateDidChangeListener(handle) }
+            for await _ in changes {
+                authenticatedUID = auth.currentUser?.uid
+                if let verifiedUID = status.verifiedUID, verifiedUID != authenticatedUID {
+                    status = Status(message: "Checking staging pairing…", availability: .checking)
+                    if scenePhase == .active && (action == nil || action?.isRefresh == true) {
+                        action = .refresh()
+                    }
+                }
+            }
         }
         // Read-only availability refresh. No joining, media start or lock changes.
         .task {
@@ -134,9 +184,17 @@ struct RootView: View {
         }
     }
 
+    private var hasKnownRelationship: Bool {
+        status.isPaired && status.verifiedUID != nil && status.verifiedUID == authenticatedUID
+    }
+
+    private var callAvailability: ReachHomeAvailability {
+        status.isPaired && !hasKnownRelationship ? .checking : status.availability
+    }
+
     private func tabs(now: Date) -> some View {
         let incoming = scenePhase == .active && ReachHandControls(
-            availability: status.availability, now: now, phase: call.phase,
+            availability: callAvailability, now: now, phase: call.phase,
             roomID: status.roomID, busy: call.busy || (action != nil && action?.isRefresh != true)
         ).canTake
         return TabView(selection: Binding(get: { appState.selectedTab }, set: { tab in
@@ -168,27 +226,27 @@ struct RootView: View {
     }
 
     @ViewBuilder private func homeTab(now: Date) -> some View {
-        let paired = scenePhase == .active && status.isPaired &&
-            ReachHomeAvailability.pairingIsFresh(checkedAt: status.checkedAt, now: now)
+        let paired = scenePhase == .active && hasKnownRelationship
+        let fresh = paired && ReachHomeAvailability.pairingIsFresh(checkedAt: status.checkedAt, now: now)
         #if REACH_SHARED_PROFILE_PHOTOS
         // Keep photo state above the navigation stack, so pushing Messenger
         // cannot tear down the Home portraits or their authorization checks.
-        SharedProfilePhotographs(editable: false, enabled: paired, expectedPairCode: status.revocableCode) { own, partner in
-            NavigationStack { home(now: now, paired: paired, own: own, partner: partner) }
+        SharedProfilePhotographs(editable: false, enabled: fresh, expectedPairCode: status.revocableCode) { own, partner in
+            NavigationStack { home(now: now, paired: paired, pairingVerified: fresh, own: own, partner: partner) }
                 .id(homeNavigationID)
         }
         #else
-        NavigationStack { home(now: now, paired: paired, own: nil, partner: nil) }
+        NavigationStack { home(now: now, paired: paired, pairingVerified: fresh, own: nil, partner: nil) }
             .id(homeNavigationID)
         #endif
     }
 
-    private func home(now: Date, paired: Bool, own: UIImage?, partner: UIImage?) -> some View {
+    private func home(now: Date, paired: Bool, pairingVerified: Bool, own: UIImage?, partner: UIImage?) -> some View {
         ReachPage {
             homeHeader
-            ReachHomeIdentityHeader(paired: paired, own: own, partner: partner)
+            ReachHomeIdentityHeader(paired: paired, pairingVerified: pairingVerified, own: own, partner: partner)
                 .shadow(color: .black.opacity(0.7), radius: 5)
-            StagingCallView(call: call, stopID: mediaStopID, availability: status.availability,
+            StagingCallView(call: call, stopID: mediaStopID, availability: callAvailability,
                             roomID: status.roomID, now: now, pairingBusy: action != nil && action?.isRefresh != true) { roomID in
                 action = .clearOwnSession(roomID)
             }
@@ -363,26 +421,21 @@ struct RootView: View {
         guard let lock else {
             return Status(message: "This installation has no staging pairing.", canPair: true, availability: .unpaired)
         }
-        let checkedAt = Date()
         let pair = try await pairs.pair(code: lock.pairCode)
+        let checkedAt = Date()
         try Task.checkCancellation()
+        guard await dependencies.auth.currentUID() == uid else { throw StagingCallPreflightError.notAuthorized }
         switch PairingAuthorization.resolve(uid: uid, memberLock: lock, pairCode: lock.pairCode, pair: pair) {
         case .authorized(let partnership):
             guard let pair else { return Status(message: "Pairing could not be verified.") }
-            // A display read may fail while offline or for a stale/expired room.
-            // Never present a joinable hand without a verified current room.
-            let room: RoomRecord?
-            if let roomID = pair.activeRoom { room = try? await dependencies.rooms.room(id: roomID) }
-            else { room = nil }
-            try Task.checkCancellation()
-            guard await dependencies.auth.currentUID() == uid else { throw StagingCallPreflightError.notAuthorized }
-            var availability = ReachHandControls.verifiedAvailability(partnership: partnership, pair: pair, room: room, now: Date())
-            availability.verifiedUntil = min(availability.verifiedUntil, checkedAt.addingTimeInterval(15))
+            let roomCheck = pair.activeRoom.map { RoomCheck(id: $0, pair: pair, partnership: partnership, store: dependencies.rooms) }
+            let availability: ReachHomeAvailability = roomCheck != nil ? .checking : .afterRoomCheck(
+                partnership: partnership, pair: pair, room: nil, pairCheckedAt: checkedAt, now: checkedAt
+            )
             return Status(message: "Paired and authorized in staging.", revocableCode: lock.pairCode,
                           roomID: pair.activeRoom, ownRoomID: pair.openedBy == uid ? pair.activeRoom : nil,
-                          isPaired: true,
-                          availability: availability,
-                          checkedAt: checkedAt)
+                          isPaired: true, availability: availability, checkedAt: checkedAt,
+                          verifiedUID: uid, roomCheck: roomCheck)
         case .pairRevoked:
             return Status(message: "Native pairing revoked. You can pair again.", canPair: true, availability: .unpaired)
         case .pairIncomplete:

@@ -5,8 +5,20 @@ extension ReachHomeAvailability {
         checkedAt.addingTimeInterval(15) > now
     }
 
-    static func retainsPairingAfterRefreshFailure(transient: Bool, checkedAt: Date, now: Date) -> Bool {
-        transient && Self.pairingIsFresh(checkedAt: checkedAt, now: now)
+    /// A retryable read preserves the known relationship without renewing a hand hint.
+    /// The caller clears identity on a definitive denial or an auth change.
+    func afterRefreshFailure(transient: Bool, knownRelationship: Bool, now: Date) -> Self? {
+        guard transient, knownRelationship else { return nil }
+        return paired(at: now) ? self : .checking
+    }
+
+    static func afterRoomCheck(
+        partnership: Partnership, pair: PairRecord, room: RoomRecord?,
+        pairCheckedAt: Date, now: Date
+    ) -> Self {
+        var hint = ReachHandControls.verifiedAvailability(partnership: partnership, pair: pair, room: room, now: now)
+        hint.verifiedUntil = min(hint.verifiedUntil, pairCheckedAt.addingTimeInterval(15))
+        return hint
     }
 
     /// Firebase's callback can outlive a cancelled Swift task. Bound the UI's

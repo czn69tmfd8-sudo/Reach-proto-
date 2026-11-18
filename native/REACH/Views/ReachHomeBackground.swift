@@ -58,6 +58,7 @@ struct ReachConnectionHeart: View {
 struct ReachHomeIdentityHeader: View {
     @EnvironmentObject private var appearance: ReachAppearanceStore
     var paired = false
+    var pairingVerified = false
     var own: UIImage?
     var partner: UIImage?
     @ScaledMetric(relativeTo: .title) private var photoSize: CGFloat = 104
@@ -70,7 +71,8 @@ struct ReachHomeIdentityHeader: View {
             identityPortraits(appearance.ownPhoto, appearance.partnerPhoto)
             #endif
             if paired {
-                Label("Pairing verified", systemImage: "checkmark.circle")
+                Label(pairingVerified ? "Pairing verified" : "Paired · reconnecting",
+                      systemImage: pairingVerified ? "checkmark.circle" : "link")
                     .font(.caption.weight(.medium))
                     .padding(.horizontal, 8).padding(.vertical, 4)
                     .background(.black.opacity(0.54), in: Capsule())

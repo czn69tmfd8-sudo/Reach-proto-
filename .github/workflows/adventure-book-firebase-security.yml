@@ -13,6 +13,7 @@ on:
       - fix/build21-call-controls
       - integration/build21-messenger-call-controls
       - fix/build22-home-stability
+      - fix/build23-pairing-call-state
       - release/build-23-preparation
     paths:
       # Recheck integration changes to the iOS client alongside candidate rules.
