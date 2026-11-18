@@ -9,15 +9,20 @@ extension ReachHomeAvailability {
     /// The caller clears identity on a definitive denial or an auth change.
     func afterRefreshFailure(transient: Bool, knownRelationship: Bool, now: Date) -> Self? {
         guard transient, knownRelationship else { return nil }
-        return paired(at: now) || state == .unavailable ? self : .checking
+        return paired(at: now) ? self : .checking
     }
 
     func allowsOpenPreflight(knownPair: Bool, pairRead: ReachHomeReadOutcome?,
                              roomRead: ReachHomeReadOutcome?, now: Date) -> Bool {
-        guard knownPair else { return false }
+        guard knownPair, pairRead != .authorizationDenied else { return false }
         if state == .ready { return !canOpen(at: now) }
-        return state == .checking && (pairRead?.isTransient == true ||
-            roomRead == .checking || roomRead?.isTransient == true)
+        let retrying = pairRead == .checking || pairRead?.isTransient == true ||
+            roomRead == .checking || roomRead?.isTransient == true
+        switch state {
+        case .checking: return retrying
+        case .ownHand, .partnerHand: return retrying && !paired(at: now)
+        default: return false
+        }
     }
 
     static func afterRoomReadFailure(_ outcome: ReachHomeReadOutcome) -> Self {
@@ -79,6 +84,17 @@ enum ReachHomeReadOutcome: String {
     }
 
     var isTransient: Bool { self == .localDeadline || self == .serviceUnavailable }
+}
+
+struct ReachHomeReadSample {
+    let outcome: ReachHomeReadOutcome
+    let date = Date()
+}
+
+struct ReachHomeTransition {
+    let previous: String
+    let current: String
+    let date = Date()
 }
 
 struct ReachCallPairScope: Sendable {

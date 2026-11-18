@@ -227,8 +227,14 @@ final class StagingCallController: ObservableObject {
             let checkpoint: ReachDiagnosticSample.Event?
             switch ReachHomeReadOutcome(error: error) {
             case .authorizationDenied: checkpoint = .firestoreAuthorizationDenied
-            case .localDeadline, .serviceUnavailable: checkpoint = .stagingServiceUnavailable
-            default: checkpoint = nil
+            case .localDeadline: checkpoint = .localCheckTimedOut
+            case .serviceUnavailable: checkpoint = .stagingServiceUnavailable
+            default:
+                switch error as? FirestoreRoomStoreError {
+                case .alreadyOpen?, .partnerAlreadyOpen?: checkpoint = .activeRoomConflict
+                default:
+                    checkpoint = error as? ReachRoomCoordinatorError == .partnerAlreadyOpen ? .activeRoomConflict : nil
+                }
             }
             await fail(error, token: token, checkpoint: checkpoint)
         }
@@ -242,8 +248,9 @@ final class StagingCallController: ObservableObject {
         }
     }
 
-    func end() async {
+    func end(backgrounded: Bool = false) async {
         guard phase.hasStarted else { return }
+        if backgrounded { diagnostics.record(.backgroundEnd) }
         await stop(message: nil)
     }
 

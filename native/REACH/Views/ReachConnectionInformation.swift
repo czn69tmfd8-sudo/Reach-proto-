@@ -4,8 +4,9 @@ import UIKit
 struct ReachConnectionInformation: View {
     let page: String
     @ObservedObject var call: StagingCallController
-    let pairRead: ReachHomeReadOutcome?
-    let roomRead: ReachHomeReadOutcome?
+    let pairCheck: ReachHomeReadSample?
+    let roomCheck: ReachHomeReadSample?
+    let homeTransition: ReachHomeTransition?
     @Environment(\.openURL) private var openURL
     var body: some View {
         ReachGlassPanel {
@@ -37,8 +38,12 @@ struct ReachConnectionInformation: View {
                         VStack(alignment: .leading, spacing: 10) {
                             Text(call.phase.title ?? "No active call")
                                 .font(.subheadline.weight(.semibold))
-                            if let pairRead { LabeledContent("Home pairing check", value: pairRead.rawValue) }
-                            if let roomRead { LabeledContent("Home room check", value: roomRead.rawValue) }
+                            if let pairCheck { homeDiagnostic("Last Home pairing check", pairCheck.outcome.rawValue, pairCheck.date) }
+                            if let roomCheck { homeDiagnostic("Last Home room check", roomCheck.outcome.rawValue, roomCheck.date) }
+                            if let homeTransition {
+                                homeDiagnostic("Last Home state change",
+                                               "\(homeTransition.previous) → \(homeTransition.current)", homeTransition.date)
+                            }
                             if call.diagnostics.events.isEmpty { Text("No call events yet.") }
                             ForEach(call.diagnostics.events) { sample in
                                 LabeledContent(sample.event.rawValue) {
@@ -52,6 +57,17 @@ struct ReachConnectionInformation: View {
                     }
                 }
             }
+        }
+    }
+
+    private func homeDiagnostic(_ title: String, _ detail: String, _ date: Date) -> some View {
+        LabeledContent {
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(detail).multilineTextAlignment(.trailing)
+                Text(date, format: .dateTime.hour().minute().second()).font(.caption2)
+            }
+        } label: {
+            Text(title)
         }
     }
 }

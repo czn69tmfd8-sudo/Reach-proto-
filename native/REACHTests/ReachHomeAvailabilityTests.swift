@@ -13,6 +13,80 @@ final class ReachHomeAvailabilityTests: XCTestCase {
         RoomRecord(hostUid: host, partnerUid: partner, pairCode: code, createdAt: now,
                    expiresAt: now.addingTimeInterval(expiry), active: active, offer: nil, answer: nil)
     }
+    func testForegroundReturnCanRecheckWhilePairReadIsPending() {
+        let available = ReachHomeAvailability.checking
+        XCTAssertTrue(available.allowsOpenPreflight(
+            knownPair: true, pairRead: .checking, roomRead: nil, now: now
+        ))
+    }
+
+    func testHangUpAllowsRecheckAsSoonAsCallStopsBeingBusy() {
+        let available = ReachHomeAvailability.checking
+        let preflight = available.allowsOpenPreflight(
+            knownPair: true, pairRead: .checking, roomRead: nil, now: now
+        )
+        XCTAssertFalse(ReachHandControls(availability: available, now: now, phase: .ending,
+                                         roomID: nil, busy: true, openPreflight: preflight).canOpen)
+        let idle = ReachHandControls(availability: available, now: now, phase: .idle,
+                                     roomID: nil, busy: false, openPreflight: preflight)
+        XCTAssertTrue(idle.canOpen)
+        XCTAssertFalse(idle.canTake)
+    }
+
+    func testExpiredHandHintCanRecheckWhileRoomReadIsPending() {
+        for state in [ReachHomeAvailability.State.ownHand, .partnerHand] {
+            let hint = ReachHomeAvailability(state: state, verifiedUntil: now.addingTimeInterval(1))
+            XCTAssertFalse(hint.allowsOpenPreflight(
+                knownPair: true, pairRead: .verified, roomRead: .checking, now: now
+            ))
+            let later = now.addingTimeInterval(1)
+            let preflight = hint.allowsOpenPreflight(
+                knownPair: true, pairRead: .verified, roomRead: .checking, now: later
+            )
+            let controls = ReachHandControls(availability: hint, now: later, phase: .idle,
+                                             roomID: "room", busy: false, openPreflight: preflight)
+            XCTAssertTrue(controls.canOpen)
+            XCTAssertFalse(controls.canTake)
+            XCTAssertFalse(controls.canWithdraw)
+        }
+    }
+
+    func testTransientPairReadReleasesRoomUnavailableWithoutRenewingRoomHint() {
+        let prior = ReachHomeAvailability.afterRoomReadFailure(.authorizationDenied)
+        let next = prior.afterRefreshFailure(transient: true, knownRelationship: true, now: now)
+        XCTAssertEqual(next, .checking)
+        XCTAssertTrue(next?.allowsOpenPreflight(
+            knownPair: true, pairRead: .localDeadline, roomRead: nil, now: now
+        ) == true)
+        XCTAssertFalse(next?.canTake(at: now) == true)
+    }
+
+    func testCurrentRoomBlocksOpenAndExpiredRoomCannotBeTakenOrReplaced() {
+        var offered = room(expiry: 2)
+        offered.offer = SessionDescriptionRecord(type: "offer", sdp: "v=0")
+        let fresh = ReachHomeAvailability.afterRoomCheck(
+            partnership: partnership, pair: pair(), room: offered, pairCheckedAt: now, now: now
+        )
+        let current = ReachHandControls(
+            availability: fresh, now: now, phase: .idle, roomID: "room", busy: false,
+            openPreflight: fresh.allowsOpenPreflight(knownPair: true, pairRead: .checking, roomRead: .verified, now: now)
+        )
+        XCTAssertFalse(current.canOpen)
+        XCTAssertTrue(current.canTake)
+        let later = now.addingTimeInterval(2)
+        let expired = ReachHomeAvailability.afterRoomCheck(
+            partnership: partnership, pair: pair(), room: offered, pairCheckedAt: later, now: later
+        )
+        XCTAssertFalse(expired.canTake(at: later))
+        XCTAssertFalse(expired.allowsOpenPreflight(knownPair: true, pairRead: .verified, roomRead: .unavailable, now: later))
+    }
+
+    func testPendingRoomReadCannotOverrideDefinitivePairDenial() {
+        let hint = ReachHomeAvailability.checking
+        XCTAssertFalse(hint.allowsOpenPreflight(knownPair: true, pairRead: .authorizationDenied, roomRead: .checking, now: now))
+        XCTAssertFalse(hint.allowsOpenPreflight(knownPair: false, pairRead: .checking, roomRead: .checking, now: now))
+    }
+
     func testTwoDevicesKeepKnownPairingWithDifferentRefreshResults() {
         let record = pair(room: nil, opener: nil)
         let other = Partnership(id: "PAIR", localMemberID: "partner", partnerMemberID: "local", partnerDisplayName: "Partner", isAuthorized: true)

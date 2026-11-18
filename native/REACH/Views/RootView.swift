@@ -44,6 +44,7 @@ struct RootView: View {
         var availability: ReachHomeAvailability = .unavailable
         var checkedAt = Date()
         var verifiedUID: String?
+        var verifiedPartnerUID: String?
         var roomCheck: RoomCheck?
     }
     private enum MenuPage: String, Identifiable {
@@ -63,8 +64,10 @@ struct RootView: View {
     @State private var menuPage: MenuPage?
     @State private var status = Status(message: "Checking staging pairing…", availability: .checking)
     @State private var authenticatedUID: String?
-    @State private var pairRead: ReachHomeReadOutcome?
+    @State private var pairCheck: ReachHomeReadSample?
+    @State private var roomCheck: ReachHomeReadSample?
     @State private var roomRead: ReachHomeReadOutcome?
+    @State private var homeTransition: ReachHomeTransition?
     @State private var input = ""
     @State private var action: Action? = .refresh()
     @State private var confirmRevocation = false
@@ -76,6 +79,9 @@ struct RootView: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
             tabs(now: timeline.date)
+                .onChange(of: readinessLabel(now: timeline.date)) { previous, current in
+                    homeTransition = ReachHomeTransition(previous: previous, current: current)
+                }
         }
         .background(ReachKeyboardObserver().frame(width: 0, height: 0))
         .environmentObject(appearance)
@@ -98,7 +104,10 @@ struct RootView: View {
                 }
                 let previous = status
                 status = updated
-                pairRead = updated.isPaired ? .verified : .unavailable
+                pairCheck = ReachHomeReadSample(outcome: updated.isPaired ? .verified : .unavailable)
+                if previous.verifiedUID != updated.verifiedUID || previous.revocableCode != updated.revocableCode {
+                    roomCheck = nil
+                }
                 roomRead = nil
                 if let check = updated.roomCheck {
                     if previous.verifiedUID == updated.verifiedUID,
@@ -137,13 +146,14 @@ struct RootView: View {
                         roomRead = outcome
                         status.availability = ReachHomeAvailability.afterRoomReadFailure(outcome)
                     }
+                    if let roomRead { roomCheck = ReachHomeReadSample(outcome: roomRead) }
                 }
                 if case .accept = action { input = "" }
             } catch {
                 guard !Task.isCancelled, self.action == action else { return }
                 let outcome = ReachHomeReadOutcome(error: error)
                 if action.isRefresh {
-                    pairRead = outcome
+                    pairCheck = ReachHomeReadSample(outcome: outcome)
                     roomRead = nil
                 }
                 let transient = action.isRefresh && outcome.isTransient
@@ -176,8 +186,10 @@ struct RootView: View {
                 authenticatedUID = auth.currentUser?.uid
                 if let verifiedUID = status.verifiedUID, verifiedUID != authenticatedUID {
                     status = Status(message: "Checking staging pairing…", availability: .checking)
-                    pairRead = nil
+                    pairCheck = nil
+                    roomCheck = nil
                     roomRead = nil
+                    homeTransition = nil
                     if scenePhase == .active && (action == nil || action?.isRefresh == true) {
                         action = .refresh()
                     }
@@ -223,6 +235,23 @@ struct RootView: View {
         status.isPaired && callScope == nil ? .checking : status.availability
     }
 
+    private func canRecheckBeforeOpening(now: Date) -> Bool {
+        // A foreground/teardown refresh can be pending before it has any result.
+        callAvailability.allowsOpenPreflight(
+            knownPair: callScope != nil,
+            pairRead: action?.isRefresh == true ? .checking : pairCheck?.outcome,
+            roomRead: roomRead, now: now
+        )
+    }
+
+    private func readinessLabel(now: Date) -> String {
+        if scenePhase != .active { return "Home inactive" }
+        if call.phase.hasStarted || call.busy { return "Call in progress or ending" }
+        if let action, !action.isRefresh { return "Pairing action in progress" }
+        if canRecheckBeforeOpening(now: now) { return "Check and invite" }
+        return callAvailability.title(at: now)
+    }
+
     private func tabs(now: Date) -> some View {
         let incoming = scenePhase == .active && ReachHandControls(
             availability: callAvailability, now: now, phase: call.phase,
@@ -262,7 +291,10 @@ struct RootView: View {
         #if REACH_SHARED_PROFILE_PHOTOS
         // Keep photo state above the navigation stack, so pushing Messenger
         // cannot tear down the Home portraits or their authorization checks.
-        SharedProfilePhotographs(editable: false, enabled: fresh, expectedPairCode: status.revocableCode) { own, partner in
+        let photoScope = callScope.flatMap { scope in
+            status.verifiedPartnerUID.map { ReachProfilePhotoScope(code: scope.code, own: scope.uid, partner: $0) }
+        }
+        SharedProfilePhotographs(editable: false, enabled: fresh, expectedScope: photoScope) { own, partner in
             NavigationStack { home(now: now, paired: paired, pairingVerified: fresh, own: own, partner: partner) }
                 .id(homeNavigationID)
         }
@@ -280,9 +312,7 @@ struct RootView: View {
             let scope = callScope
             StagingCallView(call: call, stopID: mediaStopID, availability: callAvailability,
                             roomID: status.roomID, scope: scope, now: now,
-                            openPreflight: callAvailability.allowsOpenPreflight(
-                                knownPair: scope != nil, pairRead: pairRead, roomRead: roomRead, now: now
-                            ), pairingBusy: action != nil && action?.isRefresh != true) { roomID in
+                            openPreflight: canRecheckBeforeOpening(now: now), pairingBusy: action != nil && action?.isRefresh != true) { roomID in
                 action = .clearOwnSession(roomID)
             }
             if call.phase.showsHandCards && (!status.isPaired || status.availability.state == .unavailable) {
@@ -297,7 +327,10 @@ struct RootView: View {
             NavigationStack {
                 ReachPage {
                     if page == .pairing { pairingPanel }
-                    else { ReachConnectionInformation(page: page.rawValue, call: call, pairRead: pairRead, roomRead: roomRead) }
+                    else {
+                        ReachConnectionInformation(page: page.rawValue, call: call, pairCheck: pairCheck,
+                                                   roomCheck: roomCheck, homeTransition: homeTransition)
+                    }
                 }
                 .navigationTitle(page.title).navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { menuPage = nil } } }
@@ -470,7 +503,7 @@ struct RootView: View {
             return Status(message: "Paired and authorized in staging.", revocableCode: lock.pairCode,
                           roomID: pair.activeRoom, ownRoomID: pair.openedBy == uid ? pair.activeRoom : nil,
                           isPaired: true, availability: availability, checkedAt: checkedAt,
-                          verifiedUID: uid, roomCheck: roomCheck)
+                          verifiedUID: uid, verifiedPartnerUID: partnership.partnerMemberID, roomCheck: roomCheck)
         case .pairRevoked:
             return Status(message: "Native pairing revoked. You can pair again.", canPair: true, availability: .unpaired)
         case .pairIncomplete:

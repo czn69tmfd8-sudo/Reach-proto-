@@ -73,7 +73,7 @@ struct ActiveVideoCallView: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .background { Task { await call.end() } }
+            if phase == .background { Task { await call.end(backgrounded: true) } }
             if phase == .active { refreshAudioOutput() }
         }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification).receive(on: RunLoop.main)) { _ in
