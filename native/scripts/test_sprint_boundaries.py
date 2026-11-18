@@ -82,7 +82,8 @@ class SprintBoundaryTests(unittest.TestCase):
         for forbidden in ['import Firebase', 'Firestore', 'URLSession', 'NativeWebRTCPeer', 'PairingAuthorization']:
             self.assertNotIn(forbidden, source)
         root = (ROOT / 'native/REACH/Views/RootView.swift').read_text()
-        self.assertIn('tabs(now: timeline.date)', root)
+        self.assertIn('homeWithPortraits(now: timeline.date)', root)
+        self.assertIn('tabs(now: now, own: own, partner: partner)', root)
         self.assertIn('ReachDailyMomentView(now: now)', root)
 
     def test_relationship_validation_signs_only_the_simulator_and_preserves_build_five_workflows(self):

@@ -126,6 +126,25 @@ final class FirestorePairStore: @unchecked Sendable, ReachPairStore {
         return MemberLockRecord(pairCode: pairCode)
     }
 
+    func observeMemberLock(uid: String) -> AsyncThrowingStream<MemberLockRecord?, Error> {
+        AsyncThrowingStream { continuation in
+            let registration = db.collection(ReachCollections.memberLocks).document(uid)
+                .addSnapshotListener(includeMetadataChanges: true) { snapshot, error in
+                    if let error {
+                        continuation.finish(throwing: error)
+                        return
+                    }
+                    guard let snapshot, ReachCallDocumentPolicy.isAuthoritative(
+                        isFromCache: snapshot.metadata.isFromCache, hasPendingWrites: snapshot.metadata.hasPendingWrites
+                    ) else { return }
+                    let code = snapshot.data()?["pairCode"] as? String
+                    continuation.yield(code.flatMap { $0.isEmpty ? nil : MemberLockRecord(pairCode: $0) })
+                }
+            let listenerBox = PairListenerRegistrationBox(registration: registration)
+            continuation.onTermination = { _ in listenerBox.registration.remove() }
+        }
+    }
+
     func pair(code: String) async throws -> PairRecord? {
         let snapshot = try await db.collection(ReachCollections.pairInvites)
             .document(code)

@@ -179,7 +179,7 @@ struct SharedProfilePhotographs<Portraits: View>: View {
             }
         }
         .task {
-            guard (try? AdventurePrivatePhotoClient.profileTransport()) != nil else { return }
+            guard editable, (try? AdventurePrivatePhotoClient.profileTransport()) != nil else { return }
             let auth = Auth.auth()
             let (events, continuation) = AsyncStream<Void>.makeStream()
             let handle = auth.addStateDidChangeListener { _, _ in _ = continuation.yield(()) }
@@ -190,7 +190,7 @@ struct SharedProfilePhotographs<Portraits: View>: View {
             }
         }
         .task(id: RefreshKey(scene: scene, authRevision: authRevision, enabled: enabled, scope: expectedScope)) {
-            if scene != .active || (!editable && photos.scope != expectedScope) { clear() }
+            if (editable && scene != .active) || (!editable && photos.scope != expectedScope) { clear() }
             guard enabled, scene == .active, editable || expectedScope != nil else { return }
             while !Task.isCancelled {
                 await refresh()

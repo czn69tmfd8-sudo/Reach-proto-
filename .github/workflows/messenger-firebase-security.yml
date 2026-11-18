@@ -8,6 +8,7 @@ on:
       - fix/build23-pairing-call-state
       - fix/build24-home-call-readiness
       - fix/build25-home-reliability
+      - fix/build26-home-state-architecture
       - release/build-23-preparation
     paths:
       - 'native/firebase/**'

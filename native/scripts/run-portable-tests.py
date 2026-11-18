@@ -28,7 +28,7 @@ sources = [
 test_names = [
     'ReachSignalingValidationTests', 'ReachRoomCoordinatorTests', 'PairSessionInterpreterTests',
     'RelationshipJournalTests', 'LocalRelationshipFileTests', 'SharedContentPolicyTests', 'RelationshipSpaceTests', 'ReachCallReviewTests',
-    'ReachHomeAvailabilityTests', 'ReachProfilePhotoCacheTests', 'ReachAppearancePreferencesTests', 'AdventureMemoryTests', 'AdventureBookTests', 'AdventureBookRepositoryTests', 'AdventureBookPreviewRepositoryTests', 'AdventurePhotoUploadTests',
+    'ReachHomeAvailabilityTests', 'ReachHomeRelationshipTests', 'ReachProfilePhotoCacheTests', 'ReachAppearancePreferencesTests', 'AdventureMemoryTests', 'AdventureBookTests', 'AdventureBookRepositoryTests', 'AdventureBookPreviewRepositoryTests', 'AdventurePhotoUploadTests',
     'ReachConnectionMachineTests', 'ReachJoinPolicyTests', 'CallbackDeadlineTests',
     'ReachMediaPolicyTests', 'SignalingInboxTests', 'ReachEnvironmentTests',
     'ReachSessionLifecycleTests', 'ReachReconnectPolicyTests', 'SessionContinuityPolicyTests',
