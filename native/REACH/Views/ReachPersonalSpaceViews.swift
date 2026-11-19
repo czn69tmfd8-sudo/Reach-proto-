@@ -141,7 +141,8 @@ struct ReachProfilePanel: View {
 #if REACH_SHARED_PROFILE_PHOTOS
 struct SharedProfilePhotographs<Portraits: View>: View {
     let editable: Bool
-    private let enabled: Bool
+    private let homeAccountID: String?
+    private let displayTick: ContinuousClock.Instant
     private let expectedScope: ReachProfilePhotoScope?
     private let portraits: (UIImage?, UIImage?) -> Portraits
 
@@ -153,18 +154,25 @@ struct SharedProfilePhotographs<Portraits: View>: View {
     @State private var authRevision = 0
     @State private var mutationRevision = 0
 
-    init(editable: Bool, enabled: Bool = true, expectedScope: ReachProfilePhotoScope? = nil,
+    init(editable: Bool, expectedScope: ReachProfilePhotoScope? = nil, homeAccountID: String? = nil,
+         displayTick: ContinuousClock.Instant = ContinuousClock().now,
          @ViewBuilder portraits: @escaping (UIImage?, UIImage?) -> Portraits) {
         self.editable = editable
-        self.enabled = enabled
+        self.homeAccountID = homeAccountID
+        self.displayTick = displayTick
         self.expectedScope = expectedScope
         self.portraits = portraits
     }
 
     var body: some View {
         VStack(spacing: 12) {
-            let visible = photos.visible(expectedScope: editable ? photos.scope : expectedScope,
-                                         authorized: enabled && scene == .active)
+            // The root tick re-evaluates expiry even when no reads finish.
+            // A photo callback can render between ticks, so sample the live clock too.
+            let now = max(displayTick, ContinuousClock().now)
+            let visible = editable
+                ? photos.visible(expectedScope: photos.scope, authorized: scene == .active)
+                : photos.visibleOnHome(expectedScope: expectedScope, accountID: homeAccountID,
+                                       active: scene == .active, now: now)
             portraits(visible.0, visible.1)
             if editable {
                 PhotosPicker(selection: $selection, matching: .images) {
@@ -189,9 +197,9 @@ struct SharedProfilePhotographs<Portraits: View>: View {
                 authRevision += 1
             }
         }
-        .task(id: RefreshKey(scene: scene, authRevision: authRevision, enabled: enabled, scope: expectedScope)) {
+        .task(id: RefreshKey(scene: scene, authRevision: authRevision, accountID: homeAccountID, scope: expectedScope)) {
             if (editable && scene != .active) || (!editable && photos.scope != expectedScope) { clear() }
-            guard enabled, scene == .active, editable || expectedScope != nil else { return }
+            guard scene == .active, editable || (expectedScope != nil && expectedScope?.own == homeAccountID) else { return }
             while !Task.isCancelled {
                 await refresh()
                 do { try await Task.sleep(for: .seconds(5)) }
@@ -209,7 +217,7 @@ struct SharedProfilePhotographs<Portraits: View>: View {
     private struct RefreshKey: Equatable {
         let scene: ScenePhase
         let authRevision: Int
-        let enabled: Bool
+        let accountID: String?
         let scope: ReachProfilePhotoScope?
     }
 
@@ -245,8 +253,11 @@ struct SharedProfilePhotographs<Portraits: View>: View {
             if photos.scope != scope { clear() }
             photos.setScope(scope)
             if !saving { photoError = nil }
-            async let own: Void = refreshPortrait(using: client, scope: scope, ownPhoto: true, revision: revision)
-            async let partner: Void = refreshPortrait(using: client, scope: scope, ownPhoto: false, revision: revision)
+            let generation = photos.authorizationGeneration
+            async let own: Void = refreshPortrait(using: client, scope: scope, ownPhoto: true,
+                                                revision: revision, generation: generation)
+            async let partner: Void = refreshPortrait(using: client, scope: scope, ownPhoto: false,
+                                                    revision: revision, generation: generation)
             _ = await (own, partner)
         } catch {
             guard !Task.isCancelled, scene == .active else { return }
@@ -259,7 +270,7 @@ struct SharedProfilePhotographs<Portraits: View>: View {
 
     @MainActor
     private func refreshPortrait(using client: AdventurePrivatePhotoClient, scope: ReachProfilePhotoScope,
-                                 ownPhoto: Bool, revision: Int) async {
+                                 ownPhoto: Bool, revision: Int, generation: UUID) async {
         let result: ReachProfilePhotoCache<UIImage>.Result
         do {
             let bytes = try await client.readProfilePhoto(
@@ -278,15 +289,16 @@ struct SharedProfilePhotographs<Portraits: View>: View {
             }
         }
         guard !Task.isCancelled, scene == .active, photos.scope == scope,
+              photos.authorizationGeneration == generation,
               Auth.auth().currentUser?.uid == scope.own else { return }
         if case .denied = result {
-            photos.apply(result, ownPhoto: ownPhoto, for: scope)
+            photos.apply(result, ownPhoto: ownPhoto, for: scope, generation: generation)
             selection = nil
             photoError = "Shared profile photos are unavailable."
             return
         }
         guard !ownPhoto || (revision == mutationRevision && !saving) else { return }
-        photos.apply(result, ownPhoto: ownPhoto, for: scope)
+        photos.apply(result, ownPhoto: ownPhoto, for: scope, generation: generation)
         switch result {
         case .failed, .transientFailure:
             if !saving { photoError = "Shared profile photos are unavailable." }
@@ -296,6 +308,7 @@ struct SharedProfilePhotographs<Portraits: View>: View {
 
     private func save(_ item: PhotosPickerItem?) async {
         guard !saving, let scope = photos.scope, scene == .active else { return }
+        let generation = photos.authorizationGeneration
         saving = true
         mutationRevision += 1
         defer {
@@ -311,14 +324,16 @@ struct SharedProfilePhotographs<Portraits: View>: View {
                 }
                 encoded = jpeg
             }
-            guard !Task.isCancelled, photos.scope == scope, scene == .active else { return }
+            guard !Task.isCancelled, photos.scope == scope, scene == .active,
+                  photos.authorizationGeneration == generation else { return }
             try await AdventurePrivatePhotoClient.profileTransport()
                 .saveOwnProfilePhoto(pairCode: scope.code, uid: scope.own, bytes: encoded)
-            guard !Task.isCancelled, photos.scope == scope, scene == .active else { return }
-            photos.apply(.updated(encoded.flatMap { Self.decodedPortrait($0) }), ownPhoto: true, for: scope)
+            guard !Task.isCancelled, photos.scope == scope, scene == .active,
+                  photos.authorizationGeneration == generation else { return }
+            photos.apply(.updated(encoded.flatMap { Self.decodedPortrait($0) }), ownPhoto: true, for: scope, generation: generation)
             photoError = nil
         } catch {
-            guard !Task.isCancelled, photos.scope == scope else { return }
+            guard !Task.isCancelled, photos.scope == scope, photos.authorizationGeneration == generation else { return }
             if (error as? AdventurePrivatePhotoClient.Failure) == .unauthorized ||
                 ReachHomeReadOutcome(error: error) == .authorizationDenied { clear() }
             photoError = "Couldn’t save your profile photo. Try again."

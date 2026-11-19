@@ -20,6 +20,7 @@ on:
       - fix/build24-home-call-readiness
       - fix/build25-home-reliability
       - fix/build26-home-state-architecture
+      - fix/build27-portrait-stability
       - release/build-23-preparation
       - feature/messenger
       - feature/adventure-book-single-app-integration
@@ -122,7 +123,7 @@ jobs:
           set -euo pipefail
           mkdir -p build-logs
           settings=()
-          if [[ "$GITHUB_REF" == "refs/heads/feature/build20-profile-and-adventure-book" || "$GITHUB_REF" == "refs/heads/fix/build21-call-controls" || "$GITHUB_REF" == "refs/heads/feature/messenger" || "$GITHUB_REF" == "refs/heads/integration/build21-messenger-call-controls" || "$GITHUB_REF" == "refs/heads/fix/build22-home-stability" || "$GITHUB_REF" == "refs/heads/release/build-23-preparation" || "$GITHUB_REF" == "refs/heads/fix/build23-pairing-call-state" || "$GITHUB_REF" == "refs/heads/fix/build24-home-call-readiness" || "$GITHUB_REF" == "refs/heads/fix/build25-home-reliability" || "$GITHUB_REF" == "refs/heads/fix/build26-home-state-architecture" ]]; then
+          if [[ "$GITHUB_REF" == "refs/heads/feature/build20-profile-and-adventure-book" || "$GITHUB_REF" == "refs/heads/fix/build21-call-controls" || "$GITHUB_REF" == "refs/heads/feature/messenger" || "$GITHUB_REF" == "refs/heads/integration/build21-messenger-call-controls" || "$GITHUB_REF" == "refs/heads/fix/build22-home-stability" || "$GITHUB_REF" == "refs/heads/release/build-23-preparation" || "$GITHUB_REF" == "refs/heads/fix/build23-pairing-call-state" || "$GITHUB_REF" == "refs/heads/fix/build24-home-call-readiness" || "$GITHUB_REF" == "refs/heads/fix/build25-home-reliability" || "$GITHUB_REF" == "refs/heads/fix/build26-home-state-architecture" || "$GITHUB_REF" == "refs/heads/fix/build27-portrait-stability" ]]; then
             settings+=('SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) REACH_LIVE_ADVENTURE_BOOK REACH_ADVENTURE_BOOK_PHOTOS REACH_SHARED_PROFILE_PHOTOS')
           elif [[ "$GITHUB_REF" == "refs/heads/feature/live-shared-adventure-book" ]]; then
             settings+=('SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) REACH_LIVE_ADVENTURE_BOOK')

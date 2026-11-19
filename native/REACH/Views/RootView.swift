@@ -412,11 +412,8 @@ struct RootView: View {
 
     @ViewBuilder private func homeWithPortraits(now: Date) -> some View {
         #if REACH_SHARED_PROFILE_PHOTOS
-        let enabled = relationship.permitsPortraits(
-            uid: authenticatedUID, active: scenePhase == .active,
-            now: ContinuousClock().now
-        )
-        SharedProfilePhotographs(editable: false, enabled: enabled, expectedScope: relationship.scope) { own, partner in
+        SharedProfilePhotographs(editable: false, expectedScope: relationship.scope,
+                                 homeAccountID: authenticatedUID, displayTick: ContinuousClock().now) { own, partner in
             tabs(now: now, own: own, partner: partner)
         }
         .id(relationship.generation)
